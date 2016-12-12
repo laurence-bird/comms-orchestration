@@ -1,0 +1,5 @@
+monitor-service:
+  image: ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-1.amazonaws.com/orchestration:0.1-SNAPSHOT
+
+  environment:
+    ENV: LOCAL
