@@ -1,9 +1,11 @@
 machine:
+  pre:
+    - curl -sSL https://s3.amazonaws.com/circle-downloads/install-circleci-docker.sh | bash -s -- 1.10.0
   services:
     - docker
 
 dependencies:
-  # CircleCI will magically install pip and cache pip dependencies in requirements.txt
+  # CircleCi will magically install and cache pip dependencies in requirements.txt
   # Cache the resolution-cache and build streams to speed things up
   cache_directories:
     - "~/.sbt"
@@ -11,8 +13,9 @@ dependencies:
     - "project/target/resolution-cache"
 
 test:
-  post:
-    - sbt docker:publishLocal
+  override:
+    - sbt test
+    - sbt dockerComposeTest
 
 deployment:
   uat_and_prd:
