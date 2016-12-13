@@ -13,12 +13,12 @@ import org.apache.kafka.common.serialization.{Deserializer, StringDeserializer}
 import scala.concurrent.Future
 import scala.util.control.NonFatal
 
-case class OrchestrationFlowConfig(hosts: String, groupId: String, topic: String)
+case class OrchestrationGraphConfig(hosts: String, groupId: String, topic: String)
 
-object OrchestrationFlow extends LoggingWithMDC {
+object OrchestrationGraph extends LoggingWithMDC {
   override def loggerName: String = "OrchestrationFlow"
 
-  def apply(consumerDeserializer: Deserializer[Option[Triggered]], orchestrationProcess: (Triggered) => Future[_], config: OrchestrationFlowConfig)
+  def apply(consumerDeserializer: Deserializer[Option[Triggered]], orchestrationProcess: (Triggered) => Future[_], config: OrchestrationGraphConfig)
               (implicit actorSystem: ActorSystem, materializer: Materializer): RunnableGraph[Control] = {
 
     implicit val executionContext = actorSystem.dispatcher

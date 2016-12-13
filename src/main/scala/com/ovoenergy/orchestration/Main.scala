@@ -26,23 +26,27 @@ object Main extends App
   implicit val materializer = ActorMaterializer()
   implicit val executionContext = actorSystem.dispatcher
 
+  val emailOrchestrator = EmailOrchestration(OrchestratedEmailProducer(
+    hosts = config.getString("kafka.hosts"),
+    topic = config.getString("kafka.topics.orchestrated.email")
+  )) _
 
-  val orchestrationFlow =  OrchestrationFlow(
+  val orchestrator = Orchestrator(
+    emailOrchestrator = emailOrchestrator
+  ) _
+
+
+  val orchestrationGraph =  OrchestrationGraph(
     consumerDeserializer = Serialisation.triggeredDeserializer,
-    orchestrationProcess =  Orchestrator(
-      emailOrchestrator = EmailOrchestration(OrchestratedEmailProducer(
-        hosts = config.getString("kafka.hosts"),
-        topic = config.getString("kafka.topics.orchestrated.email")
-      ))
-    ),
-    config = OrchestrationFlowConfig(
+    orchestrationProcess = orchestrator,
+    config = OrchestrationGraphConfig(
       hosts = config.getString("kafka.hosts"),
       groupId = config.getString("kafka.group.id"),
       topic = config.getString("kafka.topics.triggered")
     )
   )
 
-  orchestrationFlow.run()
+  orchestrationGraph.run()
 
   log.info("Orchestration started")
 }

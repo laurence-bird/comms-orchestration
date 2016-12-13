@@ -14,23 +14,24 @@ object Orchestrator {
   def apply(emailOrchestrator: (CustomerProfile, Triggered) => Future[_])(triggered: Triggered) = {
 
     def determineOrchestrator(channel: Channel): (CustomerProfile, Triggered) => Future[_] = {
+
+      def unsupportedChannel = (customerProfile: CustomerProfile, triggered: Triggered) => {
+        logError(triggered.metadata.traceToken, s"Unsupported channel selected $channel")
+        Future.successful(Done)
+      }
+
       channel match {
-        case Email =>
-          emailOrchestrator
-        case _ =>
-          (customerProfile: CustomerProfile, triggered: Triggered) =>
-            logError(triggered.metadata.traceToken, s"Unsupported channel selected $channel")
-            Future.successful(Done)
+        case Email  => emailOrchestrator
+        case _      => unsupportedChannel
       }
     }
 
     val customerProfile = CustomerProfiler(triggered.metadata.customerId)
     val orchestrator = customerProfile.map(ChannelSelector(_)).map(determineOrchestrator(_))
-
     for {
-      customerProfile <- customerProfile
+      cp <- customerProfile
       orchestrator <- orchestrator
-    } yield orchestrator(customerProfile, triggered)
+    } yield orchestrator(cp, triggered)
   }
 
 }
