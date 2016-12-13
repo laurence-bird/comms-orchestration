@@ -2,8 +2,9 @@ package com.ovoenergy.orchestration.kafka
 
 import akka.actor.ActorSystem
 import akka.kafka.scaladsl.Consumer
+import akka.kafka.scaladsl.Consumer.Control
 import akka.kafka.{ConsumerSettings, Subscriptions}
-import akka.stream.scaladsl.Sink
+import akka.stream.scaladsl.{RunnableGraph, Sink}
 import akka.stream.{ActorAttributes, Materializer, Supervision}
 import com.ovoenergy.comms.model.{CustomerProfile, Triggered}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
@@ -17,8 +18,8 @@ case class OrchestrationFlowConfig(hosts: String, groupId: String, topic: String
 object OrchestrationFlow extends LoggingWithMDC {
   override def loggerName: String = "OrchestrationFlow"
 
-  def apply(consumerDeserializer: Deserializer[Option[Triggered]], commOrchestrator: (Triggered) => Future[_], config: OrchestrationFlowConfig)
-              (implicit actorSystem: ActorSystem, materializer: Materializer) = {
+  def apply(consumerDeserializer: Deserializer[Option[Triggered]], orchestrationProcess: (Triggered) => Future[_], config: OrchestrationFlowConfig)
+              (implicit actorSystem: ActorSystem, materializer: Materializer): RunnableGraph[Control] = {
 
     implicit val executionContext = actorSystem.dispatcher
 
@@ -39,7 +40,12 @@ object OrchestrationFlow extends LoggingWithMDC {
         log.debug(s"Event received $msg")
         val result = msg.record.value match {
           case Some(triggered) =>
-            commOrchestrator(triggered)
+            orchestrationProcess(triggered).recover({
+              case NonFatal(error) =>
+                //TODO - Raise failed event
+                logWarn(triggered.metadata.traceToken, "Orchestration failed", error)
+                msg.committableOffset.commitScaladsl()
+            })
           case None =>
             log.error(s"Skipping event: $msg, failed to parse")
             Future.successful(())
@@ -47,6 +53,5 @@ object OrchestrationFlow extends LoggingWithMDC {
         result.map(_ => msg.committableOffset.commitScaladsl())
       })
       .to(Sink.ignore.withAttributes(ActorAttributes.supervisionStrategy(decider)))
-      .run
   }
 }

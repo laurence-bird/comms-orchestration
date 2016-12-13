@@ -3,21 +3,15 @@ package com.ovoenergy.orchestration
 import java.io.File
 import java.nio.file.Files
 
-import akka.Done
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import com.ovoenergy.comms.model.Channel.Email
-import com.ovoenergy.comms.model.{Channel, Triggered}
 import com.ovoenergy.orchestration.kafka._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator}
+import com.ovoenergy.orchestration.processes.Orchestrator
 import com.ovoenergy.orchestration.processes.email.EmailOrchestration
-import com.ovoenergy.orchestration.profile.CustomerProfiler
-import com.ovoenergy.orchestration.profile.CustomerProfiler.CustomerProfile
 import com.typesafe.config.ConfigFactory
 
-import collection.JavaConverters._
-import scala.concurrent.Future
+import scala.collection.JavaConverters._
 
 object Main extends App
   with LoggingWithMDC {
@@ -32,24 +26,23 @@ object Main extends App
   implicit val materializer = ActorMaterializer()
   implicit val executionContext = actorSystem.dispatcher
 
-  val emailOrchestrator = EmailOrchestration(OrchestratedEmailProducer(
-    hosts = config.getString("kafka.hosts"),
-    topic = config.getString("kafka.topics.email.orchestrated")
-  ))
 
-  val orchestrator = Orchestrator(
-    emailOrchestrator = emailOrchestrator
-  )
-
-  OrchestrationFlow(
+  val orchestrationFlow =  OrchestrationFlow(
     consumerDeserializer = Serialisation.triggeredDeserializer,
-    commOrchestrator = orchestrator,
+    orchestrationProcess =  Orchestrator(
+      emailOrchestrator = EmailOrchestration(OrchestratedEmailProducer(
+        hosts = config.getString("kafka.hosts"),
+        topic = config.getString("kafka.topics.orchestrated.email")
+      ))
+    ),
     config = OrchestrationFlowConfig(
       hosts = config.getString("kafka.hosts"),
       groupId = config.getString("kafka.group.id"),
       topic = config.getString("kafka.topics.triggered")
     )
   )
+
+  orchestrationFlow.run()
 
   log.info("Orchestration started")
 }

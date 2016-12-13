@@ -26,7 +26,8 @@ object EmailOrchestration {
   }
   private type ValidationErrorsOr[A] = Validated[ValidationErrors, A]
 
-  def apply(orchestratedEmailProducer: (OrchestratedEmail) => Future[_])(customerProfile: CustomerProfile, triggered: Triggered): Future[_] = {
+  def apply(orchestratedEmailProducer: (OrchestratedEmail) => Future[_])
+           (customerProfile: CustomerProfile, triggered: Triggered): Future[_] = {
 
     val emailAddress: ValidationErrorsOr[String] = {
       customerProfile.emailAddresses match {
@@ -70,7 +71,6 @@ object EmailOrchestration {
     resultOrValidationErrors match {
       case Valid(result) => result
       case Invalid(errors) => Future.failed(new Exception(errors.errorsString))
-
     }
 
   }
