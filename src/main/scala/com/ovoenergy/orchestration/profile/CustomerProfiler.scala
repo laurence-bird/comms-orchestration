@@ -8,13 +8,14 @@ object CustomerProfiler {
   case class CustomerProfileEmailAddresses(primary: String, secondary: String)
   case class CustomerProfile(name: CustomerProfileName, emailAddresses: CustomerProfileEmailAddresses)
 
+  //TODO - Call new Customer Profile service
   def apply(customerId: String): Future[CustomerProfile] = {
     Future.successful(CustomerProfile(
       name = CustomerProfileName(
         title = "Mr",
         firstName = "John",
         lastName = "Smith",
-        suffix = "Mr"
+        suffix = ""
       ),
       emailAddresses = CustomerProfileEmailAddresses(
         primary = "some.email@ovoenergy.com",

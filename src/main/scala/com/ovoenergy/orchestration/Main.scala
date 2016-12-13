@@ -8,9 +8,9 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.ovoenergy.comms.model.Channel.Email
 import com.ovoenergy.comms.model.{Channel, Triggered}
-import com.ovoenergy.orchestration.kafka.{OrchestrationFlow, OrchestrationFlowConfig, Serialisation}
+import com.ovoenergy.orchestration.kafka._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.processes.ChannelSelector
+import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator}
 import com.ovoenergy.orchestration.processes.email.EmailOrchestration
 import com.ovoenergy.orchestration.profile.CustomerProfiler
 import com.ovoenergy.orchestration.profile.CustomerProfiler.CustomerProfile
@@ -32,29 +32,18 @@ object Main extends App
   implicit val materializer = ActorMaterializer()
   implicit val executionContext = actorSystem.dispatcher
 
-  val emailOrchestrator = EmailOrchestration()
+  val emailOrchestrator = EmailOrchestration(OrchestratedEmailProducer(
+    hosts = config.getString("kafka.hosts"),
+    topic = config.getString("kafka.topics.email.orchestrated")
+  ))
 
-  def determineOrchestrator(channel: Channel): (CustomerProfile, Triggered) => Future[Done] = {
-    channel match {
-      case Email =>
-        emailOrchestrator
-      case _ =>
-        (customerProfile: CustomerProfile, triggered: Triggered) =>
-          logError(triggered.metadata.traceToken, s"Unsupported channel selected $channel")
-          Future.successful(Done)
-    }
-  }
-
-  def commsOrchestrator = (triggered: Triggered) => {
-    for {
-      customerProfile <- CustomerProfiler(triggered.metadata.customerId)
-      channel <- ChannelSelector(customerProfile)
-    } yield determineOrchestrator(channel)(customerProfile, triggered)
-  }
+  val orchestrator = Orchestrator(
+    emailOrchestrator = emailOrchestrator
+  )
 
   OrchestrationFlow(
     consumerDeserializer = Serialisation.triggeredDeserializer,
-    commOrchestrator = commsOrchestrator,
+    commOrchestrator = orchestrator,
     config = OrchestrationFlowConfig(
       hosts = config.getString("kafka.hosts"),
       groupId = config.getString("kafka.group.id"),
