@@ -59,7 +59,7 @@ class OrchestratorSpec extends FlatSpec
   it should "handle unsupported channels" in {
     def selectNonSupportedChannel = (customerProfile: CustomerProfile) => SMS
     val future = Orchestrator(customerProfiler, selectNonSupportedChannel, emailOrchestrator)(triggered)
-    whenReady(future) { result =>
+    whenReady(future.failed) { result =>
       //OK
     }
     invocationCount shouldBe 0

@@ -7,13 +7,14 @@ import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.profile.CustomerProfiler.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers, OneInstancePerTest}
 
 import scala.concurrent.Future
 
 class EmailOrchestrationSpec extends FlatSpec
   with Matchers
-  with ScalaFutures {
+  with ScalaFutures
+  with OneInstancePerTest {
 
   implicit val config = PatienceConfig()
 
