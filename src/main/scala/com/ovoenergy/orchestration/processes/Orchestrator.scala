@@ -4,14 +4,14 @@ import akka.Done
 import com.ovoenergy.comms.model.Channel.Email
 import com.ovoenergy.comms.model.{Channel, Triggered}
 import com.ovoenergy.orchestration.Main._
-import com.ovoenergy.orchestration.profile.CustomerProfiler
 import com.ovoenergy.orchestration.profile.CustomerProfiler.CustomerProfile
 
 import scala.concurrent.Future
 
 object Orchestrator {
 
-  def apply(emailOrchestrator: (CustomerProfile, Triggered) => Future[_])(triggered: Triggered) = {
+  def apply(customerProfiler: (String) => CustomerProfile, channelSelector: (CustomerProfile) => Channel, emailOrchestrator: (CustomerProfile, Triggered) => Future[_])
+           (triggered: Triggered): Future[_] = {
 
     def determineOrchestrator(channel: Channel): (CustomerProfile, Triggered) => Future[_] = {
 
@@ -26,12 +26,9 @@ object Orchestrator {
       }
     }
 
-    val customerProfile = CustomerProfiler(triggered.metadata.customerId)
-    val orchestrator = customerProfile.map(ChannelSelector(_)).map(determineOrchestrator(_))
-    for {
-      cp <- customerProfile
-      orchestrator <- orchestrator
-    } yield orchestrator(cp, triggered)
+    val customerProfile = customerProfiler(triggered.metadata.customerId)
+    val channel = channelSelector(customerProfile)
+    determineOrchestrator(channel)(customerProfile, triggered)
   }
 
 }

@@ -3,6 +3,7 @@ package com.ovoenergy.orchestration.processes.email
 import java.util.UUID
 
 import akka.Done
+import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.profile.CustomerProfiler.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
 import org.scalatest.concurrent.ScalaFutures
@@ -35,27 +36,66 @@ class EmailOrchestrationSpec extends FlatSpec
 
   val triggered = Triggered(
     metadata = metadata,
-    data = Map()
+    data = Map("someKey" -> "someValue")
   )
+
+  var producerInvocationCount = 0
+  var passedOrchestratedEmail: OrchestratedEmail = _
+  def producer = (orchestratedEmail: OrchestratedEmail) => {
+    producerInvocationCount = producerInvocationCount + 1
+    passedOrchestratedEmail = orchestratedEmail
+    Future.successful(Done)
+  }
 
   behavior of "EmailOrchestration"
 
   it should "fail when required parameters not set" in {
-    val successProducer = (orchestratedEmail: OrchestratedEmail) => {
-      Future.successful(Done)
-    }
     val badCustomerProfile = CustomerProfile(
       CustomerProfileName("Mr", "", "", "Esq"),
       CustomerProfileEmailAddresses("", "")
     )
 
-    val future = EmailOrchestration(successProducer)(badCustomerProfile, triggered)
+    val future = EmailOrchestration(producer)(badCustomerProfile, triggered)
     whenReady(future.failed) { error =>
       error.getMessage should include("Customer has no email address")
       error.getMessage should include("Customer has no last name")
       error.getMessage should include("Customer has no first name")
     }
+    producerInvocationCount shouldBe 0
+  }
 
+  it should "call producer with primary email address if exists" in {
+
+    val customerProfile = CustomerProfile(
+      CustomerProfileName("Mr", "John", "Smith", ""),
+      CustomerProfileEmailAddresses("some.email@ovoenergy.com", "some.other.email@ovoenergy.com")
+    )
+
+    val future = EmailOrchestration(producer)(customerProfile, triggered)
+    whenReady(future) { result =>
+      //OK
+    }
+    producerInvocationCount shouldBe 1
+    passedOrchestratedEmail.recipientEmailAddress shouldBe "some.email@ovoenergy.com"
+    passedOrchestratedEmail.customerProfile shouldBe model.CustomerProfile("John", "Smith")
+    passedOrchestratedEmail.templateData shouldBe Map("someKey" -> "someValue")
+  }
+
+  it should "call producer with secondary email address if no primary exists" in {
+
+    val customerProfile = CustomerProfile(
+      CustomerProfileName("Mr", "John", "Smith", ""),
+      CustomerProfileEmailAddresses("", "some.other.email@ovoenergy.com")
+    )
+
+    val future = EmailOrchestration(producer)(customerProfile, triggered)
+    whenReady(future) { result =>
+      //OK
+    }
+    producerInvocationCount shouldBe 1
+    passedOrchestratedEmail.recipientEmailAddress shouldBe "some.other.email@ovoenergy.com"
+    passedOrchestratedEmail.customerProfile shouldBe model.CustomerProfile("John", "Smith")
+    passedOrchestratedEmail.templateData shouldBe Map("someKey" -> "someValue")
   }
 
 }
