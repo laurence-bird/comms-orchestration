@@ -26,7 +26,7 @@ object TestUtil {
 
   val triggered = Triggered(
     metadata = metadata,
-    data = templateData
+    templateData = templateData
   )
 
 }

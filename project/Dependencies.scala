@@ -1,7 +1,7 @@
 import sbt._
 
 object Dependencies {
-  val kafkaMessagesVersion = "0.0.15"
+  val kafkaMessagesVersion = "0.0.16"
 
   def all() = Seq(
     "com.typesafe.akka"   %% "akka-http-core"            % "10.0.0",

@@ -115,7 +115,6 @@ class ServiceTestIT extends FlatSpec
         case NonFatal(ex) => Thread.sleep(100)
       }
     }
-    Thread.sleep(3000L)
     if (notStarted) fail("Services did not start within 10 seconds")
 
     if (!AdminUtils.topicExists(zkUtils, failedTopic)) AdminUtils.createTopic(zkUtils, failedTopic, 1, 1)

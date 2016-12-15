@@ -11,6 +11,7 @@ services:
     environment:
       ENV: LOCAL
       KAFKA_HOSTS: kafka:29092
+      CANARY_EMAIL_ADDRESS: some.email@ovoenergy.com
 
   zookeeper:
     image: confluentinc/cp-zookeeper:3.1.1

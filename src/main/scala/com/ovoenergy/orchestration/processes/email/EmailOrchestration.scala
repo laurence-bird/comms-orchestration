@@ -62,7 +62,7 @@ object EmailOrchestration {
             customerProfile = model.CustomerProfile(
               firstName = validFirstName,
               lastName = validLastName),
-            templateData = triggered.data
+            templateData = triggered.templateData
           )
 
           orchestratedEmailProducer(orchestratedEmail)
