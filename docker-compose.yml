@@ -1,5 +1,32 @@
-monitor-service:
-  image: ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-1.amazonaws.com/orchestration:0.1-SNAPSHOT
+version: '2'
 
-  environment:
-    ENV: LOCAL
+services:
+
+  orchestration:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-1.amazonaws.com/orchestration:0.1-SNAPSHOT
+    depends_on:
+      - kafka
+    links:
+      - kafka
+    environment:
+      ENV: LOCAL
+      KAFKA_HOSTS: kafka:29092
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:3.1.1
+    ports:
+      - "32181:32181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 32181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:3.1.1
+    ports:
+     - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:32181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${IP_ADDRESS}:29092
+    depends_on:
+      - zookeeper

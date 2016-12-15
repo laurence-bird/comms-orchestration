@@ -2,33 +2,38 @@ package com.ovoenergy.orchestration.processes
 
 import com.ovoenergy.comms.model.Channel.Email
 import com.ovoenergy.comms.model.{Channel, Triggered}
-import com.ovoenergy.orchestration.Main._
+import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.profile.CustomerProfiler.CustomerProfile
 
 import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
 
-object Orchestrator {
+object Orchestrator extends LoggingWithMDC {
 
-  def apply(customerProfiler: (String) => CustomerProfile, channelSelector: (CustomerProfile) => Channel, emailOrchestrator: (CustomerProfile, Triggered) => Future[_])
+  def apply(customerProfiler: (String) => Try[CustomerProfile], channelSelector: (CustomerProfile) => Try[Channel], emailOrchestrator: (CustomerProfile, Triggered) => Future[_])
            (triggered: Triggered): Future[_] = {
 
-    def determineOrchestrator(channel: Channel): (CustomerProfile, Triggered) => Future[_] = {
+    def determineOrchestrator(channel: Channel): Try[(CustomerProfile, Triggered) => Future[_]] = {
       channel match {
-        case Email  => emailOrchestrator
-        case _      => throw new Exception(s"Unsupported channel selected $channel")
+        case Email  => Success(emailOrchestrator)
+        case _      => Failure(new Exception(s"Unsupported channel selected $channel"))
       }
     }
 
-    val customerProfile = customerProfiler(triggered.metadata.customerId)
-    val channel = channelSelector(customerProfile)
+    val orchestratorTry = for {
+      customerProfile <- customerProfiler(triggered.metadata.customerId)
+      channel <- channelSelector(customerProfile)
+      orchestrator <- determineOrchestrator(channel)
+    } yield orchestrator(customerProfile, triggered)
 
-    try {
-      determineOrchestrator(channel)(customerProfile, triggered)
-    } catch {
-      case NonFatal(ex) =>
+    orchestratorTry match {
+      case Success(orchestrator) => orchestrator
+      case Failure(ex) =>
         logError(triggered.metadata.traceToken, "Error determining orchestrator to use", ex)
         Future.failed(ex)
     }
   }
+
+  override def loggerName: String = "Orchestrator"
 }

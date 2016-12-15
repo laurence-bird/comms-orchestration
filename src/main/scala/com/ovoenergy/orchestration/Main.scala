@@ -8,6 +8,7 @@ import akka.stream.ActorMaterializer
 import com.ovoenergy.orchestration.kafka._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.email.EmailOrchestration
+import com.ovoenergy.orchestration.processes.failure.Failure
 import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator}
 import com.ovoenergy.orchestration.profile.CustomerProfiler
 import com.typesafe.config.ConfigFactory
@@ -27,7 +28,7 @@ object Main extends App
   implicit val materializer = ActorMaterializer()
   implicit val executionContext = actorSystem.dispatcher
 
-  val channelSelector = ChannelSelector.determineChannel
+  val channelSelector = ChannelSelector.determineChannel _
 
   val emailOrchestrator = EmailOrchestration(OrchestratedEmailProducer(
     hosts = config.getString("kafka.hosts"),
@@ -40,9 +41,15 @@ object Main extends App
     emailOrchestrator = emailOrchestrator
   ) _
 
+  val failure = Failure(FailedProducer(
+    hosts = config.getString("kafka.hosts"),
+    topic = config.getString("kafka.topics.failed")
+  )) _
+
   val orchestrationGraph =  OrchestrationGraph(
     consumerDeserializer = Serialisation.triggeredDeserializer,
     orchestrationProcess = orchestrator,
+    failureProcess = failure,
     config = OrchestrationGraphConfig(
       hosts = config.getString("kafka.hosts"),
       groupId = config.getString("kafka.group.id"),

@@ -1,11 +1,10 @@
 package com.ovoenergy.orchestration.processes
 
-import java.util.UUID
-
 import akka.Done
 import com.ovoenergy.comms.model.Channel.{Email, SMS}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.profile.CustomerProfiler.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
+import com.ovoenergy.orchestration.util.TestUtil
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{FlatSpec, Matchers, OneInstancePerTest}
 
@@ -16,28 +15,6 @@ class OrchestratorSpec extends FlatSpec
   with Matchers
   with ScalaFutures
   with OneInstancePerTest {
-
-  val traceToken = "fpwfj2i0jr02jr2j0"
-  val createdAt = "2019-01-01T12:34:44.222Z"
-  val customerId = "GT-CUS-994332344"
-  val friendlyDescription = "The customer did something cool and wants to know"
-  val commManifest = CommManifest(CommType.Service, "Plain old email", "1.0")
-
-  val metadata = Metadata(
-    createdAt = createdAt,
-    eventId = UUID.randomUUID().toString,
-    customerId = customerId,
-    traceToken = traceToken,
-    friendlyDescription = friendlyDescription,
-    source = "tests",
-    sourceMetadata = None,
-    commManifest = commManifest,
-    canary = false)
-
-  val triggered = Triggered(
-    metadata = metadata,
-    data = Map()
-  )
 
   var passedCustomerProfile: CustomerProfile = _
   var passedTriggered: Triggered = _
@@ -51,14 +28,33 @@ class OrchestratorSpec extends FlatSpec
 
   val customerProfile = CustomerProfile(CustomerProfileName("Mr", "John", "Smith", ""), CustomerProfileEmailAddresses("some.email@ovoenergy.com", ""))
   def customerProfiler = (customerId: String) => {
-    customerProfile
+    Success(customerProfile)
   }
 
   behavior of "Orchestrator"
 
   it should "handle unsupported channels" in {
-    def selectNonSupportedChannel = (customerProfile: CustomerProfile) => SMS
-    val future = Orchestrator(customerProfiler, selectNonSupportedChannel, emailOrchestrator)(triggered)
+    def selectNonSupportedChannel = (customerProfile: CustomerProfile) => Success(SMS)
+    val future = Orchestrator(customerProfiler, selectNonSupportedChannel, emailOrchestrator)(TestUtil.triggered)
+    whenReady(future.failed) { result =>
+      //OK
+    }
+    invocationCount shouldBe 0
+  }
+
+  it should "handle failed channel selection" in {
+    def failedChannelSelection = (customerProfile: CustomerProfile) => Failure(new Exception("whatever"))
+    val future = Orchestrator(customerProfiler, failedChannelSelection, emailOrchestrator)(TestUtil.triggered)
+    whenReady(future.failed) { result =>
+      //OK
+    }
+    invocationCount shouldBe 0
+  }
+
+  it should "handle failed customer profiler" in {
+    def selectEmailChannel = (customerProfile: CustomerProfile) => Success(Email)
+    def badCustomerProfiler = (customerId: String) => Failure(new Exception("whatever"))
+    val future = Orchestrator(badCustomerProfiler, selectEmailChannel, emailOrchestrator)(TestUtil.triggered)
     whenReady(future.failed) { result =>
       //OK
     }
@@ -66,14 +62,14 @@ class OrchestratorSpec extends FlatSpec
   }
 
   it should "handle email channel" in {
-    def selectEmailChannel = (customerProfile: CustomerProfile) => Email
-    val future = Orchestrator(customerProfiler, selectEmailChannel, emailOrchestrator)(triggered)
+    def selectEmailChannel = (customerProfile: CustomerProfile) => Success(Email)
+    val future = Orchestrator(customerProfiler, selectEmailChannel, emailOrchestrator)(TestUtil.triggered)
     whenReady(future) { result =>
       //OK
     }
     invocationCount shouldBe 1
     passedCustomerProfile shouldBe customerProfile
-    passedTriggered shouldBe triggered
+    passedTriggered shouldBe TestUtil.triggered
   }
 
 

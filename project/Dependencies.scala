@@ -14,6 +14,7 @@ object Dependencies {
     "me.moocar"            % "logback-gelf"              % "0.2",
     "io.logz.logback"      % "logzio-logback-appender"   % "1.0.11",
     "org.typelevel"       %% "cats-core"                 % "0.8.1",
+    "org.apache.kafka"    %% "kafka"                     % "0.10.0.1"  % Test,
     "org.scalacheck"      %% "scalacheck"                % "1.13.4"    % Test,
     "org.scalatest"       %% "scalatest"                 % "2.2.6"     % Test
   )
