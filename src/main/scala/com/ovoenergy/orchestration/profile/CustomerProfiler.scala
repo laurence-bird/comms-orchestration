@@ -1,6 +1,6 @@
 package com.ovoenergy.orchestration.profile
 
-import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 
 object CustomerProfiler {
 
@@ -9,18 +9,36 @@ object CustomerProfiler {
   case class CustomerProfile(name: CustomerProfileName, emailAddresses: CustomerProfileEmailAddresses)
 
   //TODO - Call new Customer Profile service
-  def apply(customerId: String): CustomerProfile = {
-    CustomerProfile(
-      name = CustomerProfileName(
-        title = "Mr",
-        firstName = "John",
-        lastName = "Smith",
-        suffix = ""
-      ),
-      emailAddresses = CustomerProfileEmailAddresses(
-        primary = "some.email@ovoenergy.com",
-        secondary = ""
-      ))
+  def apply(customerId: String): Try[CustomerProfile] = {
+    customerId match {
+      case "invalidCustomer" =>
+        Success(CustomerProfile(
+          name = CustomerProfileName(
+            title = "",
+            firstName = "",
+            lastName = "",
+            suffix = ""
+          ),
+          emailAddresses = CustomerProfileEmailAddresses(
+            primary = "",
+            secondary = ""
+          )))
+      case "errorCustomer" =>
+        Failure(new Exception("Some failure reason"))
+      case _ =>
+        Success(CustomerProfile(
+          name = CustomerProfileName(
+            title = "Mr",
+            firstName = "John",
+            lastName = "Smith",
+            suffix = ""
+          ),
+          emailAddresses = CustomerProfileEmailAddresses(
+            primary = "some.email@ovoenergy.com",
+            secondary = ""
+          )))
+    }
+
   }
 
 }

@@ -4,6 +4,8 @@ import com.ovoenergy.comms.model.Channel.Email
 import com.ovoenergy.orchestration.profile.CustomerProfiler.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
 import org.scalatest.{FlatSpec, Matchers}
 
+import scala.util.Success
+
 class ChannelSelectorSpec extends FlatSpec
   with Matchers {
 
@@ -12,7 +14,7 @@ class ChannelSelectorSpec extends FlatSpec
   behavior of "ChannelSelector"
 
   it should "always return Email" in {
-    ChannelSelector.determineChannel(customerProfile) shouldBe Email
+    ChannelSelector.determineChannel(customerProfile) shouldBe Success(Email)
   }
 
 }

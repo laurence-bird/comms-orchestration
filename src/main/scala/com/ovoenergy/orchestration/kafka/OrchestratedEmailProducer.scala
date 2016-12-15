@@ -4,7 +4,7 @@ import akka.actor.ActorSystem
 import akka.stream.Materializer
 import cakesolutions.kafka.KafkaProducer
 import cakesolutions.kafka.KafkaProducer.Conf
-import com.ovoenergy.comms.model.{ComposedEmail, OrchestratedEmail}
+import com.ovoenergy.comms.model.OrchestratedEmail
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.StringSerializer
