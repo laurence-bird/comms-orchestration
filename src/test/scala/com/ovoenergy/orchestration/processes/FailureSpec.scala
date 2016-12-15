@@ -13,9 +13,9 @@ class FailureSpec extends FlatSpec
   with Matchers
   with ScalaFutures {
 
-  var passedFailed: Failed = _
+  var providedFailed: Failed = _
   val producer = (failed: Failed) => {
-    passedFailed = failed
+    providedFailed = failed
     Future.successful(Done)
   }
 
@@ -24,10 +24,9 @@ class FailureSpec extends FlatSpec
   it should "produced failed event" in {
     val future = Failure(producer)("Failure reason", TestUtil.triggered)
     whenReady(future) { result =>
-      //OK
+      providedFailed.reason shouldBe "Failure reason"
+      providedFailed.metadata.traceToken shouldBe TestUtil.traceToken
     }
-    passedFailed.reason shouldBe "Failure reason"
-    passedFailed.metadata.traceToken shouldBe TestUtil.traceToken
   }
 
 

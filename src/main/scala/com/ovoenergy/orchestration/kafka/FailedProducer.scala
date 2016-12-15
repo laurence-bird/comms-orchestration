@@ -18,7 +18,7 @@ object FailedProducer extends LoggingWithMDC {
     val producer = KafkaProducer(Conf(new StringSerializer, Serialisation.failedSerializer, hosts))
 
     (failed: Failed) => {
-      logInfo(failed.metadata.traceToken, s"Posting event to $topic - $failed")
+      logWarn(failed.metadata.traceToken, s"Posting event to $topic - $failed")
       producer.send(new ProducerRecord[String, Failed](topic, failed))
     }
   }

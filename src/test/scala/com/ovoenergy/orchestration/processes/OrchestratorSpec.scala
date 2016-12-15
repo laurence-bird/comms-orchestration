@@ -37,18 +37,16 @@ class OrchestratorSpec extends FlatSpec
     def selectNonSupportedChannel = (customerProfile: CustomerProfile) => Success(SMS)
     val future = Orchestrator(customerProfiler, selectNonSupportedChannel, emailOrchestrator)(TestUtil.triggered)
     whenReady(future.failed) { result =>
-      //OK
+      invocationCount shouldBe 0
     }
-    invocationCount shouldBe 0
   }
 
   it should "handle failed channel selection" in {
     def failedChannelSelection = (customerProfile: CustomerProfile) => Failure(new Exception("whatever"))
     val future = Orchestrator(customerProfiler, failedChannelSelection, emailOrchestrator)(TestUtil.triggered)
     whenReady(future.failed) { result =>
-      //OK
+      invocationCount shouldBe 0
     }
-    invocationCount shouldBe 0
   }
 
   it should "handle failed customer profiler" in {
@@ -56,20 +54,18 @@ class OrchestratorSpec extends FlatSpec
     def badCustomerProfiler = (customerId: String) => Failure(new Exception("whatever"))
     val future = Orchestrator(badCustomerProfiler, selectEmailChannel, emailOrchestrator)(TestUtil.triggered)
     whenReady(future.failed) { result =>
-      //OK
+      invocationCount shouldBe 0
     }
-    invocationCount shouldBe 0
   }
 
   it should "handle email channel" in {
     def selectEmailChannel = (customerProfile: CustomerProfile) => Success(Email)
     val future = Orchestrator(customerProfiler, selectEmailChannel, emailOrchestrator)(TestUtil.triggered)
     whenReady(future) { result =>
-      //OK
+      invocationCount shouldBe 1
+      passedCustomerProfile shouldBe customerProfile
+      passedTriggered shouldBe TestUtil.triggered
     }
-    invocationCount shouldBe 1
-    passedCustomerProfile shouldBe customerProfile
-    passedTriggered shouldBe TestUtil.triggered
   }
 
 
