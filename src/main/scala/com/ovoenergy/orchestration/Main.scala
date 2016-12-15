@@ -36,7 +36,7 @@ object Main extends App
   )) _
 
   val orchestrator = Orchestrator(
-    customerProfiler = CustomerProfiler.apply,
+    customerProfiler = CustomerProfiler(canaryEmailAddress = config.getString("canary.email.address")),
     channelSelector = channelSelector,
     emailOrchestrator = emailOrchestrator
   ) _

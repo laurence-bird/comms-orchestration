@@ -9,7 +9,7 @@ object CustomerProfiler {
   case class CustomerProfile(name: CustomerProfileName, emailAddresses: CustomerProfileEmailAddresses)
 
   //TODO - Call new Customer Profile service
-  def apply(customerId: String): Try[CustomerProfile] = {
+  def apply(canaryEmailAddress: String)(customerId: String): Try[CustomerProfile] = {
     customerId match {
       case "invalidCustomer" =>
         Success(CustomerProfile(
@@ -25,6 +25,18 @@ object CustomerProfiler {
           )))
       case "errorCustomer" =>
         Failure(new Exception("Some failure reason"))
+      case "canary" =>
+        Success(CustomerProfile(
+          name = CustomerProfileName(
+            title = "Master",
+            firstName = "Tweety",
+            lastName = "Pie",
+            suffix = "Canary"
+          ),
+          emailAddresses = CustomerProfileEmailAddresses(
+            primary = canaryEmailAddress,
+            secondary = ""
+          )))
       case _ =>
         Success(CustomerProfile(
           name = CustomerProfileName(
