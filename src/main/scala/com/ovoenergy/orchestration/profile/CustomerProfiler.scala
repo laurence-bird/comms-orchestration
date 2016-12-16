@@ -1,54 +1,54 @@
 package com.ovoenergy.orchestration.profile
 
+import com.ovoenergy.orchestration.domain.customerProfile.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
+import okhttp3.{Request, Response}
+import com.ovoenergy.orchestration.http.JsonDecoding._
+
+import io.circe.generic.auto._
+
 import scala.util.{Failure, Success, Try}
 
 object CustomerProfiler {
 
-  case class CustomerProfileName(title: String, firstName: String, lastName: String, suffix: String)
-  case class CustomerProfileEmailAddresses(primary: String, secondary: String)
-  case class CustomerProfile(name: CustomerProfileName, emailAddresses: CustomerProfileEmailAddresses)
+  def apply(canaryEmailAddress: String, httpClient: (Request) => Try[Response], profileApiKey: String, profileHost: String)
+           (customerId: String): Try[CustomerProfile] = {
 
-  //TODO - Call new Customer Profile service
-  def apply(canaryEmailAddress: String)(customerId: String): Try[CustomerProfile] = {
+    val successfulStatusCodes = 200 to 299
+
+    def getCustomer: Try[CustomerProfile] = {
+      val request = new Request.Builder()
+        .header("Authorization", profileApiKey)
+        .url(s"$profileHost/customers/$customerId")
+        .get()
+        .build()
+
+      httpClient(request) match {
+        case Success(response) =>
+          val responseBody = response.body.string
+          if (successfulStatusCodes.contains(response.code)) {
+            decodeJson[CustomerProfile](responseBody)
+          } else {
+            Failure(new Exception(s"Error response (${response.code}) from profile service: $responseBody"))
+          }
+        case Failure(ex) => Failure(ex)
+      }
+    }
+
     customerId match {
-      case "invalidCustomer" =>
-        Success(CustomerProfile(
-          name = CustomerProfileName(
-            title = "",
-            firstName = "",
-            lastName = "",
-            suffix = ""
-          ),
-          emailAddresses = CustomerProfileEmailAddresses(
-            primary = "",
-            secondary = ""
-          )))
-      case "errorCustomer" =>
-        Failure(new Exception("Some failure reason"))
       case "canary" =>
         Success(CustomerProfile(
           name = CustomerProfileName(
-            title = "Master",
+            title = Some("Master"),
             firstName = "Tweety",
             lastName = "Pie",
-            suffix = "Canary"
+            suffix = Some("Canary")
           ),
           emailAddresses = CustomerProfileEmailAddresses(
-            primary = canaryEmailAddress,
-            secondary = ""
+            primary = Some(canaryEmailAddress),
+            secondary = None
           )))
       case _ =>
-        Success(CustomerProfile(
-          name = CustomerProfileName(
-            title = "Mr",
-            firstName = "John",
-            lastName = "Smith",
-            suffix = ""
-          ),
-          emailAddresses = CustomerProfileEmailAddresses(
-            primary = "some.email@ovoenergy.com",
-            secondary = ""
-          )))
+        getCustomer
     }
 
   }

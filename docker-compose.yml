@@ -6,12 +6,16 @@ services:
     image: ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-1.amazonaws.com/orchestration:0.1-SNAPSHOT
     depends_on:
       - kafka
+      - profile.service
     links:
       - kafka
+      - profile.service
     environment:
       ENV: LOCAL
       KAFKA_HOSTS: kafka:29092
       CANARY_EMAIL_ADDRESS: some.email@ovoenergy.com
+      PROFILE_SERVICE_API_KEY: someApiKey
+      PROFILE_SERVICE_HOST: http://localhost:1080
 
   zookeeper:
     image: confluentinc/cp-zookeeper:3.1.1
@@ -31,3 +35,8 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${IP_ADDRESS}:29092
     depends_on:
       - zookeeper
+
+  profile.service:
+    image: jamesdbloom/mockserver
+    ports:
+      - "1080:1080"

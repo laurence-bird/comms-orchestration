@@ -2,12 +2,11 @@ package com.ovoenergy.orchestration.processes
 
 import com.ovoenergy.comms.model.Channel.Email
 import com.ovoenergy.comms.model.{Channel, Triggered}
+import com.ovoenergy.orchestration.domain.customerProfile.CustomerProfile
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.profile.CustomerProfiler.CustomerProfile
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
-import scala.util.control.NonFatal
 
 object Orchestrator extends LoggingWithMDC {
 
