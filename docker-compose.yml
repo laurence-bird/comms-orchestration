@@ -15,7 +15,7 @@ services:
       KAFKA_HOSTS: kafka:29092
       CANARY_EMAIL_ADDRESS: some.email@ovoenergy.com
       PROFILE_SERVICE_API_KEY: someApiKey
-      PROFILE_SERVICE_HOST: http://localhost:1080
+      PROFILE_SERVICE_HOST: http://profile.service:1080
 
   zookeeper:
     image: confluentinc/cp-zookeeper:3.1.1

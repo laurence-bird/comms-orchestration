@@ -69,12 +69,9 @@ class ServiceTestIT extends FlatSpec
   }
 
   it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
-    createBadCustomerProfileResponse()
+    createInvalidCustomerProfileResponse()
 
-    val badMetaData = TestUtil.metadata.copy(customerId = "invalidCustomer")
-    val badTriggered = TestUtil.triggered.copy(metadata = badMetaData)
-
-    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, badTriggered))
+    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
       case _ =>
         val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
@@ -90,19 +87,16 @@ class ServiceTestIT extends FlatSpec
   }
 
   it should "raise failure when customer profiler fails" taggedAs DockerComposeTag in {
-    mockServerClient.reset()
+    createBadCustomerProfileResponse()
 
-    val badMetaData = TestUtil.metadata.copy(customerId = "errorCustomer")
-    val badTriggered = TestUtil.triggered.copy(metadata = badMetaData)
-
-    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, badTriggered))
+    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
       case _ =>
         val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
         failures.size shouldBe 1
         failures.foreach(record => {
           val failure = record.value().getOrElse(fail("No record for ${record.key()}"))
-          failure.reason shouldBe "Orchestration failed: Some failure reason"
+          failure.reason shouldBe "Orchestration failed: Error response (500) from profile service: Some error"
           failure.metadata.traceToken shouldBe TestUtil.traceToken
         })
     }
@@ -144,14 +138,14 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/customers/GT-CUS-1234567890")
+        .withPath(s"/customers/GT-CUS-994332344")
     ).respond(
       response(validResponseJson)
         .withStatusCode(200)
     )
   }
 
-  def createBadCustomerProfileResponse() {
+  def createInvalidCustomerProfileResponse() {
     val validResponseJson =
       new String(Files.readAllBytes(Paths.get("src/test/resources/profile_missing_required_fields_response.json")), StandardCharsets.UTF_8)
 
@@ -159,10 +153,22 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/customers/GT-CUS-1234567890")
+        .withPath(s"/customers/GT-CUS-994332344")
     ).respond(
       response(validResponseJson)
         .withStatusCode(200)
+    )
+  }
+
+  def createBadCustomerProfileResponse() {
+    mockServerClient.reset()
+    mockServerClient.when(
+      request()
+        .withMethod("GET")
+        .withPath(s"/customers/GT-CUS-994332344")
+    ).respond(
+      response("Some error")
+        .withStatusCode(500)
     )
   }
 
