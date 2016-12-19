@@ -13,7 +13,6 @@ services:
     environment:
       ENV: LOCAL
       KAFKA_HOSTS: kafka:29092
-      CANARY_EMAIL_ADDRESS: some.email@ovoenergy.com
       PROFILE_SERVICE_API_KEY: someApiKey
       PROFILE_SERVICE_HOST: http://profile.service:1080
 

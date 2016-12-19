@@ -55,7 +55,7 @@ class ServiceTestIT extends FlatSpec
 
     val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
-      case _ =>
+      _ =>
         val orchestratedEmails = emailOrchestratedConsumer.poll(30000).records(emailOrchestratedTopic).asScala.toList
         orchestratedEmails.size shouldBe 1
         orchestratedEmails.foreach(record => {
@@ -73,7 +73,7 @@ class ServiceTestIT extends FlatSpec
 
     val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
-      case _ =>
+      _ =>
         val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
         failures.size shouldBe 1
         failures.foreach(record => {
@@ -91,7 +91,7 @@ class ServiceTestIT extends FlatSpec
 
     val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
-      case _ =>
+      _ =>
         val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
         failures.size shouldBe 1
         failures.foreach(record => {
