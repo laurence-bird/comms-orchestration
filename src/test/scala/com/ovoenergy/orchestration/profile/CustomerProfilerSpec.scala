@@ -3,7 +3,7 @@ package com.ovoenergy.orchestration.profile
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
-import com.ovoenergy.orchestration.domain.customerProfile.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
+import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
 import okhttp3._
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -70,9 +70,8 @@ class CustomerProfilerSpec extends FlatSpec
     val validResponseJson =
       new String(Files.readAllBytes(Paths.get("src/test/resources/profile_valid_response.json")), StandardCharsets.UTF_8)
     val okResponseHttpClient = (request: Request) => {
-      request.url.toString shouldBe s"$profileHost/customers/whatever"
+      request.url.toString shouldBe s"$profileHost/api/customers/whatever?apikey=$profileApiKey"
       request.method shouldBe "GET"
-      request.header("Authorization") shouldBe profileApiKey
 
       Success(new Response.Builder().protocol(Protocol.HTTP_1_1).request(request).code(200).body(ResponseBody.create(MediaType.parse("UTF-8"), validResponseJson)).build())
     }

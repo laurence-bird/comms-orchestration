@@ -1,6 +1,6 @@
 package com.ovoenergy.orchestration.profile
 
-import com.ovoenergy.orchestration.domain.customerProfile.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
+import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
 import okhttp3.{Request, Response}
 import com.ovoenergy.orchestration.http.JsonDecoding._
 
@@ -17,8 +17,7 @@ object CustomerProfiler {
 
     def getCustomer: Try[CustomerProfile] = {
       val request = new Request.Builder()
-        .header("Authorization", profileApiKey)
-        .url(s"$profileHost/customers/$customerId")
+        .url(s"$profileHost/api/customers/$customerId?apikey=$profileApiKey")
         .get()
         .build()
 

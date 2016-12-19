@@ -1,7 +1,7 @@
 package com.ovoenergy.orchestration.processes
 
 import com.ovoenergy.comms.model.Channel.Email
-import com.ovoenergy.orchestration.domain.customerProfile.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
+import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.util.Success

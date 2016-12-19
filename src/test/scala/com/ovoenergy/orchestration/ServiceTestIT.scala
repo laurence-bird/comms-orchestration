@@ -138,7 +138,8 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/customers/GT-CUS-994332344")
+        .withPath(s"/api/customers/GT-CUS-994332344")
+        .withQueryStringParameter("apikey", "someApiKey")
     ).respond(
       response(validResponseJson)
         .withStatusCode(200)
@@ -153,7 +154,8 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/customers/GT-CUS-994332344")
+        .withPath(s"/api/customers/GT-CUS-994332344")
+        .withQueryStringParameter("apikey", "someApiKey")
     ).respond(
       response(validResponseJson)
         .withStatusCode(200)
@@ -165,7 +167,8 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/customers/GT-CUS-994332344")
+        .withPath(s"/api/customers/GT-CUS-994332344")
+        .withQueryStringParameter("apikey", "someApiKey")
     ).respond(
       response("Some error")
         .withStatusCode(500)

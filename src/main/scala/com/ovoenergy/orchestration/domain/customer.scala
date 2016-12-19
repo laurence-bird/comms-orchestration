@@ -1,6 +1,6 @@
 package com.ovoenergy.orchestration.domain
 
-package object customerProfile {
+package object customer {
 
   case class CustomerProfileName(title: Option[String], firstName: String, lastName: String, suffix: Option[String])
   case class CustomerProfileEmailAddresses(primary: Option[String], secondary: Option[String])

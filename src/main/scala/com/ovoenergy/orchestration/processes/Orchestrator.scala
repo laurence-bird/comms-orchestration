@@ -2,7 +2,7 @@ package com.ovoenergy.orchestration.processes
 
 import com.ovoenergy.comms.model.Channel.Email
 import com.ovoenergy.comms.model.{Channel, Triggered}
-import com.ovoenergy.orchestration.domain.customerProfile.CustomerProfile
+import com.ovoenergy.orchestration.domain.customer.CustomerProfile
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 
 import scala.concurrent.Future

@@ -5,7 +5,7 @@ import cats.data.{NonEmptyList, Validated}
 import cats.{Apply, Semigroup}
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model.{Metadata, OrchestratedEmail, Triggered}
-import com.ovoenergy.orchestration.domain.customerProfile.{CustomerProfile, CustomerProfileEmailAddresses}
+import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileEmailAddresses}
 
 import scala.concurrent.Future
 
