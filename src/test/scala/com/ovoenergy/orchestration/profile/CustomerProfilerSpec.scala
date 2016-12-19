@@ -12,26 +12,17 @@ import scala.util.{Failure, Success}
 class CustomerProfilerSpec extends FlatSpec
   with Matchers {
 
-  val canaryEmailAddress = "canary@email.com"
-
   val failureHttpClient = (request: Request) => Failure(new Exception())
   val profileApiKey = "apiKey"
   val profileHost = "http://somehost.com"
 
+  val validResponseJson =
+    new String(Files.readAllBytes(Paths.get("src/test/resources/profile_valid_response.json")), StandardCharsets.UTF_8)
+
   behavior of "Customer Profiler"
 
-  it should "Return canary when requested" in {
-    val result = CustomerProfiler(canaryEmailAddress, failureHttpClient, profileApiKey, profileHost)("canary")
-    result match {
-      case Success(customerProfile) =>
-        customerProfile.emailAddresses.primary shouldBe Some(canaryEmailAddress)
-      case Failure(ex) =>
-        fail(ex)
-    }
-  }
-
   it should "Fail when request fails" in {
-    val result = CustomerProfiler(canaryEmailAddress, failureHttpClient, profileApiKey, profileHost)("whatever")
+    val result = CustomerProfiler(failureHttpClient, profileApiKey, profileHost)("whatever", canary = false)
     result match {
       case Success(customerProfile) =>
         fail("Failure expected")
@@ -44,7 +35,7 @@ class CustomerProfilerSpec extends FlatSpec
     val nonOkResponseHttpClient = (request: Request) =>
       Success(new Response.Builder().protocol(Protocol.HTTP_1_1).request(request).code(401).body(ResponseBody.create(MediaType.parse("UTF-8"), "Some error message")).build())
 
-    val result = CustomerProfiler(canaryEmailAddress, nonOkResponseHttpClient, profileApiKey, profileHost)("whatever")
+    val result = CustomerProfiler(nonOkResponseHttpClient, profileApiKey, profileHost)("whatever", canary = false)
     result match {
       case Success(customerProfile) =>
         fail("Failure expected")
@@ -57,7 +48,7 @@ class CustomerProfilerSpec extends FlatSpec
     val badResponseHttpClient = (request: Request) =>
       Success(new Response.Builder().protocol(Protocol.HTTP_1_1).request(request).code(200).body(ResponseBody.create(MediaType.parse("UTF-8"), "{\"some\":\"value\"}")).build())
 
-    val result = CustomerProfiler(canaryEmailAddress, badResponseHttpClient, profileApiKey, profileHost)("whatever")
+    val result = CustomerProfiler(badResponseHttpClient, profileApiKey, profileHost)("whatever", canary = false)
     result match {
       case Success(customerProfile) =>
         fail("Failure expected")
@@ -67,8 +58,6 @@ class CustomerProfilerSpec extends FlatSpec
   }
 
   it should "Succeed when response is valid" in {
-    val validResponseJson =
-      new String(Files.readAllBytes(Paths.get("src/test/resources/profile_valid_response.json")), StandardCharsets.UTF_8)
     val okResponseHttpClient = (request: Request) => {
       request.url.toString shouldBe s"$profileHost/api/customers/whatever?apikey=$profileApiKey"
       request.method shouldBe "GET"
@@ -76,7 +65,7 @@ class CustomerProfilerSpec extends FlatSpec
       Success(new Response.Builder().protocol(Protocol.HTTP_1_1).request(request).code(200).body(ResponseBody.create(MediaType.parse("UTF-8"), validResponseJson)).build())
     }
 
-    val result = CustomerProfiler(canaryEmailAddress, okResponseHttpClient, profileApiKey, profileHost)("whatever")
+    val result = CustomerProfiler(okResponseHttpClient, profileApiKey, profileHost)("whatever", canary = false)
     result match {
       case Success(customerProfile) =>
         customerProfile shouldBe CustomerProfile(
@@ -94,6 +83,23 @@ class CustomerProfilerSpec extends FlatSpec
         fail(ex)
     }
   }
+
+  it should "Ask the profiles service for the canary when requested" in {
+    val httpClient = (request: Request) => {
+      request.url.queryParameter("canary") shouldBe "true"
+      request.method shouldBe "GET"
+
+      Success(new Response.Builder().protocol(Protocol.HTTP_1_1).request(request).code(200).body(ResponseBody.create(MediaType.parse("UTF-8"), validResponseJson)).build())
+    }
+    val result = CustomerProfiler(httpClient, profileApiKey, profileHost)("whatever", canary = true)
+    result match {
+      case Success(customerProfile) =>
+        // ok
+      case Failure(ex) =>
+        fail(ex)
+    }
+  }
+
 
 
 }

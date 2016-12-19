@@ -38,7 +38,6 @@ object Main extends App
 
   val orchestrator = Orchestrator(
     customerProfiler = CustomerProfiler(
-      canaryEmailAddress = config.getString("canary.email.address"),
       httpClient = HttpClient.apply,
       profileApiKey = config.getString("profile.service.apiKey"),
       profileHost = config.getString("profile.service.host")),
