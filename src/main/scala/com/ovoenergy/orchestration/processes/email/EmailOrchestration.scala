@@ -5,7 +5,7 @@ import cats.data.{NonEmptyList, Validated}
 import cats.{Apply, Semigroup}
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model.{Metadata, OrchestratedEmail, Triggered}
-import com.ovoenergy.orchestration.profile.CustomerProfiler._
+import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileEmailAddresses}
 
 import scala.concurrent.Future
 
@@ -31,12 +31,12 @@ object EmailOrchestration {
 
     val emailAddress: ValidationErrorsOr[String] = {
       customerProfile.emailAddresses match {
-        case CustomerProfileEmailAddresses(primary, _) if !primary.isEmpty =>
+        case CustomerProfileEmailAddresses(Some(primary), _) if !primary.isEmpty =>
           Validated.valid(primary)
-        case CustomerProfileEmailAddresses(_, secondary) if !secondary.isEmpty =>
+        case CustomerProfileEmailAddresses(_, Some(secondary)) if !secondary.isEmpty =>
           Validated.valid(secondary)
         case _ =>
-          Validated.invalid(ValidationErrors("Customer has no email address"))
+          Validated.invalid(ValidationErrors("Customer has no usable email address"))
       }
     }
 

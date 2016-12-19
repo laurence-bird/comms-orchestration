@@ -1,5 +1,8 @@
 package com.ovoenergy.orchestration
 
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Paths}
+
 import cakesolutions.kafka.KafkaConsumer.{Conf => KafkaConsumerConf}
 import cakesolutions.kafka.KafkaProducer.{Conf => KafkaProducerConf}
 import cakesolutions.kafka.{KafkaConsumer, KafkaProducer}
@@ -10,6 +13,9 @@ import com.ovoenergy.orchestration.util.TestUtil
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
+import org.mockserver.client.server.MockServerClient
+import org.mockserver.model.HttpRequest._
+import org.mockserver.model.HttpResponse._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, Tag}
 
@@ -28,6 +34,8 @@ class ServiceTestIT extends FlatSpec
     setupTopics()
   }
 
+  val mockServerClient = new MockServerClient("localhost", 1080)
+
   val kafkaHosts = "localhost:29092"
   val zookeeperHosts = "localhost:32181"
 
@@ -43,6 +51,7 @@ class ServiceTestIT extends FlatSpec
   behavior of "Service Testing"
 
   it should "orchestrate emails" taggedAs DockerComposeTag in {
+    createOKCustomerProfileResponse()
 
     val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
@@ -51,8 +60,8 @@ class ServiceTestIT extends FlatSpec
         orchestratedEmails.size shouldBe 1
         orchestratedEmails.foreach(record => {
           val orchestratedEmail = record.value().getOrElse(fail("No record for ${record.key()}"))
-          orchestratedEmail.recipientEmailAddress shouldBe "some.email@ovoenergy.com"
-          orchestratedEmail.customerProfile shouldBe model.CustomerProfile("John", "Smith")
+          orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
+          orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
           orchestratedEmail.templateData shouldBe TestUtil.templateData
           orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
         })
@@ -60,18 +69,16 @@ class ServiceTestIT extends FlatSpec
   }
 
   it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
+    createInvalidCustomerProfileResponse()
 
-    val badMetaData = TestUtil.metadata.copy(customerId = "invalidCustomer")
-    val badTriggered = TestUtil.triggered.copy(metadata = badMetaData)
-
-    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, badTriggered))
+    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
       case _ =>
         val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
         failures.size shouldBe 1
         failures.foreach(record => {
           val failure = record.value().getOrElse(fail("No record for ${record.key()}"))
-          failure.reason should include("Customer has no email address")
+          failure.reason should include("Customer has no usable email address")
           failure.reason should include("Customer has no last name")
           failure.reason should include("Customer has no first name")
           failure.metadata.traceToken shouldBe TestUtil.traceToken
@@ -80,18 +87,16 @@ class ServiceTestIT extends FlatSpec
   }
 
   it should "raise failure when customer profiler fails" taggedAs DockerComposeTag in {
+    createBadCustomerProfileResponse()
 
-    val badMetaData = TestUtil.metadata.copy(customerId = "errorCustomer")
-    val badTriggered = TestUtil.triggered.copy(metadata = badMetaData)
-
-    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, badTriggered))
+    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
       case _ =>
         val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
         failures.size shouldBe 1
         failures.foreach(record => {
           val failure = record.value().getOrElse(fail("No record for ${record.key()}"))
-          failure.reason shouldBe "Orchestration failed: Some failure reason"
+          failure.reason shouldBe "Orchestration failed: Error response (500) from profile service: Some error"
           failure.metadata.traceToken shouldBe TestUtil.traceToken
         })
     }
@@ -123,6 +128,51 @@ class ServiceTestIT extends FlatSpec
     commFailedConsumer.poll(5000).records(failedTopic).asScala.toList
     emailOrchestratedConsumer.assign(Seq(new TopicPartition(emailOrchestratedTopic, 0)).asJava)
     emailOrchestratedConsumer.poll(5000).records(emailOrchestratedTopic).asScala.toList
+  }
+
+  def createOKCustomerProfileResponse() {
+    val validResponseJson =
+      new String(Files.readAllBytes(Paths.get("src/test/resources/profile_valid_response.json")), StandardCharsets.UTF_8)
+
+    mockServerClient.reset()
+    mockServerClient.when(
+      request()
+        .withMethod("GET")
+        .withPath(s"/api/customers/GT-CUS-994332344")
+        .withQueryStringParameter("apikey", "someApiKey")
+    ).respond(
+      response(validResponseJson)
+        .withStatusCode(200)
+    )
+  }
+
+  def createInvalidCustomerProfileResponse() {
+    val validResponseJson =
+      new String(Files.readAllBytes(Paths.get("src/test/resources/profile_missing_required_fields_response.json")), StandardCharsets.UTF_8)
+
+    mockServerClient.reset()
+    mockServerClient.when(
+      request()
+        .withMethod("GET")
+        .withPath(s"/api/customers/GT-CUS-994332344")
+        .withQueryStringParameter("apikey", "someApiKey")
+    ).respond(
+      response(validResponseJson)
+        .withStatusCode(200)
+    )
+  }
+
+  def createBadCustomerProfileResponse() {
+    mockServerClient.reset()
+    mockServerClient.when(
+      request()
+        .withMethod("GET")
+        .withPath(s"/api/customers/GT-CUS-994332344")
+        .withQueryStringParameter("apikey", "someApiKey")
+    ).respond(
+      response("Some error")
+        .withStatusCode(500)
+    )
   }
 
 

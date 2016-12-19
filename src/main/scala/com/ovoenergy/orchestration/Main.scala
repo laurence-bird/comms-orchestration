@@ -5,6 +5,7 @@ import java.nio.file.Files
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
+import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.email.EmailOrchestration
@@ -36,7 +37,11 @@ object Main extends App
   )) _
 
   val orchestrator = Orchestrator(
-    customerProfiler = CustomerProfiler(canaryEmailAddress = config.getString("canary.email.address")),
+    customerProfiler = CustomerProfiler(
+      canaryEmailAddress = config.getString("canary.email.address"),
+      httpClient = HttpClient.apply,
+      profileApiKey = config.getString("profile.service.apiKey"),
+      profileHost = config.getString("profile.service.host")),
     channelSelector = channelSelector,
     emailOrchestrator = emailOrchestrator
   ) _
