@@ -25,8 +25,8 @@ object OrchestrationGraph extends LoggingWithMDC {
 
     val decider: Supervision.Decider = {
       case NonFatal(e) =>
-        log.error("Restarting due to error", e)
-        Supervision.Restart
+        log.error("Stopping due to error", e)
+        Supervision.Stop
     }
 
     val consumerSettings =
@@ -34,29 +34,32 @@ object OrchestrationGraph extends LoggingWithMDC {
         .withBootstrapServers(config.hosts)
         .withGroupId(config.groupId)
 
-    Consumer
+    val source = Consumer
       .committableSource(consumerSettings, Subscriptions.topics(config.topic))
       .mapAsync(1)(msg => {
         log.debug(s"Event received $msg")
         val result = msg.record.value match {
           case Some(triggered) =>
-            orchestrationProcess(triggered).recover({
-              case NonFatal(error) =>
-                logWarn(triggered.metadata.traceToken, "Orchestration failed, raising failure", error)
-                failureProcess(s"Orchestration failed: ${error.getMessage}", triggered)
-            })
+        orchestrationProcess(triggered).recover({
+          case NonFatal(error) =>
+          logWarn(triggered.metadata.traceToken, "Orchestration failed, raising failure", error)
+            failureProcess(s"Orchestration failed: ${error.getMessage}", triggered)
+        })
           case None =>
-            log.warn(s"Skipping event: $msg, failed to parse")
+        log.warn(s"Skipping event: $msg, failed to parse")
             Future.successful(())
         }
         result
           .map(_ => msg.committableOffset.commitScaladsl())
           .recover({
             case NonFatal(ex) =>
-              log.error(s"Orchestration completely failed, committing message if possible and moving on: $msg", ex)
+            log.error(s"Orchestration completely failed, committing message if possible and moving on: $msg", ex)
               msg.committableOffset.commitScaladsl()
           })
-      })
-      .to(Sink.ignore.withAttributes(ActorAttributes.supervisionStrategy(decider)))
+      }).withAttributes(ActorAttributes.supervisionStrategy(decider))
+
+    val sink = Sink.ignore.withAttributes(ActorAttributes.supervisionStrategy(decider))
+
+    source.to(sink)
   }
 }
