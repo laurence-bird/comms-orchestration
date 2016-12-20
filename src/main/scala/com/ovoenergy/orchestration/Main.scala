@@ -62,7 +62,12 @@ object Main extends App
     )
   )
 
-  orchestrationGraph.run()
+  val control = orchestrationGraph.run()
+
+  control.isShutdown.foreach { _ =>
+    log.error("ARGH! The Kafka source has shut down. Killing the JVM and nuking from orbit.")
+    System.exit(1)
+  }
 
   log.info("Orchestration started")
 }
