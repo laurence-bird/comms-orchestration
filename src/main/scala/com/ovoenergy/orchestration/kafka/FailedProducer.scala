@@ -19,7 +19,7 @@ object FailedProducer extends LoggingWithMDC {
 
     (failed: Failed) => {
       logWarn(failed.metadata.traceToken, s"Posting event to $topic - $failed")
-      producer.send(new ProducerRecord[String, Failed](topic, failed))
+      producer.send(new ProducerRecord[String, Failed](topic, failed.metadata.customerId, failed))
     }
   }
 

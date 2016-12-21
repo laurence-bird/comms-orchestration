@@ -19,7 +19,7 @@ object OrchestratedEmailProducer extends LoggingWithMDC {
 
     (email: OrchestratedEmail) => {
       logInfo(email.metadata.traceToken, s"Posting event to $topic - $email")
-      producer.send(new ProducerRecord[String, OrchestratedEmail](topic, email))
+      producer.send(new ProducerRecord[String, OrchestratedEmail](topic, email.metadata.customerId, email))
     }
   }
 
