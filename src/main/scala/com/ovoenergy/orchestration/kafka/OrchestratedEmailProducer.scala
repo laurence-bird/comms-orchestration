@@ -19,7 +19,11 @@ object OrchestratedEmailProducer extends LoggingWithMDC {
 
     (email: OrchestratedEmail) => {
       logInfo(email.metadata.traceToken, s"Posting event to $topic - $email")
-      producer.send(new ProducerRecord[String, OrchestratedEmail](topic, email.metadata.customerId, email))
+      val future = producer.send(new ProducerRecord[String, OrchestratedEmail](topic, email.metadata.customerId, email))
+      future.foreach {
+        r => logInfo(email.metadata.traceToken, s"Posted event to $topic partion ${r.partition()} offset ${r.offset()}")
+      }
+      future
     }
   }
 
