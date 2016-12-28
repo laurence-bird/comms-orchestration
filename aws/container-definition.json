@@ -9,12 +9,6 @@
         "name": "ENV",
         "value": "@@ENV"
       }
-    ],
-    "portMappings": [
-      {
-        "containerPort": 8080,
-        "hostPort": 0
-      }
     ]
   }
 ]
