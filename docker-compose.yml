@@ -2,19 +2,22 @@ version: '2'
 
 services:
 
-  orchestration:
-    image: ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-1.amazonaws.com/orchestration:0.1-SNAPSHOT
-    depends_on:
-      - kafka
-      - profile.service
-    links:
-      - kafka
-      - profile.service
-    environment:
-      ENV: LOCAL
-      KAFKA_HOSTS: kafka:29092
-      PROFILE_SERVICE_API_KEY: someApiKey
-      PROFILE_SERVICE_HOST: http://profile.service:1080
+  # commented out so I can run all the dependencies in docker compose and the app itself via sbt
+  #orchestration:
+    #image: ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-1.amazonaws.com/orchestration:0.1-SNAPSHOT
+    #depends_on:
+      #- kafka
+      #- profile.service
+    #links:
+      #- kafka
+      #- profile.service
+    #environment:
+      #ENV: LOCAL
+      #KAFKA_HOSTS: kafka:29092
+      #PROFILE_SERVICE_API_KEY: someApiKey
+      #PROFILE_SERVICE_HOST: http://profile.service:1080
+      #AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      #AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
 
   zookeeper:
     image: confluentinc/cp-zookeeper:3.1.1

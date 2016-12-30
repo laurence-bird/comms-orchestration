@@ -5,6 +5,11 @@ import java.nio.file.Files
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
+import com.amazonaws.auth.profile.ProfileCredentialsProvider
+import com.amazonaws.auth.{AWSCredentialsProvider, AWSCredentialsProviderChain, ContainerCredentialsProvider, EnvironmentVariableCredentialsProvider}
+import com.amazonaws.regions.Regions
+import com.amazonaws.services.dynamodbv2.{AmazonDynamoDB, AmazonDynamoDBClient}
+import com.gu.scanamo.Scanamo
 import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
@@ -12,6 +17,7 @@ import com.ovoenergy.orchestration.processes.email.EmailOrchestration
 import com.ovoenergy.orchestration.processes.failure.Failure
 import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator}
 import com.ovoenergy.orchestration.profile.CustomerProfiler
+import com.ovoenergy.orchestration.scheduling.Scheduling
 import com.typesafe.config.ConfigFactory
 
 import scala.collection.JavaConverters._
@@ -61,6 +67,15 @@ object Main extends App
     )
   )
 
+  val dynamoClient: AmazonDynamoDB = {
+    val awsCredsProvider: AWSCredentialsProvider = new AWSCredentialsProviderChain(
+      new ContainerCredentialsProvider,
+      new ProfileCredentialsProvider,
+      new EnvironmentVariableCredentialsProvider
+    )
+    new AmazonDynamoDBClient(awsCredsProvider).withRegion(Regions.fromName(config.getString("aws.region")))
+  }
+
   val control = orchestrationGraph.run()
 
   control.isShutdown.foreach { _ =>
@@ -69,4 +84,9 @@ object Main extends App
   }
 
   log.info("Orchestration started")
+
+  Scheduling.init(dynamoClient, orchestrator, failure)
+
+  log.info("Scheduling started")
+
 }

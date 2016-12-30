@@ -40,7 +40,7 @@ object OrchestrationGraph extends LoggingWithMDC {
         log.debug(s"Event received $msg")
         val result = msg.record.value match {
           case Some(triggered) =>
-        orchestrationProcess(triggered).recover({
+        orchestrationProcess(triggered).recoverWith({
           case NonFatal(error) =>
           logWarn(triggered.metadata.traceToken, "Orchestration failed, raising failure", error)
             failureProcess(s"Orchestration failed: ${error.getMessage}", triggered)
