@@ -14,6 +14,7 @@ import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
 import org.mockserver.client.server.MockServerClient
+import org.mockserver.matchers.Times
 import org.mockserver.model.HttpRequest._
 import org.mockserver.model.HttpResponse._
 import org.scalatest.concurrent.ScalaFutures
@@ -96,9 +97,20 @@ class ServiceTestIT extends FlatSpec
         failures.size shouldBe 1
         failures.foreach(record => {
           val failure = record.value().getOrElse(fail("No record for ${record.key()}"))
-          failure.reason shouldBe "Orchestration failed: Error response (500) from profile service: Some error"
+          failure.reason should include("Error response (500) from profile service: Some error")
           failure.metadata.traceToken shouldBe TestUtil.traceToken
         })
+    }
+  }
+
+  it should "retry if the profile service returns an error response" taggedAs DockerComposeTag in {
+    createFlakyCustomerProfileResponse()
+
+    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
+    whenReady(future) {
+      _ =>
+        val orchestratedEmails = emailOrchestratedConsumer.poll(30000).records(emailOrchestratedTopic).asScala.toList
+        orchestratedEmails.size shouldBe 1
     }
   }
 
@@ -172,6 +184,36 @@ class ServiceTestIT extends FlatSpec
     ).respond(
       response("Some error")
         .withStatusCode(500)
+    )
+  }
+
+  def createFlakyCustomerProfileResponse() {
+    val validResponseJson =
+      new String(Files.readAllBytes(Paths.get("src/test/resources/profile_valid_response.json")), StandardCharsets.UTF_8)
+
+    mockServerClient.reset()
+
+    // Fail 3 times, then always succeed after that
+
+    mockServerClient.when(
+      request()
+        .withMethod("GET")
+        .withPath(s"/api/customers/GT-CUS-994332344")
+        .withQueryStringParameter("apikey", "someApiKey"),
+      Times.exactly(3)
+    ).respond(
+      response("Some error")
+        .withStatusCode(500)
+    )
+
+    mockServerClient.when(
+      request()
+        .withMethod("GET")
+        .withPath(s"/api/customers/GT-CUS-994332344")
+        .withQueryStringParameter("apikey", "someApiKey")
+    ).respond(
+      response(validResponseJson)
+        .withStatusCode(200)
     )
   }
 
