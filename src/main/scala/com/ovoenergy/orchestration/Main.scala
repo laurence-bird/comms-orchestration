@@ -2,6 +2,8 @@ package com.ovoenergy.orchestration
 
 import java.io.File
 import java.nio.file.Files
+import java.time.Duration
+import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
@@ -11,10 +13,11 @@ import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.email.EmailOrchestration
 import com.ovoenergy.orchestration.processes.failure.Failure
 import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator}
-import com.ovoenergy.orchestration.profile.CustomerProfiler
+import com.ovoenergy.orchestration.profile.{CustomerProfiler, Retry}
 import com.typesafe.config.ConfigFactory
 
 import scala.collection.JavaConverters._
+import scala.concurrent.duration.FiniteDuration
 
 object Main extends App
   with LoggingWithMDC {
@@ -22,6 +25,10 @@ object Main extends App
   override def loggerName = "Main"
 
   Files.readAllLines(new File("banner.txt").toPath).asScala.foreach(println(_))
+
+  private implicit class RichDuration(val duration: Duration) extends AnyVal {
+    def toFiniteDuration: FiniteDuration = FiniteDuration.apply(duration.toNanos, TimeUnit.NANOSECONDS)
+  }
 
   val config = ConfigFactory.load()
 
@@ -36,11 +43,21 @@ object Main extends App
     topic = config.getString("kafka.topics.orchestrated.email")
   )) _
 
-  val orchestrator = Orchestrator(
-    customerProfiler = CustomerProfiler(
+  val customerProfiler = {
+    val retryConfig = Retry.RetryConfig(
+        attempts = config.getInt("profile.service.http.attempts"),
+        backoff = Retry.Backoff.constantDelay(config.getDuration("profile.service.http.interval").toFiniteDuration)
+      )
+    CustomerProfiler(
       httpClient = HttpClient.apply,
       profileApiKey = config.getString("profile.service.apiKey"),
-      profileHost = config.getString("profile.service.host")),
+      profileHost = config.getString("profile.service.host"),
+      retryConfig = retryConfig
+    ) _
+  }
+
+  val orchestrator = Orchestrator(
+    customerProfiler = customerProfiler,
     channelSelector = channelSelector,
     emailOrchestrator = emailOrchestrator
   ) _
