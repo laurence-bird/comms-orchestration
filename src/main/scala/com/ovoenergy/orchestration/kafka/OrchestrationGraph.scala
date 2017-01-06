@@ -6,7 +6,8 @@ import akka.kafka.scaladsl.Consumer.Control
 import akka.kafka.{ConsumerSettings, Subscriptions}
 import akka.stream.scaladsl.{RunnableGraph, Sink}
 import akka.stream.{ActorAttributes, Materializer, Supervision}
-import com.ovoenergy.comms.model.Triggered
+import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
+import com.ovoenergy.comms.model.{ErrorCode, Triggered}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import org.apache.kafka.common.serialization.{Deserializer, StringDeserializer}
 
@@ -18,7 +19,7 @@ case class OrchestrationGraphConfig(hosts: String, groupId: String, topic: Strin
 object OrchestrationGraph extends LoggingWithMDC {
   override def loggerName: String = "OrchestrationFlow"
 
-  def apply(consumerDeserializer: Deserializer[Option[Triggered]], orchestrationProcess: (Triggered) => Future[_], failureProcess: (String, Triggered) => Future[_], config: OrchestrationGraphConfig)
+  def apply(consumerDeserializer: Deserializer[Option[Triggered]], orchestrationProcess: (Triggered) => Future[_], failureProcess: (String, Triggered, ErrorCode) => Future[_], config: OrchestrationGraphConfig)
               (implicit actorSystem: ActorSystem, materializer: Materializer): RunnableGraph[Control] = {
 
     implicit val executionContext = actorSystem.dispatcher
@@ -43,7 +44,7 @@ object OrchestrationGraph extends LoggingWithMDC {
         orchestrationProcess(triggered).recover({
           case NonFatal(error) =>
           logWarn(triggered.metadata.traceToken, "Orchestration failed, raising failure", error)
-            failureProcess(s"Orchestration failed: ${error.getMessage}", triggered)
+            failureProcess(s"Orchestration failed: ${error.getMessage}", triggered, OrchestrationError)
         })
           case None =>
         log.warn(s"Skipping event: $msg, failed to parse")

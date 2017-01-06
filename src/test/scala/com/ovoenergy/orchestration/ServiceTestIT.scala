@@ -7,6 +7,7 @@ import cakesolutions.kafka.KafkaConsumer.{Conf => KafkaConsumerConf}
 import cakesolutions.kafka.KafkaProducer.{Conf => KafkaProducerConf}
 import cakesolutions.kafka.{KafkaConsumer, KafkaProducer}
 import com.ovoenergy.comms.model
+import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.serialisation.Serialisation._
 import com.ovoenergy.orchestration.util.TestUtil
@@ -57,8 +58,7 @@ class ServiceTestIT extends FlatSpec
     val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
       _ =>
-        val orchestratedEmails = emailOrchestratedConsumer.poll(30000).records(emailOrchestratedTopic).asScala.toList
-        orchestratedEmails.size shouldBe 1
+        val orchestratedEmails = emailOrchestratedConsumer.poll(200000).records(emailOrchestratedTopic).asScala.toList
         orchestratedEmails.foreach(record => {
           val orchestratedEmail = record.value().getOrElse(fail("No record for ${record.key()}"))
           orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
@@ -69,39 +69,40 @@ class ServiceTestIT extends FlatSpec
     }
   }
 
-  it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
-    createInvalidCustomerProfileResponse()
+ it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
+   createInvalidCustomerProfileResponse()
 
-    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
-    whenReady(future) {
-      _ =>
-        val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
-        failures.size shouldBe 1
-        failures.foreach(record => {
-          val failure = record.value().getOrElse(fail("No record for ${record.key()}"))
-          failure.reason should include("Customer has no usable email address")
-          failure.reason should include("Customer has no last name")
-          failure.reason should include("Customer has no first name")
-          failure.metadata.traceToken shouldBe TestUtil.traceToken
-        })
-    }
-  }
+   val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
+   whenReady(future) {
+     _ =>
+       val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
+       failures.size shouldBe 1
+       failures.foreach(record => {
+         val failure = record.value().getOrElse(fail("No record for ${record.key()}"))
+         failure.reason should include("Customer has no usable email address")
+         failure.reason should include("Customer has no last name")
+         failure.reason should include("Customer has no first name")
+         failure.metadata.traceToken shouldBe TestUtil.traceToken
+       })
+   }
+ }
 
-  it should "raise failure when customer profiler fails" taggedAs DockerComposeTag in {
-    createBadCustomerProfileResponse()
+ it should "raise failure when customer profiler fails" taggedAs DockerComposeTag in {
+   createBadCustomerProfileResponse()
 
-    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
-    whenReady(future) {
-      _ =>
-        val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
-        failures.size shouldBe 1
-        failures.foreach(record => {
-          val failure = record.value().getOrElse(fail("No record for ${record.key()}"))
-          failure.reason should include("Error response (500) from profile service: Some error")
-          failure.metadata.traceToken shouldBe TestUtil.traceToken
-        })
-    }
-  }
+   val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
+   whenReady(future) {
+     _ =>
+       val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
+       failures.size shouldBe 1
+       failures.foreach(record => {
+         val failure = record.value().getOrElse(fail("No record for ${record.key()}"))
+         failure.reason should include("Error response (500) from profile service: Some error")
+         failure.metadata.traceToken shouldBe TestUtil.traceToken
+         failure.errorCode shouldBe OrchestrationError
+       })
+   }
+ }
 
   it should "retry if the profile service returns an error response" taggedAs DockerComposeTag in {
     createFlakyCustomerProfileResponse()
