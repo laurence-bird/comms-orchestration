@@ -10,7 +10,7 @@ import scala.util.{Failure, Success, Try}
 
 object Orchestrator extends LoggingWithMDC {
 
-  def apply(customerProfiler: (String, Boolean) => Try[CustomerProfile],
+  def apply(customerProfiler: (String, Boolean, String) => Try[CustomerProfile],
             channelSelector: (CustomerProfile) => Try[Channel],
             emailOrchestrator: (CustomerProfile, Triggered) => Future[_])
            (triggered: Triggered): Future[_] = {
@@ -23,7 +23,7 @@ object Orchestrator extends LoggingWithMDC {
     }
 
     val orchestratorTry = for {
-      customerProfile <- customerProfiler(triggered.metadata.customerId, triggered.metadata.canary)
+      customerProfile <- customerProfiler(triggered.metadata.customerId, triggered.metadata.canary, triggered.metadata.traceToken)
       channel <- channelSelector(customerProfile)
       orchestrator <- determineOrchestrator(channel)
     } yield orchestrator(customerProfile, triggered)

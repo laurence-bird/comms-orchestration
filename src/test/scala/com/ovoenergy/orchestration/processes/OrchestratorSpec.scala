@@ -27,7 +27,7 @@ class OrchestratorSpec extends FlatSpec
   }
 
   val customerProfile = CustomerProfile(CustomerProfileName(Some("Mr"), "John", "Smith", None), CustomerProfileEmailAddresses(Some("some.email@ovoenergy.com"), None))
-  def customerProfiler = (customerId: String, canary: Boolean) => {
+  def customerProfiler = (customerId: String, canary: Boolean, traceToken: String) => {
     Success(customerProfile)
   }
 
@@ -51,7 +51,7 @@ class OrchestratorSpec extends FlatSpec
 
   it should "handle failed customer profiler" in {
     def selectEmailChannel = (customerProfile: CustomerProfile) => Success(Email)
-    def badCustomerProfiler = (customerId: String, canary: Boolean) => Failure(new Exception("whatever"))
+    def badCustomerProfiler = (customerId: String, canary: Boolean, traceToken: String) => Failure(new Exception("whatever"))
     val future = Orchestrator(badCustomerProfiler, selectEmailChannel, emailOrchestrator)(TestUtil.triggered)
     whenReady(future.failed) { result =>
       invocationCount shouldBe 0
