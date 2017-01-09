@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
 import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
+import com.ovoenergy.orchestration.processes.Orchestrator.ErrorStuff
 import okhttp3._
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -24,11 +25,11 @@ class CustomerProfilerSpec extends FlatSpec
   behavior of "Customer Profiler"
 
   it should "Fail when request fails" in {
-    val result = CustomerProfiler(failureHttpClient, profileApiKey, profileHost, retryConfig)("whatever", canary = false, traceToken)
+    val result: Either[ErrorStuff, CustomerProfile] = CustomerProfiler(failureHttpClient, profileApiKey, profileHost, retryConfig)("whatever", canary = false, traceToken)
     result match {
-      case Success(customerProfile) =>
+      case Right(customerProfile) =>
         fail("Failure expected")
-      case Failure(ex) =>
+      case Left(ex) =>
       //OK
     }
   }
@@ -39,9 +40,9 @@ class CustomerProfilerSpec extends FlatSpec
 
     val result = CustomerProfiler(nonOkResponseHttpClient, profileApiKey, profileHost, retryConfig)("whatever", canary = false, traceToken)
     result match {
-      case Success(customerProfile) =>
+      case Right(customerProfile) =>
         fail("Failure expected")
-      case Failure(ex) =>
+      case Left(ex) =>
       //OK
     }
   }
@@ -52,9 +53,9 @@ class CustomerProfilerSpec extends FlatSpec
 
     val result = CustomerProfiler(badResponseHttpClient, profileApiKey, profileHost, retryConfig)("whatever", canary = false, traceToken)
     result match {
-      case Success(customerProfile) =>
+      case Right(customerProfile) =>
         fail("Failure expected")
-      case Failure(ex) =>
+      case Left(ex) =>
       //OK
     }
   }
@@ -69,7 +70,7 @@ class CustomerProfilerSpec extends FlatSpec
 
     val result = CustomerProfiler(okResponseHttpClient, profileApiKey, profileHost, retryConfig)("whatever", canary = false, traceToken)
     result match {
-      case Success(customerProfile) =>
+      case Right(customerProfile) =>
         customerProfile shouldBe CustomerProfile(
           name = CustomerProfileName(
             title = Some("Mr"),
@@ -81,8 +82,8 @@ class CustomerProfilerSpec extends FlatSpec
             primary = Some("qatesting@ovoenergy.com"),
             secondary = None
           ))
-      case Failure(ex) =>
-        fail(ex)
+      case Left(err) =>
+        fail(s"Unexpected failure: ${err.reason}")
     }
   }
 
@@ -95,10 +96,10 @@ class CustomerProfilerSpec extends FlatSpec
     }
     val result = CustomerProfiler(httpClient, profileApiKey, profileHost, retryConfig)("whatever", canary = true, traceToken)
     result match {
-      case Success(customerProfile) =>
+      case Right(customerProfile) =>
         // ok
-      case Failure(ex) =>
-        fail(ex)
+      case Left(err) =>
+        fail(s"Unexpected failure: ${err.reason}")
     }
   }
 

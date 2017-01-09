@@ -3,13 +3,10 @@ package com.ovoenergy.orchestration.processes
 import com.ovoenergy.comms.model.Channel
 import com.ovoenergy.comms.model.Channel.Email
 import com.ovoenergy.orchestration.domain.customer.CustomerProfile
-
-import scala.util.{Success, Try}
+import com.ovoenergy.orchestration.processes.Orchestrator.ErrorStuff
 
 object ChannelSelector {
 
-  def determineChannel(customerProfile: CustomerProfile): Try[Channel] = {
-    Success(Email)
-  }
+  def determineChannel(customerProfile: CustomerProfile): Either[ErrorStuff, Channel] = Right(Email)
 
 }

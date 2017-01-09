@@ -7,7 +7,7 @@ import cakesolutions.kafka.KafkaConsumer.{Conf => KafkaConsumerConf}
 import cakesolutions.kafka.KafkaProducer.{Conf => KafkaProducerConf}
 import cakesolutions.kafka.{KafkaConsumer, KafkaProducer}
 import com.ovoenergy.comms.model
-import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
+import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, OrchestrationError, ProfileRetrievalFailed}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.serialisation.Serialisation._
 import com.ovoenergy.orchestration.util.TestUtil
@@ -82,6 +82,7 @@ class ServiceTestIT extends FlatSpec
          failure.reason should include("Customer has no usable email address")
          failure.reason should include("Customer has no last name")
          failure.reason should include("Customer has no first name")
+         failure.errorCode shouldBe InvalidProfile
          failure.metadata.traceToken shouldBe TestUtil.traceToken
        })
    }
@@ -99,7 +100,7 @@ class ServiceTestIT extends FlatSpec
          val failure = record.value().getOrElse(fail("No record for ${record.key()}"))
          failure.reason should include("Error response (500) from profile service: Some error")
          failure.metadata.traceToken shouldBe TestUtil.traceToken
-         failure.errorCode shouldBe OrchestrationError
+         failure.errorCode shouldBe ProfileRetrievalFailed
        })
    }
  }

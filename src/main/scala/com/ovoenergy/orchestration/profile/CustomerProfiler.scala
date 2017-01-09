@@ -4,9 +4,12 @@ import com.ovoenergy.orchestration.domain.customer.CustomerProfile
 import okhttp3.{HttpUrl, Request, Response}
 import com.ovoenergy.orchestration.http.JsonDecoding._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.profile.Retry.RetryConfig
+import com.ovoenergy.orchestration.profile.Retry.{Failed, RetryConfig}
 import io.circe.generic.auto._
 import cats.syntax.either._
+import com.ovoenergy.comms.model.ErrorCode
+import com.ovoenergy.comms.model.ErrorCode.ProfileRetrievalFailed
+import com.ovoenergy.orchestration.processes.Orchestrator.ErrorStuff
 
 import scala.util.{Failure, Try}
 
@@ -15,7 +18,7 @@ object CustomerProfiler extends LoggingWithMDC {
   val loggerName = "CustomerProfiler"
 
   def apply(httpClient: (Request) => Try[Response], profileApiKey: String, profileHost: String, retryConfig: RetryConfig)
-           (customerId: String, canary: Boolean, traceToken: String): Try[CustomerProfile] = {
+           (customerId: String, canary: Boolean, traceToken: String): Either[ErrorStuff, CustomerProfile] = {
 
     val url = {
       val builder = HttpUrl.parse(s"$profileHost/api/customers/$customerId").newBuilder()
@@ -42,7 +45,9 @@ object CustomerProfiler extends LoggingWithMDC {
         }
       }
     }
-    result.map(_.result).toTry
+    result.map(_.result).leftMap{ (err: Failed) =>
+      ErrorStuff(s"Failed to retrive customer profile: ${err.finalException.getMessage}", ProfileRetrievalFailed)
+    }
   }
 
 }

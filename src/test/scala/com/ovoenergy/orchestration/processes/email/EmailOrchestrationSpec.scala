@@ -2,18 +2,20 @@ package com.ovoenergy.orchestration.processes.email
 
 import akka.Done
 import com.ovoenergy.comms.model
+import com.ovoenergy.comms.model.ErrorCode.InvalidProfile
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
 import com.ovoenergy.orchestration.util.TestUtil
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{FlatSpec, Matchers, OneInstancePerTest}
+import org.scalatest.{EitherValues, FlatSpec, Matchers, OneInstancePerTest}
 
 import scala.concurrent.Future
 
 class EmailOrchestrationSpec extends FlatSpec
   with Matchers
   with ScalaFutures
-  with OneInstancePerTest {
+  with OneInstancePerTest
+  with EitherValues {
 
   implicit val config = PatienceConfig()
 
@@ -33,13 +35,12 @@ class EmailOrchestrationSpec extends FlatSpec
       CustomerProfileEmailAddresses(Some(""), None)
     )
 
-    val future = EmailOrchestration(producer)(badCustomerProfile, TestUtil.triggered)
-    whenReady(future.failed) { error =>
-      error.getMessage should include("Customer has no usable email address")
-      error.getMessage should include("Customer has no last name")
-      error.getMessage should include("Customer has no first name")
-      producerInvocationCount shouldBe 0
-    }
+    val error = EmailOrchestration(producer)(badCustomerProfile, TestUtil.triggered).left.value
+
+      error.reason should include("Customer has no usable email address")
+      error.reason should include("Customer has no last name")
+      error.reason should include("Customer has no first name")
+      error.errorCode shouldBe InvalidProfile
   }
 
   it should "call producer with primary email address if exists" in {
@@ -49,7 +50,7 @@ class EmailOrchestrationSpec extends FlatSpec
       CustomerProfileEmailAddresses(Some("some.email@ovoenergy.com"), Some("some.other.email@ovoenergy.com"))
     )
 
-    val future = EmailOrchestration(producer)(customerProfile, TestUtil.triggered)
+    val future = EmailOrchestration(producer)(customerProfile, TestUtil.triggered).right.value
     whenReady(future) { result =>
       producerInvocationCount shouldBe 1
       passedOrchestratedEmail.recipientEmailAddress shouldBe "some.email@ovoenergy.com"
@@ -66,7 +67,7 @@ class EmailOrchestrationSpec extends FlatSpec
       CustomerProfileEmailAddresses(None, Some("some.other.email@ovoenergy.com"))
     )
 
-    val future = EmailOrchestration(producer)(customerProfile, TestUtil.triggered)
+    val future = EmailOrchestration(producer)(customerProfile, TestUtil.triggered).right.value
     whenReady(future) { result =>
       producerInvocationCount shouldBe 1
       passedOrchestratedEmail.recipientEmailAddress shouldBe "some.other.email@ovoenergy.com"
