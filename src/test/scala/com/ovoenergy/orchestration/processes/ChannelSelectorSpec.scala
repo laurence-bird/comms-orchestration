@@ -14,7 +14,7 @@ class ChannelSelectorSpec extends FlatSpec
   behavior of "ChannelSelector"
 
   it should "always return Email" in {
-    ChannelSelector.determineChannel(customerProfile) shouldBe Success(Email)
+    ChannelSelector.determineChannel(customerProfile) shouldBe Right(Email)
   }
 
 }

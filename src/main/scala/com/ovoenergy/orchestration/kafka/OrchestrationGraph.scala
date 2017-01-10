@@ -6,8 +6,10 @@ import akka.kafka.scaladsl.Consumer.Control
 import akka.kafka.{ConsumerSettings, Subscriptions}
 import akka.stream.scaladsl.{RunnableGraph, Sink}
 import akka.stream.{ActorAttributes, Materializer, Supervision}
-import com.ovoenergy.comms.model.Triggered
+import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
+import com.ovoenergy.comms.model.{ErrorCode, Triggered}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.common.serialization.{Deserializer, StringDeserializer}
 
 import scala.concurrent.Future
@@ -18,8 +20,11 @@ case class OrchestrationGraphConfig(hosts: String, groupId: String, topic: Strin
 object OrchestrationGraph extends LoggingWithMDC {
   override def loggerName: String = "OrchestrationFlow"
 
-  def apply(consumerDeserializer: Deserializer[Option[Triggered]], orchestrationProcess: (Triggered) => Future[_], failureProcess: (String, Triggered) => Future[_], config: OrchestrationGraphConfig)
-              (implicit actorSystem: ActorSystem, materializer: Materializer): RunnableGraph[Control] = {
+  def apply(consumerDeserializer: Deserializer[Option[Triggered]],
+            orchestrationProcess: (Triggered) => Either[ErrorDetails, Future[_]],
+            failureProcess: (String, Triggered, ErrorCode) => Future[_],
+            config: OrchestrationGraphConfig)
+            (implicit actorSystem: ActorSystem, materializer: Materializer): RunnableGraph[Control] = {
 
     implicit val executionContext = actorSystem.dispatcher
 
@@ -38,20 +43,23 @@ object OrchestrationGraph extends LoggingWithMDC {
       .committableSource(consumerSettings, Subscriptions.topics(config.topic))
       .mapAsync(1)(msg => {
         log.debug(s"Event received $msg")
-        val result = msg.record.value match {
+        val result: Future[_] = msg.record.value match {
           case Some(triggered) =>
-        orchestrationProcess(triggered).recover({
-          case NonFatal(error) =>
-          logWarn(triggered.metadata.traceToken, "Orchestration failed, raising failure", error)
-            failureProcess(s"Orchestration failed: ${error.getMessage}", triggered)
-        })
+            orchestrationProcess(triggered) match {
+              case Left(err) => failureProcess(s"Orchestration failed: ${err.reason}", triggered, err.errorCode)
+              case Right(future) => future.recover {
+                case NonFatal(error) =>
+                  logWarn(triggered.metadata.traceToken, "Orchestration failed, raising failure", error)
+                  failureProcess(s"Orchestration failed: ${error.getMessage}", triggered, OrchestrationError)
+              }
+            }
           case None =>
-        log.warn(s"Skipping event: $msg, failed to parse")
+            log.warn(s"Skipping event: $msg, failed to parse")
             Future.successful(())
         }
         result
           .map(_ => msg.committableOffset.commitScaladsl())
-          .recover({
+          .recoverWith({
             case NonFatal(ex) =>
             log.error(s"Orchestration completely failed, committing message if possible and moving on: $msg", ex)
               msg.committableOffset.commitScaladsl()

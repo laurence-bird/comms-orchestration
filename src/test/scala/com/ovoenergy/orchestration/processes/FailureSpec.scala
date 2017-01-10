@@ -1,6 +1,7 @@
 package com.ovoenergy.orchestration.processes
 
 import akka.Done
+import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
 import com.ovoenergy.comms.model.Failed
 import com.ovoenergy.orchestration.processes.failure.Failure
 import com.ovoenergy.orchestration.util.TestUtil
@@ -22,7 +23,7 @@ class FailureSpec extends FlatSpec
   behavior of "Failure process"
 
   it should "produced failed event" in {
-    val future = Failure(producer)("Failure reason", TestUtil.triggered)
+    val future = Failure(producer)("Failure reason", TestUtil.triggered, OrchestrationError)
     whenReady(future) { result =>
       providedFailed.reason shouldBe "Failure reason"
       providedFailed.metadata.traceToken shouldBe TestUtil.traceToken
