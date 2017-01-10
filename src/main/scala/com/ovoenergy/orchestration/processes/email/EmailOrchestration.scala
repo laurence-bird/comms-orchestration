@@ -7,7 +7,7 @@ import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, OrchestrationError}
 import com.ovoenergy.comms.model.{Metadata, OrchestratedEmail, Triggered}
 import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileEmailAddresses}
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorStuff
+import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 
 import scala.concurrent.Future
 
@@ -29,7 +29,7 @@ object EmailOrchestration {
   private type ValidationErrorsOr[A] = Validated[ValidationErrors, A]
 
   def apply(orchestratedEmailProducer: (OrchestratedEmail) => Future[_])
-           (customerProfile: CustomerProfile, triggered: Triggered): Either[ErrorStuff, Future[_]] = {
+           (customerProfile: CustomerProfile, triggered: Triggered): Either[ErrorDetails, Future[_]] = {
 
     val emailAddress: ValidationErrorsOr[String] = {
       customerProfile.emailAddresses match {
@@ -72,7 +72,7 @@ object EmailOrchestration {
 
     resultOrValidationErrors match {
       case Valid(result) => Right(result)
-      case Invalid(errors) => Left(ErrorStuff(errors.errorsString, InvalidProfile))
+      case Invalid(errors) => Left(ErrorDetails(errors.errorsString, InvalidProfile))
     }
 
   }

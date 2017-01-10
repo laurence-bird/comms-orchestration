@@ -7,32 +7,28 @@ import com.ovoenergy.orchestration.domain.customer.CustomerProfile
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 
 import scala.concurrent.Future
-import scala.util.Either.RightProjection
 
 object Orchestrator extends LoggingWithMDC {
-  case class ErrorStuff(reason: String, errorCode: ErrorCode)
+  case class ErrorDetails(reason: String, errorCode: ErrorCode)
 
-  type Orchestrator = (CustomerProfile, Triggered) => Either[ErrorStuff, Future[_]]
+  type Orchestrator = (CustomerProfile, Triggered) => Either[ErrorDetails, Future[_]]
 
-  def apply(customerProfiler: (String, Boolean, String) => Either[ErrorStuff, CustomerProfile],
-            channelSelector: (CustomerProfile) => Either[ErrorStuff, Channel],
+  def apply(customerProfiler: (String, Boolean, String) => Either[ErrorDetails, CustomerProfile],
+            channelSelector: (CustomerProfile) => Either[ErrorDetails, Channel],
             emailOrchestrator: Orchestrator)
-           (triggered: Triggered): Either[ErrorStuff, Future[_]] = {
+           (triggered: Triggered): Either[ErrorDetails, Future[_]] = {
 
-    def determineOrchestrator(profile: CustomerProfile): Either[ErrorStuff, Orchestrator] = {
-    val channel: Either[ErrorStuff, Channel] = channelSelector(profile)
-      channel.right.flatMap[ErrorStuff, Orchestrator] { (ch: Channel) => { ch match {
-        case Email  => Right(emailOrchestrator)
-        case _      => Left(ErrorStuff(s"Unsupported channel selected $ch", OrchestrationError))
-          }
-        }
+    def selectOrchestratorforChannel(channel: Channel): Either[ErrorDetails, Orchestrator] =
+      channel match {
+        case Email => Right(emailOrchestrator)
+        case _ => Left(ErrorDetails(s"Unsupported channel selected $channel", OrchestrationError))
       }
-    }
 
     for {
       customerProfile   <- customerProfiler(triggered.metadata.customerId, triggered.metadata.canary, triggered.metadata.traceToken).right
-      orchestratorFunc  <- determineOrchestrator(customerProfile).right
-      res               <- orchestratorFunc(customerProfile, triggered).right
+      channel           <- channelSelector(customerProfile).right
+      orchestrator      <- selectOrchestratorforChannel(channel).right
+      res               <- orchestrator(customerProfile, triggered).right
     } yield res
   }
 

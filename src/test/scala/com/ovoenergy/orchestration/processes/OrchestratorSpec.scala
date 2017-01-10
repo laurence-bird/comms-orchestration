@@ -5,7 +5,7 @@ import com.ovoenergy.comms.model.Channel.{Email, SMS}
 import com.ovoenergy.comms.model.ErrorCode.{OrchestrationError, ProfileRetrievalFailed}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorStuff
+import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.util.TestUtil
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{EitherValues, FlatSpec, Matchers, OneInstancePerTest}
@@ -39,20 +39,20 @@ class OrchestratorSpec extends FlatSpec
     def selectNonSupportedChannel = (customerProfile: CustomerProfile) => Right(SMS)
     val orchestrator = Orchestrator(customerProfiler, selectNonSupportedChannel, emailOrchestrator)(TestUtil.triggered)
 
-    orchestrator.left.value shouldBe ErrorStuff("Unsupported channel selected SMS", OrchestrationError)
+    orchestrator.left.value shouldBe ErrorDetails("Unsupported channel selected SMS", OrchestrationError)
   }
 
   it should "handle failed channel selection" in {
-    def failedChannelSelection = (customerProfile: CustomerProfile) => Left(ErrorStuff("whatever", OrchestrationError))
+    def failedChannelSelection = (customerProfile: CustomerProfile) => Left(ErrorDetails("whatever", OrchestrationError))
     val orchestrator = Orchestrator(customerProfiler, failedChannelSelection, emailOrchestrator)(TestUtil.triggered)
-    orchestrator.left.value shouldBe ErrorStuff("whatever", OrchestrationError)
+    orchestrator.left.value shouldBe ErrorDetails("whatever", OrchestrationError)
   }
 
   it should "handle failed customer profiler" in {
     def selectEmailChannel = (customerProfile: CustomerProfile) => Right(Email)
-    def badCustomerProfiler: (String, Boolean, String) => Either[ErrorStuff, CustomerProfile] = (customerId: String, canary: Boolean, traceToken: String) => Left(ErrorStuff("whatever", ProfileRetrievalFailed))
+    def badCustomerProfiler: (String, Boolean, String) => Either[ErrorDetails, CustomerProfile] = (customerId: String, canary: Boolean, traceToken: String) => Left(ErrorDetails("whatever", ProfileRetrievalFailed))
     val orchestrator = Orchestrator(badCustomerProfiler, selectEmailChannel, emailOrchestrator)(TestUtil.triggered)
-    orchestrator.left.value shouldBe ErrorStuff("whatever", ProfileRetrievalFailed)
+    orchestrator.left.value shouldBe ErrorDetails("whatever", ProfileRetrievalFailed)
   }
 
   it should "handle email channel" in {

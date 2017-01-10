@@ -4,7 +4,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
 import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorStuff
+import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import okhttp3._
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -25,7 +25,7 @@ class CustomerProfilerSpec extends FlatSpec
   behavior of "Customer Profiler"
 
   it should "Fail when request fails" in {
-    val result: Either[ErrorStuff, CustomerProfile] = CustomerProfiler(failureHttpClient, profileApiKey, profileHost, retryConfig)("whatever", canary = false, traceToken)
+    val result: Either[ErrorDetails, CustomerProfile] = CustomerProfiler(failureHttpClient, profileApiKey, profileHost, retryConfig)("whatever", canary = false, traceToken)
     result match {
       case Right(customerProfile) =>
         fail("Failure expected")

@@ -9,7 +9,7 @@ import akka.stream.{ActorAttributes, Materializer, Supervision}
 import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
 import com.ovoenergy.comms.model.{ErrorCode, Triggered}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorStuff
+import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.common.serialization.{Deserializer, StringDeserializer}
 
 import scala.concurrent.Future
@@ -20,9 +20,11 @@ case class OrchestrationGraphConfig(hosts: String, groupId: String, topic: Strin
 object OrchestrationGraph extends LoggingWithMDC {
   override def loggerName: String = "OrchestrationFlow"
 
-  def apply(consumerDeserializer: Deserializer[Option[Triggered]], orchestrationProcess: (Triggered) => Either[ErrorStuff, Future[_]],
-            failureProcess: (String, Triggered, ErrorCode) => Future[_], config: OrchestrationGraphConfig)
-              (implicit actorSystem: ActorSystem, materializer: Materializer): RunnableGraph[Control] = {
+  def apply(consumerDeserializer: Deserializer[Option[Triggered]],
+            orchestrationProcess: (Triggered) => Either[ErrorDetails, Future[_]],
+            failureProcess: (String, Triggered, ErrorCode) => Future[_],
+            config: OrchestrationGraphConfig)
+            (implicit actorSystem: ActorSystem, materializer: Materializer): RunnableGraph[Control] = {
 
     implicit val executionContext = actorSystem.dispatcher
 
