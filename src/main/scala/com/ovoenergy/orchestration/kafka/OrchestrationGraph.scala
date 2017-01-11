@@ -47,7 +47,7 @@ object OrchestrationGraph extends LoggingWithMDC {
           case Some(triggered) =>
             orchestrationProcess(triggered) match {
               case Left(err) => failureProcess(s"Orchestration failed: ${err.reason}", triggered, err.errorCode)
-              case Right(future) => future.recover {
+              case Right(future) => future.recoverWith {
                 case NonFatal(error) =>
                   logWarn(triggered.metadata.traceToken, "Orchestration failed, raising failure", error)
                   failureProcess(s"Orchestration failed: ${error.getMessage}", triggered, OrchestrationError)
@@ -58,12 +58,7 @@ object OrchestrationGraph extends LoggingWithMDC {
             Future.successful(())
         }
         result
-          .map(_ => msg.committableOffset.commitScaladsl())
-          .recoverWith({
-            case NonFatal(ex) =>
-            log.error(s"Orchestration completely failed, committing message if possible and moving on: $msg", ex)
-              msg.committableOffset.commitScaladsl()
-          })
+          .flatMap(_ => msg.committableOffset.commitScaladsl())
       }).withAttributes(ActorAttributes.supervisionStrategy(decider))
 
     val sink = Sink.ignore.withAttributes(ActorAttributes.supervisionStrategy(decider))
