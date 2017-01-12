@@ -10,7 +10,7 @@ import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, OrchestrationError, ProfileRetrievalFailed}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.serialisation.Serialisation._
-import com.ovoenergy.orchestration.util.TestUtil
+import com.ovoenergy.orchestration.domain.customer.CustomerProfile
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
@@ -18,6 +18,8 @@ import org.mockserver.client.server.MockServerClient
 import org.mockserver.matchers.Times
 import org.mockserver.model.HttpRequest._
 import org.mockserver.model.HttpResponse._
+import org.scalacheck.Arbitrary
+import org.scalacheck.Shapeless._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, Tag}
 
@@ -50,12 +52,19 @@ class ServiceTestIT extends FlatSpec
   val triggeredTopic = "comms.triggered"
   val emailOrchestratedTopic = "comms.orchestrated.email"
 
+  private def generate[A](a: Arbitrary[A]) = {
+    a.arbitrary.sample.get
+  }
+
+  val customerProfile = generate(implicitly[Arbitrary[CustomerProfile]])
+  val triggered       = generate(implicitly[Arbitrary[Triggered]])
+
   behavior of "Service Testing"
 
   it should "orchestrate emails" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse()
 
-    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
+    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, triggered))
     whenReady(future) {
       _ =>
         val orchestratedEmails = emailOrchestratedConsumer.poll(200000).records(emailOrchestratedTopic).asScala.toList
@@ -63,8 +72,8 @@ class ServiceTestIT extends FlatSpec
           val orchestratedEmail = record.value().getOrElse(fail("No record for ${record.key()}"))
           orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
           orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
-          orchestratedEmail.templateData shouldBe TestUtil.templateData
-          orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
+          orchestratedEmail.templateData shouldBe triggered.templateData
+          orchestratedEmail.metadata.traceToken shouldBe triggered.metadata.traceToken
         })
     }
   }
@@ -72,7 +81,7 @@ class ServiceTestIT extends FlatSpec
  it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
    createInvalidCustomerProfileResponse()
 
-   val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
+   val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, triggered))
    whenReady(future) {
      _ =>
        val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
@@ -83,7 +92,7 @@ class ServiceTestIT extends FlatSpec
          failure.reason should include("Customer has no last name")
          failure.reason should include("Customer has no first name")
          failure.errorCode shouldBe InvalidProfile
-         failure.metadata.traceToken shouldBe TestUtil.traceToken
+         failure.metadata.traceToken shouldBe triggered.metadata.traceToken
        })
    }
  }
@@ -91,7 +100,7 @@ class ServiceTestIT extends FlatSpec
  it should "raise failure when customer profiler fails" taggedAs DockerComposeTag in {
    createBadCustomerProfileResponse()
 
-   val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
+   val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, triggered))
    whenReady(future) {
      _ =>
        val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
@@ -99,7 +108,7 @@ class ServiceTestIT extends FlatSpec
        failures.foreach(record => {
          val failure = record.value().getOrElse(fail("No record for ${record.key()}"))
          failure.reason should include("Error response (500) from profile service: Some error")
-         failure.metadata.traceToken shouldBe TestUtil.traceToken
+         failure.metadata.traceToken shouldBe triggered.metadata.traceToken
          failure.errorCode shouldBe ProfileRetrievalFailed
        })
    }
@@ -108,7 +117,7 @@ class ServiceTestIT extends FlatSpec
   it should "retry if the profile service returns an error response" taggedAs DockerComposeTag in {
     createFlakyCustomerProfileResponse()
 
-    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
+    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, triggered))
     whenReady(future) {
       _ =>
         val orchestratedEmails = emailOrchestratedConsumer.poll(30000).records(emailOrchestratedTopic).asScala.toList

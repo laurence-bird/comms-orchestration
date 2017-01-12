@@ -7,7 +7,7 @@ import akka.kafka.{ConsumerSettings, Subscriptions}
 import akka.stream.scaladsl.{RunnableGraph, Sink}
 import akka.stream.{ActorAttributes, Materializer, Supervision}
 import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
-import com.ovoenergy.comms.model.{ErrorCode, Triggered}
+import com.ovoenergy.comms.model.{ErrorCode, InternalMetadata, Triggered}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.common.serialization.{Deserializer, StringDeserializer}
@@ -21,9 +21,10 @@ object OrchestrationGraph extends LoggingWithMDC {
   override def loggerName: String = "OrchestrationFlow"
 
   def apply(consumerDeserializer: Deserializer[Option[Triggered]],
-            orchestrationProcess: (Triggered) => Either[ErrorDetails, Future[_]],
-            failureProcess: (String, Triggered, ErrorCode) => Future[_],
-            config: OrchestrationGraphConfig)
+            orchestrationProcess: (Triggered, InternalMetadata) => Either[ErrorDetails, Future[_]],
+            failureProcess: (String, Triggered, ErrorCode, InternalMetadata) => Future[_],
+            config: OrchestrationGraphConfig,
+            traceTokenGenerator: () => String)
             (implicit actorSystem: ActorSystem, materializer: Materializer): RunnableGraph[Control] = {
 
     implicit val executionContext = actorSystem.dispatcher
@@ -43,14 +44,15 @@ object OrchestrationGraph extends LoggingWithMDC {
       .committableSource(consumerSettings, Subscriptions.topics(config.topic))
       .mapAsync(1)(msg => {
         log.debug(s"Event received $msg")
+        val internalMetaData = InternalMetadata(traceTokenGenerator.apply)
         val result: Future[_] = msg.record.value match {
           case Some(triggered) =>
-            orchestrationProcess(triggered) match {
-              case Left(err) => failureProcess(s"Orchestration failed: ${err.reason}", triggered, err.errorCode)
+            orchestrationProcess(triggered, internalMetaData) match {
+              case Left(err) => failureProcess(s"Orchestration failed: ${err.reason}", triggered, err.errorCode, internalMetaData)
               case Right(future) => future.recoverWith {
                 case NonFatal(error) =>
                   logWarn(triggered.metadata.traceToken, "Orchestration failed, raising failure", error)
-                  failureProcess(s"Orchestration failed: ${error.getMessage}", triggered, OrchestrationError)
+                  failureProcess(s"Orchestration failed: ${error.getMessage}", triggered, OrchestrationError, internalMetaData)
               }
             }
           case None =>

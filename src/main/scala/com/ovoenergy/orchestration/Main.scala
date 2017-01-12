@@ -75,7 +75,8 @@ object Main extends App
       hosts = config.getString("kafka.hosts"),
       groupId = config.getString("kafka.group.id"),
       topic = config.getString("kafka.topics.triggered")
-    )
+    ),
+    () => "HI"
   )
 
   val control = orchestrationGraph.run()

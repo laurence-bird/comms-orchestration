@@ -1,17 +1,18 @@
 package com.ovoenergy.orchestration.processes.failure
 
-import com.ovoenergy.comms.model.{ErrorCode, Failed, Metadata, Triggered}
+import com.ovoenergy.comms.model._
 
 import scala.concurrent.Future
 
 object Failure {
 
-  def apply(failedProducer: (Failed) => Future[_])(reason: String, triggered: Triggered, errorCode: ErrorCode): Future[_] = {
+  def apply(failedProducer: (Failed) => Future[_])(reason: String, triggered: Triggered, errorCode: ErrorCode, internalMetadata: InternalMetadata): Future[_] = {
 
     val event = Failed(
       metadata = Metadata.fromSourceMetadata("orchestration", triggered.metadata),
       reason = reason,
-      errorCode = errorCode
+      errorCode = errorCode,
+      internalMetadata = internalMetadata
     )
 
     failedProducer(event)
