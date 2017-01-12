@@ -3,6 +3,7 @@ package com.ovoenergy.orchestration
 import java.io.File
 import java.nio.file.Files
 import java.time.Duration
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
@@ -76,7 +77,7 @@ object Main extends App
       groupId = config.getString("kafka.group.id"),
       topic = config.getString("kafka.topics.triggered")
     ),
-    () => "HI"
+    UUID.randomUUID().toString
   )
 
   val control = orchestrationGraph.run()
