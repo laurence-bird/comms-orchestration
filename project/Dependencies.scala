@@ -9,7 +9,7 @@ object Dependencies {
     "com.typesafe.akka"   %% "akka-stream-kafka"         % "0.12",
     "com.typesafe.akka"   %% "akka-slf4j"                % "2.3.14",
     "net.cakesolutions"   %% "scala-kafka-client"        % "0.10.0.0",
-    "com.ovoenergy"       %% "comms-kafka-messages"      % "0.0.28",
+    "com.ovoenergy"       %% "comms-kafka-messages"      % "0.0.29",
     "com.ovoenergy"       %% "comms-kafka-serialisation" % "1.0",
     "ch.qos.logback"       % "logback-classic"           % "1.1.7",
     "me.moocar"            % "logback-gelf"              % "0.2",
@@ -23,6 +23,7 @@ object Dependencies {
     "org.apache.kafka"    %% "kafka"                     % "0.10.0.1"  % Test,
     "org.scalacheck"      %% "scalacheck"                % "1.13.4"    % Test,
     "org.scalatest"       %% "scalatest"                 % "2.2.6"     % Test,
+    "com.github.alexarchambault"  %% "scalacheck-shapeless_1.13" % "1.1.4" %   Test,
     "org.mock-server"      % "mockserver-client-java"    % "3.10.4"    % Test
   )
 

@@ -5,7 +5,7 @@ import cats.data.{NonEmptyList, Validated}
 import cats.{Apply, Semigroup}
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, OrchestrationError}
-import com.ovoenergy.comms.model.{Metadata, OrchestratedEmail, Triggered}
+import com.ovoenergy.comms.model.{InternalMetadata, Metadata, OrchestratedEmail, Triggered}
 import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileEmailAddresses}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 
@@ -29,7 +29,7 @@ object EmailOrchestration {
   private type ValidationErrorsOr[A] = Validated[ValidationErrors, A]
 
   def apply(orchestratedEmailProducer: (OrchestratedEmail) => Future[_])
-           (customerProfile: CustomerProfile, triggered: Triggered): Either[ErrorDetails, Future[_]] = {
+           (customerProfile: CustomerProfile, triggered: Triggered, internalMetadata: InternalMetadata): Either[ErrorDetails, Future[_]] = {
 
     val emailAddress: ValidationErrorsOr[String] = {
       customerProfile.emailAddresses match {
@@ -64,7 +64,8 @@ object EmailOrchestration {
             customerProfile = model.CustomerProfile(
               firstName = validFirstName,
               lastName = validLastName),
-            templateData = triggered.templateData
+            templateData = triggered.templateData,
+            internalMetadata = internalMetadata
           )
 
           orchestratedEmailProducer(orchestratedEmail)

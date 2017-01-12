@@ -2,17 +2,18 @@ package com.ovoenergy.orchestration.processes
 
 import akka.Done
 import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
-import com.ovoenergy.comms.model.Failed
+import com.ovoenergy.comms.model.{Failed, InternalMetadata, Triggered}
 import com.ovoenergy.orchestration.processes.failure.Failure
-import com.ovoenergy.orchestration.util.TestUtil
+import com.ovoenergy.orchestration.util.ArbGenerator
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{FlatSpec, Matchers}
+import org.scalacheck.Shapeless._
 
 import scala.concurrent.Future
 
 class FailureSpec extends FlatSpec
   with Matchers
-  with ScalaFutures {
+  with ScalaFutures with ArbGenerator {
 
   var providedFailed: Failed = _
   val producer = (failed: Failed) => {
@@ -23,10 +24,13 @@ class FailureSpec extends FlatSpec
   behavior of "Failure process"
 
   it should "produced failed event" in {
-    val future = Failure(producer)("Failure reason", TestUtil.triggered, OrchestrationError)
+    val internalMetaData = generate[InternalMetadata]
+    val triggered = generate[Triggered]
+    val future = Failure(producer)("Failure reason", triggered, OrchestrationError, internalMetaData)
     whenReady(future) { result =>
       providedFailed.reason shouldBe "Failure reason"
-      providedFailed.metadata.traceToken shouldBe TestUtil.traceToken
+      providedFailed.metadata.traceToken shouldBe triggered.metadata.traceToken
+      providedFailed.internalMetadata shouldBe internalMetaData
     }
   }
 

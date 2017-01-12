@@ -22,7 +22,9 @@ object TestUtil {
     source = "tests",
     sourceMetadata = None,
     commManifest = commManifest,
-    canary = false)
+    canary = false,
+    triggerSource = "test-trigger"
+  )
 
   val triggered = Triggered(
     metadata = metadata,
