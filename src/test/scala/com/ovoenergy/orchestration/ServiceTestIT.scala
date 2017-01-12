@@ -7,11 +7,10 @@ import cakesolutions.kafka.KafkaConsumer.{Conf => KafkaConsumerConf}
 import cakesolutions.kafka.KafkaProducer.{Conf => KafkaProducerConf}
 import cakesolutions.kafka.{KafkaConsumer, KafkaProducer}
 import com.ovoenergy.comms.model
-import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, ProfileRetrievalFailed}
+import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, OrchestrationError, ProfileRetrievalFailed}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.serialisation.Serialisation._
-import com.ovoenergy.orchestration.domain.customer.CustomerProfile
-import com.ovoenergy.orchestration.util.ArbGenerator
+import com.ovoenergy.orchestration.util.TestUtil
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
@@ -25,13 +24,11 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, Tag}
 import scala.collection.JavaConverters._
 import scala.util.Random
 import scala.util.control.NonFatal
-import org.scalacheck.Shapeless._
 
 class ServiceTestIT extends FlatSpec
   with Matchers
   with ScalaFutures
-  with BeforeAndAfterAll
-  with ArbGenerator{
+  with BeforeAndAfterAll {
 
   object DockerComposeTag extends Tag("DockerComposeTag")
 
@@ -53,16 +50,12 @@ class ServiceTestIT extends FlatSpec
   val triggeredTopic = "comms.triggered"
   val emailOrchestratedTopic = "comms.orchestrated.email"
 
-
-  val customerProfile = generate[CustomerProfile]
-  val triggered       = generate[Triggered]
-
   behavior of "Service Testing"
 
   it should "orchestrate emails" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse()
 
-    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, triggered))
+    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
       _ =>
         val orchestratedEmails = emailOrchestratedConsumer.poll(200000).records(emailOrchestratedTopic).asScala.toList
@@ -70,8 +63,8 @@ class ServiceTestIT extends FlatSpec
           val orchestratedEmail = record.value().getOrElse(fail("No record for ${record.key()}"))
           orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
           orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
-          orchestratedEmail.templateData shouldBe triggered.templateData
-          orchestratedEmail.metadata.traceToken shouldBe triggered.metadata.traceToken
+          orchestratedEmail.templateData shouldBe TestUtil.templateData
+          orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
         })
     }
   }
@@ -79,7 +72,7 @@ class ServiceTestIT extends FlatSpec
  it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
    createInvalidCustomerProfileResponse()
 
-   val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, triggered))
+   val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
    whenReady(future) {
      _ =>
        val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
@@ -90,7 +83,7 @@ class ServiceTestIT extends FlatSpec
          failure.reason should include("Customer has no last name")
          failure.reason should include("Customer has no first name")
          failure.errorCode shouldBe InvalidProfile
-         failure.metadata.traceToken shouldBe triggered.metadata.traceToken
+         failure.metadata.traceToken shouldBe TestUtil.traceToken
        })
    }
  }
@@ -98,7 +91,7 @@ class ServiceTestIT extends FlatSpec
  it should "raise failure when customer profiler fails" taggedAs DockerComposeTag in {
    createBadCustomerProfileResponse()
 
-   val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, triggered))
+   val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
    whenReady(future) {
      _ =>
        val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
@@ -106,7 +99,7 @@ class ServiceTestIT extends FlatSpec
        failures.foreach(record => {
          val failure = record.value().getOrElse(fail("No record for ${record.key()}"))
          failure.reason should include("Error response (500) from profile service: Some error")
-         failure.metadata.traceToken shouldBe triggered.metadata.traceToken
+         failure.metadata.traceToken shouldBe TestUtil.traceToken
          failure.errorCode shouldBe ProfileRetrievalFailed
        })
    }
@@ -115,7 +108,7 @@ class ServiceTestIT extends FlatSpec
   it should "retry if the profile service returns an error response" taggedAs DockerComposeTag in {
     createFlakyCustomerProfileResponse()
 
-    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, triggered))
+    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
       _ =>
         val orchestratedEmails = emailOrchestratedConsumer.poll(30000).records(emailOrchestratedTopic).asScala.toList
@@ -159,7 +152,7 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/api/customers/${triggered.metadata.customerId}")
+        .withPath(s"/api/customers/GT-CUS-994332344")
         .withQueryStringParameter("apikey", "someApiKey")
     ).respond(
       response(validResponseJson)
@@ -175,7 +168,7 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/api/customers/${triggered.metadata.customerId}")
+        .withPath(s"/api/customers/GT-CUS-994332344")
         .withQueryStringParameter("apikey", "someApiKey")
     ).respond(
       response(validResponseJson)
@@ -188,7 +181,7 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/api/customers/${triggered.metadata.customerId}")
+        .withPath(s"/api/customers/GT-CUS-994332344")
         .withQueryStringParameter("apikey", "someApiKey")
     ).respond(
       response("Some error")
@@ -207,7 +200,7 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/api/customers/${triggered.metadata.customerId}")
+        .withPath(s"/api/customers/GT-CUS-994332344")
         .withQueryStringParameter("apikey", "someApiKey"),
       Times.exactly(3)
     ).respond(
@@ -218,7 +211,7 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/api/customers/${triggered.metadata.customerId}")
+        .withPath(s"/api/customers/GT-CUS-994332344")
         .withQueryStringParameter("apikey", "someApiKey")
     ).respond(
       response(validResponseJson)
