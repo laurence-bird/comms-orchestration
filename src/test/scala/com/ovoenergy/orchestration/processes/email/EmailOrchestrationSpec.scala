@@ -5,9 +5,9 @@ import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model.ErrorCode.InvalidProfile
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
-import org.scalacheck.Arbitrary
-import org.scalatest.concurrent.ScalaFutures
+import com.ovoenergy.orchestration.util.ArbGenerator
 import org.scalacheck.Shapeless._
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{EitherValues, FlatSpec, Matchers, OneInstancePerTest}
 
 import scala.concurrent.Future
@@ -16,7 +16,8 @@ class EmailOrchestrationSpec extends FlatSpec
   with Matchers
   with ScalaFutures
   with OneInstancePerTest
-  with EitherValues {
+  with EitherValues
+  with ArbGenerator {
 
   implicit val config = PatienceConfig()
 
@@ -28,13 +29,10 @@ class EmailOrchestrationSpec extends FlatSpec
     Future.successful(Done)
   }
 
-  private def generate[A](a: Arbitrary[A]) = {
-    a.arbitrary.sample.get
-  }
 
-  val customerProfile = generate(implicitly[Arbitrary[CustomerProfile]])
-  val triggered       = generate(implicitly[Arbitrary[Triggered]])
-  val internalMetadata = generate(implicitly[Arbitrary[InternalMetadata]])
+  val customerProfile = generate[CustomerProfile]
+  val triggered       = generate[Triggered]
+  val internalMetadata = generate[InternalMetadata]
 
   behavior of "EmailOrchestration"
 

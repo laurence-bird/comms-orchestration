@@ -7,10 +7,11 @@ import cakesolutions.kafka.KafkaConsumer.{Conf => KafkaConsumerConf}
 import cakesolutions.kafka.KafkaProducer.{Conf => KafkaProducerConf}
 import cakesolutions.kafka.{KafkaConsumer, KafkaProducer}
 import com.ovoenergy.comms.model
-import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, OrchestrationError, ProfileRetrievalFailed}
+import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, ProfileRetrievalFailed}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.serialisation.Serialisation._
 import com.ovoenergy.orchestration.domain.customer.CustomerProfile
+import com.ovoenergy.orchestration.util.ArbGenerator
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
@@ -18,19 +19,19 @@ import org.mockserver.client.server.MockServerClient
 import org.mockserver.matchers.Times
 import org.mockserver.model.HttpRequest._
 import org.mockserver.model.HttpResponse._
-import org.scalacheck.Arbitrary
-import org.scalacheck.Shapeless._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, Tag}
 
 import scala.collection.JavaConverters._
 import scala.util.Random
 import scala.util.control.NonFatal
+import org.scalacheck.Shapeless._
 
 class ServiceTestIT extends FlatSpec
   with Matchers
   with ScalaFutures
-  with BeforeAndAfterAll {
+  with BeforeAndAfterAll
+  with ArbGenerator{
 
   object DockerComposeTag extends Tag("DockerComposeTag")
 
@@ -52,12 +53,9 @@ class ServiceTestIT extends FlatSpec
   val triggeredTopic = "comms.triggered"
   val emailOrchestratedTopic = "comms.orchestrated.email"
 
-  private def generate[A](a: Arbitrary[A]) = {
-    a.arbitrary.sample.get
-  }
 
-  val customerProfile = generate(implicitly[Arbitrary[CustomerProfile]])
-  val triggered       = generate(implicitly[Arbitrary[Triggered]])
+  val customerProfile = generate[CustomerProfile]
+  val triggered       = generate[Triggered]
 
   behavior of "Service Testing"
 
@@ -161,7 +159,7 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/api/customers/GT-CUS-994332344")
+        .withPath(s"/api/customers/${triggered.metadata.customerId}")
         .withQueryStringParameter("apikey", "someApiKey")
     ).respond(
       response(validResponseJson)
@@ -177,7 +175,7 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/api/customers/GT-CUS-994332344")
+        .withPath(s"/api/customers/${triggered.metadata.customerId}")
         .withQueryStringParameter("apikey", "someApiKey")
     ).respond(
       response(validResponseJson)
@@ -190,7 +188,7 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/api/customers/GT-CUS-994332344")
+        .withPath(s"/api/customers/${triggered.metadata.customerId}")
         .withQueryStringParameter("apikey", "someApiKey")
     ).respond(
       response("Some error")
@@ -209,7 +207,7 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/api/customers/GT-CUS-994332344")
+        .withPath(s"/api/customers/${triggered.metadata.customerId}")
         .withQueryStringParameter("apikey", "someApiKey"),
       Times.exactly(3)
     ).respond(
@@ -220,7 +218,7 @@ class ServiceTestIT extends FlatSpec
     mockServerClient.when(
       request()
         .withMethod("GET")
-        .withPath(s"/api/customers/GT-CUS-994332344")
+        .withPath(s"/api/customers/${triggered.metadata.customerId}")
         .withQueryStringParameter("apikey", "someApiKey")
     ).respond(
       response(validResponseJson)

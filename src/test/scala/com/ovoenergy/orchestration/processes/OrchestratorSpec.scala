@@ -6,18 +6,21 @@ import com.ovoenergy.comms.model.ErrorCode.{OrchestrationError, ProfileRetrieval
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.customer.CustomerProfile
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.orchestration.util.ArbGenerator
 import org.scalacheck.Arbitrary
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{EitherValues, FlatSpec, Matchers, OneInstancePerTest}
 import org.scalacheck.Shapeless._
 import org.scalatest.{Failed => _, _}
+
 import scala.concurrent.Future
 
 class OrchestratorSpec extends FlatSpec
   with Matchers
   with ScalaFutures
   with OneInstancePerTest
-  with EitherValues {
+  with EitherValues
+  with ArbGenerator {
 
   var passedCustomerProfile: CustomerProfile = _
   var passedTriggered: Triggered = _
@@ -30,13 +33,10 @@ class OrchestratorSpec extends FlatSpec
     Right(Future.successful(Done))
   }
 
-  private def generate[A](a: Arbitrary[A]) = {
-    a.arbitrary.sample.get
-  }
 
-  val customerProfile = generate(implicitly[Arbitrary[CustomerProfile]])
-  val triggered       = generate(implicitly[Arbitrary[Triggered]])
-  val internalMetadata = generate(implicitly[Arbitrary[InternalMetadata]])
+  val customerProfile = generate[CustomerProfile]
+  val triggered       = generate[Triggered]
+  val internalMetadata = generate[InternalMetadata]
 
   private def customerProfiler = (customerId: String, canary: Boolean, traceToken: String) => {
     Right(customerProfile)
