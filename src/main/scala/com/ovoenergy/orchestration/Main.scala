@@ -77,7 +77,7 @@ object Main extends App
       groupId = config.getString("kafka.group.id"),
       topic = config.getString("kafka.topics.triggered")
     ),
-    UUID.randomUUID().toString
+    traceTokenGenerator = () => UUID.randomUUID().toString
   )
 
   val control = orchestrationGraph.run()
