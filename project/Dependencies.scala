@@ -2,7 +2,7 @@ import sbt._
 
 object Dependencies {
 
-  val circeVersion = "0.6.1"
+  val circeVersion = "0.7.0"
 
   def all() = Seq(
     "com.typesafe.akka"   %% "akka-http-core"            % "10.0.0",
@@ -10,11 +10,11 @@ object Dependencies {
     "com.typesafe.akka"   %% "akka-slf4j"                % "2.3.14",
     "net.cakesolutions"   %% "scala-kafka-client"        % "0.10.0.0",
     "com.ovoenergy"       %% "comms-kafka-messages"      % "0.0.29",
-    "com.ovoenergy"       %% "comms-kafka-serialisation" % "1.0",
+    "com.ovoenergy"       %% "comms-kafka-serialisation" % "2.0",
     "ch.qos.logback"       % "logback-classic"           % "1.1.7",
     "me.moocar"            % "logback-gelf"              % "0.2",
     "io.logz.logback"      % "logzio-logback-appender"   % "1.0.11",
-    "org.typelevel"       %% "cats-core"                 % "0.8.1",
+    "org.typelevel"       %% "cats-core"                 % "0.9.0",
     "com.squareup.okhttp3" % "okhttp"                    % "3.4.2",
     "io.circe"            %% "circe-core"                % circeVersion,
     "io.circe"            %% "circe-generic-extras"      % circeVersion,
