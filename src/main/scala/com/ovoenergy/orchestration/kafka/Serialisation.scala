@@ -2,6 +2,8 @@ package com.ovoenergy.orchestration.kafka
 
 import com.ovoenergy.comms.model.{Failed, OrchestratedEmail, Triggered}
 import com.ovoenergy.comms.serialisation.Serialisation._
+import com.ovoenergy.comms.serialisation.Decoders._
+import io.circe.generic.auto._
 
 object Serialisation {
 
