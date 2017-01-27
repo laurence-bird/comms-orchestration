@@ -120,6 +120,23 @@ class ServiceTestIT extends FlatSpec
     }
   }
 
+  it should "also consume the old Triggered events" taggedAs DockerComposeTag in {
+    createOKCustomerProfileResponse()
+
+    val future = triggeredV1Producer.send(new ProducerRecord[String, Triggered](triggeredV1Topic, TestUtil.triggeredV1))
+    whenReady(future) {
+      _ =>
+        val orchestratedEmails = emailOrchestratedConsumer.poll(200000).records(emailOrchestratedTopic).asScala.toList
+        orchestratedEmails.foreach(record => {
+          val orchestratedEmail = record.value().getOrElse(fail("No record for ${record.key()}"))
+          orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
+          orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
+          orchestratedEmail.templateData shouldBe TestUtil.templateData
+          orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
+        })
+    }
+  }
+
   def setupTopics() {
     import _root_.kafka.admin.AdminUtils
     import _root_.kafka.utils.ZkUtils
@@ -133,7 +150,7 @@ class ServiceTestIT extends FlatSpec
     var notStarted = true
     while (timeout.hasTimeLeft && notStarted) {
       try {
-        notStarted = !AdminUtils.topicExists(zkUtils, triggeredTopic)
+        notStarted = !(AdminUtils.topicExists(zkUtils, triggeredTopic) && AdminUtils.topicExists(zkUtils, triggeredV1Topic))
       } catch {
         case NonFatal(ex) => Thread.sleep(100)
       }
