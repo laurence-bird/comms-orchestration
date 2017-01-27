@@ -6,7 +6,7 @@ import scala.concurrent.Future
 
 object Failure {
 
-  def apply(failedProducer: (Failed) => Future[_])(reason: String, triggered: Triggered, errorCode: ErrorCode, internalMetadata: InternalMetadata): Future[_] = {
+  def apply(failedProducer: (Failed) => Future[_])(reason: String, triggered: TriggeredV2, errorCode: ErrorCode, internalMetadata: InternalMetadata): Future[_] = {
 
     val event = Failed(
       metadata = Metadata.fromSourceMetadata("orchestration", triggered.metadata),

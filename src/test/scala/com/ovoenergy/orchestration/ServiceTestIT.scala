@@ -44,20 +44,22 @@ class ServiceTestIT extends FlatSpec
   val zookeeperHosts = "localhost:32181"
 
   val consumerGroup = Random.nextString(10)
-  val triggeredProducer = KafkaProducer(KafkaProducerConf(new StringSerializer, avroSerializer[Triggered], kafkaHosts))
+  val triggeredV1Producer = KafkaProducer(KafkaProducerConf(new StringSerializer, avroSerializer[Triggered], kafkaHosts))
+  val triggeredProducer = KafkaProducer(KafkaProducerConf(new StringSerializer, avroSerializer[TriggeredV2], kafkaHosts))
   val commFailedConsumer = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[Failed], kafkaHosts, consumerGroup))
-  val emailOrchestratedConsumer = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestratedEmail], kafkaHosts, consumerGroup))
+  val emailOrchestratedConsumer = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestratedEmailV2], kafkaHosts, consumerGroup))
 
   val failedTopic = "comms.failed"
-  val triggeredTopic = "comms.triggered"
-  val emailOrchestratedTopic = "comms.orchestrated.email"
+  val triggeredV1Topic = "comms.triggered"
+  val triggeredTopic = "comms.triggered.v2"
+  val emailOrchestratedTopic = "comms.orchestrated.email.v2"
 
   behavior of "Service Testing"
 
   it should "orchestrate emails" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse()
 
-    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
+    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
       _ =>
         val orchestratedEmails = emailOrchestratedConsumer.poll(200000).records(emailOrchestratedTopic).asScala.toList
@@ -74,7 +76,7 @@ class ServiceTestIT extends FlatSpec
  it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
    createInvalidCustomerProfileResponse()
 
-   val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
+   val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
    whenReady(future) {
      _ =>
        val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
@@ -93,7 +95,7 @@ class ServiceTestIT extends FlatSpec
  it should "raise failure when customer profiler fails" taggedAs DockerComposeTag in {
    createBadCustomerProfileResponse()
 
-   val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
+   val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
    whenReady(future) {
      _ =>
        val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
@@ -110,7 +112,7 @@ class ServiceTestIT extends FlatSpec
   it should "retry if the profile service returns an error response" taggedAs DockerComposeTag in {
     createFlakyCustomerProfileResponse()
 
-    val future = triggeredProducer.send(new ProducerRecord[String, Triggered](triggeredTopic, TestUtil.triggered))
+    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
       _ =>
         val orchestratedEmails = emailOrchestratedConsumer.poll(30000).records(emailOrchestratedTopic).asScala.toList

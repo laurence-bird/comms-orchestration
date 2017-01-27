@@ -2,7 +2,8 @@ package com.ovoenergy.orchestration.util
 
 import java.util.UUID
 
-import com.ovoenergy.comms.model.{CommManifest, CommType, Metadata, Triggered}
+import com.ovoenergy.comms.model._
+import shapeless.Coproduct
 
 object TestUtil {
 
@@ -11,7 +12,8 @@ object TestUtil {
   val customerId = "GT-CUS-994332344"
   val friendlyDescription = "The customer did something cool and wants to know"
   val commManifest = CommManifest(CommType.Service, "Plain old email", "1.0")
-  val templateData = Map("someKey" -> "someValue")
+  val templateDataV1 = Map("someKey" -> "someValue")
+  val templateData = Map("someKey" -> TemplateData(Coproduct[TemplateData.TD]("someValue")))
 
   val metadata = Metadata(
     createdAt = createdAt,
@@ -26,7 +28,12 @@ object TestUtil {
     triggerSource = "test-trigger"
   )
 
-  val triggered = Triggered(
+  val triggeredV1 = Triggered(
+    metadata = metadata,
+    templateData = templateDataV1
+  )
+
+  val triggered = TriggeredV2(
     metadata = metadata,
     templateData = templateData
   )
