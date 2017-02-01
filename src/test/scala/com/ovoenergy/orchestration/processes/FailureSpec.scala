@@ -2,7 +2,7 @@ package com.ovoenergy.orchestration.processes
 
 import akka.Done
 import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
-import com.ovoenergy.comms.model.{Failed, InternalMetadata, Triggered}
+import com.ovoenergy.comms.model.{Failed, InternalMetadata, TriggeredV2}
 import com.ovoenergy.orchestration.processes.failure.Failure
 import com.ovoenergy.orchestration.util.ArbGenerator
 import org.scalatest.concurrent.ScalaFutures
@@ -25,7 +25,7 @@ class FailureSpec extends FlatSpec
 
   it should "produced failed event" in {
     val internalMetaData = generate[InternalMetadata]
-    val triggered = generate[Triggered]
+    val triggered = generate[TriggeredV2]
     val future = Failure(producer)("Failure reason", triggered, OrchestrationError, internalMetaData)
     whenReady(future) { result =>
       providedFailed.reason shouldBe "Failure reason"

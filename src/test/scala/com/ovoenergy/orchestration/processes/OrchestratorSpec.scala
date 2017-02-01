@@ -7,11 +7,9 @@ import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.customer.CustomerProfile
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.util.ArbGenerator
-import org.scalacheck.Arbitrary
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{EitherValues, FlatSpec, Matchers, OneInstancePerTest}
 import org.scalacheck.Shapeless._
-import org.scalatest.{Failed => _, _}
 
 import scala.concurrent.Future
 
@@ -23,10 +21,10 @@ class OrchestratorSpec extends FlatSpec
   with ArbGenerator {
 
   var passedCustomerProfile: CustomerProfile = _
-  var passedTriggered: Triggered = _
+  var passedTriggered: TriggeredV2 = _
   var invocationCount: Int = 0
 
-  def emailOrchestrator = (customerProfile: CustomerProfile, triggered: Triggered, internalMetadata: InternalMetadata) => {
+  def emailOrchestrator = (customerProfile: CustomerProfile, triggered: TriggeredV2, internalMetadata: InternalMetadata) => {
     passedCustomerProfile = customerProfile
     passedTriggered = triggered
     invocationCount = invocationCount + 1
@@ -35,7 +33,7 @@ class OrchestratorSpec extends FlatSpec
 
 
   val customerProfile = generate[CustomerProfile]
-  val triggered       = generate[Triggered]
+  val triggered       = generate[TriggeredV2]
   val internalMetadata = generate[InternalMetadata]
 
   private def customerProfiler = (customerId: String, canary: Boolean, traceToken: String) => {

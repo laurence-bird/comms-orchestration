@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
+import com.ovoenergy.comms.model.{TemplateData, Triggered, TriggeredV2}
 import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
@@ -16,6 +17,7 @@ import com.ovoenergy.orchestration.processes.failure.Failure
 import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator}
 import com.ovoenergy.orchestration.profile.{CustomerProfiler, Retry}
 import com.typesafe.config.ConfigFactory
+import shapeless.Coproduct
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.FiniteDuration
@@ -41,7 +43,7 @@ object Main extends App
 
   val emailOrchestrator = EmailOrchestration(OrchestratedEmailProducer(
     hosts = config.getString("kafka.hosts"),
-    topic = config.getString("kafka.topics.orchestrated.email")
+    topic = config.getString("kafka.topics.orchestrated.email.v2")
   )) _
 
   val customerProfiler = {
@@ -69,13 +71,13 @@ object Main extends App
   )) _
 
   val orchestrationGraph =  OrchestrationGraph(
-    consumerDeserializer = Serialisation.triggeredDeserializer,
+    consumerDeserializer = Serialisation.triggeredV2Deserializer,
     orchestrationProcess = orchestrator,
     failureProcess = failure,
     config = OrchestrationGraphConfig(
       hosts = config.getString("kafka.hosts"),
       groupId = config.getString("kafka.group.id"),
-      topic = config.getString("kafka.topics.triggered")
+      topic = config.getString("kafka.topics.triggered.v2")
     ),
     traceTokenGenerator = () => UUID.randomUUID().toString
   )
@@ -85,6 +87,34 @@ object Main extends App
   control.isShutdown.foreach { _ =>
     log.error("ARGH! The Kafka source has shut down. Killing the JVM and nuking from orbit.")
     System.exit(1)
+  }
+
+  // TODO: this whole block and the OrchestrationGraphV1 object can be removed once we have migrated all producers to TriggeredV2
+  {
+    val triggeredConverter = (t: Triggered) => TriggeredV2(
+      metadata = t.metadata,
+      templateData = t.templateData.mapValues(string => TemplateData(Coproduct[TemplateData.TD](string)))
+    )
+
+    val orchestrationGraphV1 = OrchestrationGraphV1(
+      consumerDeserializer = Serialisation.triggeredDeserializer,
+      triggeredConverter = triggeredConverter,
+      orchestrationProcess = orchestrator,
+      failureProcess = failure,
+      config = OrchestrationGraphConfig(
+        hosts = config.getString("kafka.hosts"),
+        groupId = config.getString("kafka.group.id"),
+        topic = config.getString("kafka.topics.triggered.v1")
+      ),
+      traceTokenGenerator = () => UUID.randomUUID().toString
+    )
+
+    val controlV1 = orchestrationGraphV1.run()
+
+    controlV1.isShutdown.foreach { _ =>
+      log.error("ARGH! The Kafka source has shut down (V1). Killing the JVM and nuking from orbit.")
+      System.exit(1)
+    }
   }
 
   log.info("Orchestration started")

@@ -22,8 +22,8 @@ class EmailOrchestrationSpec extends FlatSpec
   implicit val config = PatienceConfig()
 
   var producerInvocationCount = 0
-  var passedOrchestratedEmail: OrchestratedEmail = _
-  def producer = (orchestratedEmail: OrchestratedEmail) => {
+  var passedOrchestratedEmail: OrchestratedEmailV2 = _
+  def producer = (orchestratedEmail: OrchestratedEmailV2) => {
     producerInvocationCount = producerInvocationCount + 1
     passedOrchestratedEmail = orchestratedEmail
     Future.successful(Done)
@@ -31,7 +31,7 @@ class EmailOrchestrationSpec extends FlatSpec
 
 
   val customerProfile = generate[CustomerProfile]
-  val triggered       = generate[Triggered]
+  val triggered       = generate[TriggeredV2]
   val internalMetadata = generate[InternalMetadata]
 
   behavior of "EmailOrchestration"
