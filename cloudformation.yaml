@@ -61,7 +61,7 @@ Resources:
         - AttributeName: customerId
           KeyType: HASH
         - AttributeName: commName
-          KeyType: HASH
+          KeyType: RANGE
         Projection:
           ProjectionType: ALL
         ProvisionedThroughput:
