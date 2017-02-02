@@ -1,0 +1,82 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Load balancer and task role for the ECS service
+
+Resources:
+
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - 
+            Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - 
+          PolicyName: read-write-dynamo-table
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+                - 'dynamodb:Put*'
+                - 'dynamodb:Update*'
+                - 'dynamodb:Query'
+                - 'dynamodb:Scan'
+                - 'dynamodb:Get*'
+                - 'dynamodb:List*'
+                - 'dynamodb:BatchGetItem'
+                - 'dynamodb:DescribeTable'
+              Resource:
+                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SchedulingTable}*"
+
+  SchedulingTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: scheduleId
+        AttributeType: S
+      - AttributeName: customerId
+        AttributeType: S
+      - AttributeName: commName
+        AttributeType: S
+      - AttributeName: status
+        AttributeType: S
+      - AttributeName: orchestrationExpiry_unique
+        AttributeType: S
+      KeySchema:
+      - AttributeName: scheduleId
+        KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      GlobalSecondaryIndexes:
+      - IndexName: customerId-commName-index
+        KeySchema:
+        - AttributeName: customerId
+          KeyType: HASH
+        - AttributeName: commName
+          KeyType: HASH
+        Projection:
+          ProjectionType: ALL
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
+      - IndexName: status-orchestrationExpiry-index
+        KeySchema:
+        - AttributeName: status
+          KeyType: HASH
+        - AttributeName: orchestrationExpiry_unique
+          KeyType: RANGE
+        Projection:
+          ProjectionType: ALL
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
+
+
