@@ -1,6 +1,6 @@
 package com.ovoenergy.orchestration.util
 
-import java.time.{ZoneId, ZonedDateTime}
+import java.time.{Instant, ZoneId, ZonedDateTime}
 import java.util.UUID
 
 import org.scalacheck.{Arbitrary, Gen}
@@ -15,6 +15,9 @@ trait ArbGenerator {
   }
   implicit def arbZonedDateTime: Arbitrary[ZonedDateTime] = Arbitrary {
     ZonedDateTime.now(ZoneId.of("UTC")).plusSeconds(Random.nextInt(5))
+  }
+  implicit def arbInstant: Arbitrary[Instant] = Arbitrary {
+    Instant.now().plusSeconds(Random.nextInt(5))
   }
 
   // Ensure we don't get empty strings

@@ -1,17 +1,16 @@
 package com.ovoenergy.orchestration.scheduling
 
-import java.time.format.DateTimeParseException
-import java.time.{Clock, Instant, ZoneId, ZonedDateTime}
+import java.time.{Clock, DateTimeException, Instant}
 import java.util.UUID
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB
 import com.gu.scanamo._
-import com.gu.scanamo.error.ConditionNotMet
-import com.gu.scanamo.query.{AndCondition, Condition, UniqueKey}
+import com.gu.scanamo.error.{ConditionNotMet, TypeCoercionError}
+import com.gu.scanamo.query.{AndCondition, Condition}
 import com.gu.scanamo.syntax._
-import com.ovoenergy.comms.model.{CommType, TemplateData}
-import com.ovoenergy.orchestration.scheduling.ScheduleStatus
-import io.circe.{Decoder, Encoder}
+import com.ovoenergy.comms.model.TemplateData
+import com.ovoenergy.orchestration.scheduling.Persistence.Context
+import io.circe.{Decoder, Encoder, Error}
 import io.circe.parser._
 import io.circe.generic.semiauto._
 import org.slf4j.LoggerFactory
@@ -23,67 +22,40 @@ object Persistence {
   case object AlreadyBeingOrchestrated extends SetAsOrchestratingResult
   case object Failed extends SetAsOrchestratingResult
 
-  private val log = LoggerFactory.getLogger("Persistence")
-
   implicit val uuidDynamoFormat = DynamoFormat.coercedXmap[UUID, String, IllegalArgumentException](UUID.fromString)(_.toString)
 
-  implicit val zonedDateTimeDynamoFormat = DynamoFormat.coercedXmap[ZonedDateTime, Long, DateTimeParseException] (
-    (millis) => {ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of("UTC"))}
-  )(
-    _.toInstant.toEpochMilli
-  )
-
-  implicit val scheduleStatusDynamoFormat = DynamoFormat.coercedXmap[ScheduleStatus, String, MatchError]{
-    case "Pending" => ScheduleStatus.Pending
-    case "Orchestrating" => ScheduleStatus.Orchestrating
-    case "Complete" => ScheduleStatus.Complete
-    case "Failed" => ScheduleStatus.Failed
-    case "Cancelled" => ScheduleStatus.Cancelled
-  }{
-    case ScheduleStatus.Pending => "Pending"
-    case ScheduleStatus.Orchestrating => "Orchestrating"
-    case ScheduleStatus.Complete => "Complete"
-    case ScheduleStatus.Failed => "Failed"
-    case ScheduleStatus.Cancelled => "Cancelled"
-  }
-
-  implicit val commTypeDynamoFormat = DynamoFormat.coercedXmap[CommType, String, MatchError]{
-    case "Service" => CommType.Service
-    case "Regulatory" => CommType.Regulatory
-    case "Marketing" => CommType.Marketing
-  }{
-    case CommType.Service => "Service"
-    case CommType.Regulatory => "Regulatory"
-    case CommType.Marketing => "Marketing"
-  }
+  implicit val instantDynamoFormat = DynamoFormat.coercedXmap[Instant, Long, DateTimeException](Instant.ofEpochMilli)(_.toEpochMilli)
 
   import io.circe.shapes._
   implicit val templateDataDecoder: Decoder[TemplateData] = deriveDecoder[TemplateData]
   implicit val templateDataEncoder: Encoder[TemplateData] = deriveEncoder[TemplateData]
 
-  implicit val templateDataFormat = DynamoFormat.coercedXmap[TemplateData, String, IllegalArgumentException](
+  import cats.syntax.either._
+  implicit val templateDataFormat = DynamoFormat.xmap[TemplateData, String](
     (string) => {
-      parse(string) match {
-        case Right(json) =>
-          val result = templateDataDecoder.decodeJson(json)
-          result match {
-            case Right(td) => td
-            case Left(error) =>
-              log.warn("Unable to deserialize to TemplateData", error)
-              throw new IllegalArgumentException("Unable to deserialize to TemplateData", error)
-          }
-        case Left(error) =>
-          log.warn("Unable to deserialize to TemplateData", error)
-          throw new IllegalArgumentException("Unable to deserialize to TemplateData", error)
-      }
+      val decodedTemplateData: Either[Error, TemplateData] = for {
+        json <- parse(string)
+        templateData <- templateDataDecoder.decodeJson(json)
+      } yield templateData
+      decodedTemplateData.leftMap(error => {TypeCoercionError(error)})
     }
   )(
     (templateData) => templateDataEncoder.apply(templateData).spaces2
   )
 
+  case class Context(db: AmazonDynamoDB, table: Table[Schedule])
+
+  object Context{
+    def apply(db: AmazonDynamoDB, tableName: String): Context = {
+      Context(
+        db,
+        Table[Schedule](tableName)
+      )
+    }
+  }
 }
 
-class Persistence(context: Context, clock: Clock = Clock.systemUTC()) {
+class Persistence(orchestrationExpiryMinutes: Int, context: Context, clock: Clock = Clock.systemUTC()) {
   import Persistence._
 
   private val log = LoggerFactory.getLogger("Persistence")
@@ -103,15 +75,15 @@ class Persistence(context: Context, clock: Clock = Clock.systemUTC()) {
   }
 
   def attemptSetScheduleAsOrchestrating(scheduleId: String): SetAsOrchestratingResult = {
-    val now = ZonedDateTime.now(clock)
+    val now = Instant.now(clock)
     val operation = context.table
       .given(
         Condition('status -> "Pending")
-          or AndCondition('status -> "Orchestrating", 'orchestrationExpiry < now.toInstant.toEpochMilli)
+          or AndCondition('status -> "Orchestrating", 'orchestrationExpiry < now.toEpochMilli)
       )
       .update('scheduleId -> scheduleId,
         set('status -> (ScheduleStatus.Orchestrating: ScheduleStatus))
-          and set('orchestrationExpiry, now.plusMinutes(5).toInstant.toEpochMilli)
+          and set('orchestrationExpiry, now.plusSeconds(60 * orchestrationExpiryMinutes).toEpochMilli)
           and append('history, Change(now, "Start orchestrating"))
       )
     Scanamo.exec(context.db)(operation) match {
@@ -124,7 +96,7 @@ class Persistence(context: Context, clock: Clock = Clock.systemUTC()) {
   }
 
   def setScheduleAsFailed(scheduleId: String, reason: String) = {
-    val now = ZonedDateTime.now(clock)
+    val now = Instant.now(clock)
     Scanamo.exec(context.db)(context.table.update('scheduleId -> scheduleId,
       set('status -> (ScheduleStatus.Failed: ScheduleStatus))
         and append('history, Change(now, s"Failed - $reason"))
@@ -132,7 +104,7 @@ class Persistence(context: Context, clock: Clock = Clock.systemUTC()) {
   }
 
   def setScheduleAsComplete(scheduleId: String) = {
-    val now = ZonedDateTime.now(clock)
+    val now = Instant.now(clock)
     Scanamo.exec(context.db)(context.table.update('scheduleId -> scheduleId,
       set('status -> (ScheduleStatus.Complete: ScheduleStatus))
         and append('history, Change(now, "Orchestration complete"))
@@ -140,7 +112,7 @@ class Persistence(context: Context, clock: Clock = Clock.systemUTC()) {
   }
 
   def retrievePendingSchedules(): List[Schedule] = {
-    val now = ZonedDateTime.now(clock).toInstant.toEpochMilli
+    val now = Instant.now(clock).toEpochMilli
     val pending = Scanamo.exec(context.db)(context.table.index("status-orchestrationExpiry-index").query('status -> (ScheduleStatus.Pending: ScheduleStatus)))
     val expired = Scanamo.exec(context.db)(context.table.index("status-orchestrationExpiry-index").query('status -> (ScheduleStatus.Orchestrating: ScheduleStatus) and 'orchestrationExpiry < now))
 
@@ -152,40 +124,36 @@ class Persistence(context: Context, clock: Clock = Clock.systemUTC()) {
     }
   }
 
-  def cancelSchedules(customerId: String, commName: String): Unit = {
+  def cancelSchedules(customerId: String, commName: String): List[Schedule] = {
     val schedules = Scanamo.exec(context.db)(context.table.index("customerId-commName-index").query('customerId -> customerId and ('commName beginsWith commName)))
-    schedules.foreach {
-      case Right(schedule) => if (schedule.commName == commName) cancelSchedule(schedule.scheduleId.toString)
-      case Left(e)         => log.warn("Problem retrieving pending schedule", e)
+    schedules.flatMap {
+      case Right(schedule) =>
+        if (schedule.commName == commName) attemptToCancelSchedule(schedule.scheduleId.toString)
+        else None
+      case Left(e) =>
+        log.warn("Problem retrieving pending schedule", e)
+        None
     }
   }
 
-  private def cancelSchedule(scheduleId: String)  = {
-    val now = ZonedDateTime.now(clock)
+  private def attemptToCancelSchedule(scheduleId: String): Option[Schedule] = {
+    val now = Instant.now(clock)
     val operation = context.table
       .given(
         Condition('status -> "Pending")
-          or AndCondition('status -> "Orchestrating", 'orchestrationExpiry < now.toInstant.toEpochMilli)
+          or AndCondition('status -> "Orchestrating", 'orchestrationExpiry < now.toEpochMilli)
       )
       .update('scheduleId -> scheduleId,
         set('status -> (ScheduleStatus.Cancelled: ScheduleStatus))
           and append('history, Change(now, "Cancelled"))
       )
 
-    val result = Scanamo.exec(context.db)(operation)
-    if (result.isLeft && !result.left.get.isInstanceOf[ConditionNotMet])
-      log.warn(s"Problem cancelling schedule: $scheduleId", result.left.get)
-  }
-}
-
-case class Context(db: AmazonDynamoDB, table: Table[Schedule])
-
-object Context{
-  import Persistence._
-  def apply(db: AmazonDynamoDB, tableName: String): Context = {
-    Context(
-      db,
-      Table[Schedule](tableName)
-    )
+    Scanamo.exec(context.db)(operation) match {
+      case Right(schedule)          => Some(schedule)
+      case Left(ConditionNotMet(_)) => None
+      case Left(error)              =>
+        log.warn(s"Problem cancelling schedule: $scheduleId", error)
+        None
+    }
   }
 }

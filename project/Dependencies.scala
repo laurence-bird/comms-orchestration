@@ -21,7 +21,7 @@ object Dependencies {
     "io.circe"            %% "circe-parser"              % circeVersion,
     "io.circe"            %% "circe-generic"             % circeVersion,
     "org.quartz-scheduler" % "quartz"                    % "2.2.3",
-    "com.gu"              %% "scanamo"                   % "0.8.3",
+    "com.gu"              %% "scanamo"                   % "0.9.1",
     "org.apache.kafka"    %% "kafka"                     % "0.10.0.1"  % Test,
     "org.scalacheck"      %% "scalacheck"                % "1.13.4"    % Test,
     "org.scalatest"       %% "scalatest"                 % "2.2.6"     % Test,
