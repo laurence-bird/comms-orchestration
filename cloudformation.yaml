@@ -47,8 +47,8 @@ Resources:
         AttributeType: S
       - AttributeName: status
         AttributeType: S
-      - AttributeName: orchestrationExpiry_unique
-        AttributeType: S
+      - AttributeName: orchestrationExpiry
+        AttributeType: N
       KeySchema:
       - AttributeName: scheduleId
         KeyType: HASH
@@ -61,7 +61,7 @@ Resources:
         - AttributeName: customerId
           KeyType: HASH
         - AttributeName: commName
-          KeyType: HASH
+          KeyType: RANGE
         Projection:
           ProjectionType: ALL
         ProvisionedThroughput:
@@ -71,7 +71,7 @@ Resources:
         KeySchema:
         - AttributeName: status
           KeyType: HASH
-        - AttributeName: orchestrationExpiry_unique
+        - AttributeName: orchestrationExpiry
           KeyType: RANGE
         Projection:
           ProjectionType: ALL
