@@ -8,7 +8,7 @@ import com.gu.scanamo._
 import com.gu.scanamo.error.{ConditionNotMet, TypeCoercionError}
 import com.gu.scanamo.query.{AndCondition, Condition}
 import com.gu.scanamo.syntax._
-import com.ovoenergy.comms.model.TemplateData
+import com.ovoenergy.comms.model.{CommType, TemplateData}
 import com.ovoenergy.orchestration.scheduling.Persistence.Context
 import io.circe.{Decoder, Encoder, Error}
 import io.circe.parser._
@@ -25,6 +25,30 @@ object Persistence {
   implicit val uuidDynamoFormat = DynamoFormat.coercedXmap[UUID, String, IllegalArgumentException](UUID.fromString)(_.toString)
 
   implicit val instantDynamoFormat = DynamoFormat.coercedXmap[Instant, Long, DateTimeException](Instant.ofEpochMilli)(_.toEpochMilli)
+
+  implicit val scheduleStatusDynamoFormat = DynamoFormat.coercedXmap[ScheduleStatus, String, MatchError]{
+    case "Pending" => ScheduleStatus.Pending
+    case "Orchestrating" => ScheduleStatus.Orchestrating
+    case "Complete" => ScheduleStatus.Complete
+    case "Failed" => ScheduleStatus.Failed
+    case "Cancelled" => ScheduleStatus.Cancelled
+  }{
+    case ScheduleStatus.Pending => "Pending"
+    case ScheduleStatus.Orchestrating => "Orchestrating"
+    case ScheduleStatus.Complete => "Complete"
+    case ScheduleStatus.Failed => "Failed"
+    case ScheduleStatus.Cancelled => "Cancelled"
+  }
+
+  implicit val commTypeDynamoFormat = DynamoFormat.coercedXmap[CommType, String, MatchError]{
+    case "Service" => CommType.Service
+    case "Regulatory" => CommType.Regulatory
+    case "Marketing" => CommType.Marketing
+  }{
+    case CommType.Service => "Service"
+    case CommType.Regulatory => "Regulatory"
+    case CommType.Marketing => "Marketing"
+  }
 
   import io.circe.shapes._
   implicit val templateDataDecoder: Decoder[TemplateData] = deriveDecoder[TemplateData]
