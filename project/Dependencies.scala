@@ -5,7 +5,6 @@ object Dependencies {
   val circeVersion = "0.7.0"
 
   def all() = Seq(
-    "com.typesafe.akka"   %% "akka-http-core"            % "10.0.0",
     "com.typesafe.akka"   %% "akka-stream-kafka"         % "0.12",
     "net.cakesolutions"   %% "scala-kafka-client"        % "0.10.0.0",
     "com.ovoenergy"       %% "comms-kafka-messages"      % "1.0",
