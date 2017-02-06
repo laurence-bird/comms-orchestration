@@ -4,6 +4,7 @@ import java.time.{Clock, DateTimeException, Instant}
 import java.util.UUID
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB
+import com.amazonaws.services.dynamodbv2.model.{AttributeValue, QueryRequest, UpdateItemRequest}
 import com.gu.scanamo._
 import com.gu.scanamo.error.{ConditionNotMet, TypeCoercionError}
 import com.gu.scanamo.query.{AndCondition, Condition}
@@ -14,6 +15,8 @@ import io.circe.{Decoder, Encoder, Error}
 import io.circe.parser._
 import io.circe.generic.semiauto._
 import org.slf4j.LoggerFactory
+
+import scala.collection.JavaConverters._
 
 object Persistence {
 
@@ -149,11 +152,33 @@ class Persistence(orchestrationExpiryMinutes: Int, context: Context, clock: Cloc
   }
 
   def cancelSchedules(customerId: String, commName: String): List[Schedule] = {
-    val schedules = Scanamo.exec(context.db)(context.table.index("customerId-commName-index").query('customerId -> customerId and ('commName beginsWith commName)))
-    schedules.flatMap {
+    val now = Instant.now(clock)
+    val db = context.db
+    val tableName = context.table.name
+    val query = new QueryRequest()
+      .withTableName(tableName)
+      .withIndexName("customerId-commName-index")
+      .addExpressionAttributeNamesEntry("#customerId", "customerId")
+      .addExpressionAttributeValuesEntry(":customerId", new AttributeValue(customerId))
+      .addExpressionAttributeNamesEntry("#commName", "commName")
+      .addExpressionAttributeValuesEntry(":commName", new AttributeValue(commName))
+      .withKeyConditionExpression("#customerId = :customerId and #commName = :commName")
+      .addExpressionAttributeNamesEntry("#status", "status")
+      .addExpressionAttributeNamesEntry("#expiry", "orchestrationExpiry")
+      .addExpressionAttributeValuesEntry(":pending", scheduleStatusDynamoFormat.write(ScheduleStatus.Pending))
+      .addExpressionAttributeValuesEntry(":orchestrating", scheduleStatusDynamoFormat.write(ScheduleStatus.Orchestrating))
+      .addExpressionAttributeValuesEntry(":now", instantDynamoFormat.write(now))
+      .withFilterExpression("#status = :pending or (#status = :orchestrating and #expiry < :now)")
+
+    val items = db.query(query).getItems.asScala
+      .map(item => {
+        DynamoFormat[Schedule].read(new AttributeValue().withM(item))
+      })
+      .toList
+
+    items.flatMap {
       case Right(schedule) =>
-        if (schedule.commName == commName) attemptToCancelSchedule(schedule.scheduleId.toString)
-        else None
+        attemptToCancelSchedule(schedule.scheduleId.toString)
       case Left(e) =>
         log.warn("Problem retrieving pending schedule", e)
         None

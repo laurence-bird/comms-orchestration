@@ -6,6 +6,7 @@ object Dependencies {
 
   def all() = Seq(
     "com.typesafe.akka"   %% "akka-stream-kafka"         % "0.12",
+    "com.typesafe.akka"   %% "akka-slf4j"                % "2.3.14",
     "net.cakesolutions"   %% "scala-kafka-client"        % "0.10.0.0",
     "com.ovoenergy"       %% "comms-kafka-messages"      % "1.0",
     "com.ovoenergy"       %% "comms-kafka-serialisation" % "2.0",
