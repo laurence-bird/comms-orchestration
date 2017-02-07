@@ -153,7 +153,7 @@ class Persistence(orchestrationExpiryMinutes: Int, context: Context, clock: Cloc
     }
   }
 
-  def cancelSchedules(customerId: String, commName: String): List[Schedule] = {
+  def cancelSchedules(customerId: String, commName: String): Seq[Schedule] = {
     val now = Instant.now(clock)
     val db = context.db
     val tableName = context.table.name
@@ -173,22 +173,16 @@ class Persistence(orchestrationExpiryMinutes: Int, context: Context, clock: Cloc
       .withFilterExpression("#status = :pending or (#status = :orchestrating and #expiry < :now)")
 
     @tailrec
-    def nextPage(key: JMap[String,AttributeValue], currentItems: List[JMap[String,AttributeValue]] ): List[JMap[String,AttributeValue]] = {
+    def pageQuery(key: JMap[String,AttributeValue], currentItems: Vector[JMap[String,AttributeValue]] ): Vector[JMap[String,AttributeValue]] = {
       query.setExclusiveStartKey(key)
       val queryResult = db.query(query)
       val evaluationKey = queryResult.getLastEvaluatedKey
-      val items = currentItems ++ queryResult.getItems.asScala.toList
+      val items = currentItems ++ queryResult.getItems.asScala.toVector
       if (evaluationKey == null) items
-      else nextPage(evaluationKey, items)
+      else pageQuery(evaluationKey, items)
     }
 
-    val queryResult = db.query(query)
-    val evaluationKey = queryResult.getLastEvaluatedKey
-    val items =
-      if (evaluationKey == null) queryResult.getItems.asScala.toList
-      else nextPage(evaluationKey, queryResult.getItems.asScala.toList)
-
-    items
+    pageQuery(null, Vector.empty[JMap[String,AttributeValue]])
       .map(item => {
         DynamoFormat[Schedule].read(new AttributeValue().withM(item))
       })
