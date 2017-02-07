@@ -1,14 +1,17 @@
 package com.ovoenergy.orchestration.scheduling
 
 import java.time.{Clock, Instant, ZoneId}
+import java.util.UUID
 
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType._
 import com.ovoenergy.orchestration.scheduling.Persistence.{AlreadyBeingOrchestrated, Context, Successful}
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Ignore, Matchers}
 import com.ovoenergy.orchestration.util.LocalDynamoDB
 import com.ovoenergy.orchestration.util.LocalDynamoDB.SecondaryIndexData
 import com.ovoenergy.orchestration.util.ArbGenerator
 import org.scalacheck.Shapeless._
+
+import scala.collection.mutable
 
 class PersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
 
@@ -102,6 +105,25 @@ class PersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
       cancelled.size shouldBe 2
       cancelled should contain(cancelledPendingSchedule)
       cancelled should contain(cancelledExpiredOrchestratingSchedule)
+    }
+  }
+
+  //Probably not worth running all the time as pretty slow (2 minutes)
+  ignore should "handle paging when retrieving schedules to cancel" in {
+    LocalDynamoDB.withTableWithSecondaryIndex(client, tableName)(Seq('scheduleId -> S))(secondaryIndices) {
+      val commName = "some-comm"
+      val customerId = "23141141241"
+      val howMany = 10000
+      val ids = mutable.MutableList[UUID]()
+      (1 to howMany).foreach( _ => {
+        val id = UUID.randomUUID()
+        ids += id
+        val pendingSchedule = generate[Schedule].copy(scheduleId = id, customerId = customerId, commName = commName, status = ScheduleStatus.Pending)
+        persistence.storeSchedule(pendingSchedule)
+      })
+      val returned = persistence.cancelSchedules(customerId, commName)
+      returned.size shouldBe howMany
+      returned.map(_.scheduleId).sorted shouldBe ids.toList.sorted
     }
   }
 

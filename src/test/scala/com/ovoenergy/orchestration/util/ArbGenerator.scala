@@ -13,9 +13,6 @@ trait ArbGenerator {
   implicit def arbUUID: Arbitrary[UUID] = Arbitrary {
     UUID.randomUUID()
   }
-  implicit def arbZonedDateTime: Arbitrary[ZonedDateTime] = Arbitrary {
-    ZonedDateTime.now(ZoneId.of("UTC")).plusSeconds(Random.nextInt(5))
-  }
   implicit def arbInstant: Arbitrary[Instant] = Arbitrary {
     Instant.now().plusSeconds(Random.nextInt(5))
   }

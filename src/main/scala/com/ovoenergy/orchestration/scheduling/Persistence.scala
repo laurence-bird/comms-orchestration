@@ -1,10 +1,11 @@
 package com.ovoenergy.orchestration.scheduling
 
 import java.time.{Clock, DateTimeException, Instant}
+import java.util.{Map => JMap}
 import java.util.UUID
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB
-import com.amazonaws.services.dynamodbv2.model.{AttributeValue, QueryRequest, UpdateItemRequest}
+import com.amazonaws.services.dynamodbv2.model.{AttributeValue, QueryRequest, QueryResult, UpdateItemRequest}
 import com.gu.scanamo._
 import com.gu.scanamo.error.{ConditionNotMet, TypeCoercionError}
 import com.gu.scanamo.query.{AndCondition, Condition}
@@ -16,6 +17,7 @@ import io.circe.parser._
 import io.circe.generic.semiauto._
 import org.slf4j.LoggerFactory
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 
 object Persistence {
@@ -170,19 +172,33 @@ class Persistence(orchestrationExpiryMinutes: Int, context: Context, clock: Cloc
       .addExpressionAttributeValuesEntry(":now", instantDynamoFormat.write(now))
       .withFilterExpression("#status = :pending or (#status = :orchestrating and #expiry < :now)")
 
-    val items = db.query(query).getItems.asScala
+    @tailrec
+    def nextPage(key: JMap[String,AttributeValue], itemsCollector: List[JMap[String,AttributeValue]] ): List[JMap[String,AttributeValue]] = {
+      query.setExclusiveStartKey(key)
+      val queryResult = db.query(query)
+      val evaluationKey = queryResult.getLastEvaluatedKey
+      val items = itemsCollector ++ queryResult.getItems.asScala.toList
+      if (evaluationKey == null) items
+      else nextPage(evaluationKey, items)
+    }
+
+    val queryResult = db.query(query)
+    val evaluationKey = queryResult.getLastEvaluatedKey
+    val items =
+      if (evaluationKey == null) queryResult.getItems.asScala.toList
+      else nextPage(evaluationKey, queryResult.getItems.asScala.toList)
+
+    items
       .map(item => {
         DynamoFormat[Schedule].read(new AttributeValue().withM(item))
       })
-      .toList
-
-    items.flatMap {
-      case Right(schedule) =>
-        attemptToCancelSchedule(schedule.scheduleId.toString)
-      case Left(e) =>
-        log.warn("Problem retrieving pending schedule", e)
-        None
-    }
+      .flatMap {
+        case Right(schedule) =>
+          attemptToCancelSchedule(schedule.scheduleId.toString)
+        case Left(e) =>
+          log.warn("Problem retrieving pending schedule", e)
+          None
+      }
   }
 
   private def attemptToCancelSchedule(scheduleId: String): Option[Schedule] = {
