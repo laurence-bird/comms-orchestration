@@ -173,11 +173,11 @@ class Persistence(orchestrationExpiryMinutes: Int, context: Context, clock: Cloc
       .withFilterExpression("#status = :pending or (#status = :orchestrating and #expiry < :now)")
 
     @tailrec
-    def nextPage(key: JMap[String,AttributeValue], itemsCollector: List[JMap[String,AttributeValue]] ): List[JMap[String,AttributeValue]] = {
+    def nextPage(key: JMap[String,AttributeValue], currentItems: List[JMap[String,AttributeValue]] ): List[JMap[String,AttributeValue]] = {
       query.setExclusiveStartKey(key)
       val queryResult = db.query(query)
       val evaluationKey = queryResult.getLastEvaluatedKey
-      val items = itemsCollector ++ queryResult.getItems.asScala.toList
+      val items = currentItems ++ queryResult.getItems.asScala.toList
       if (evaluationKey == null) items
       else nextPage(evaluationKey, items)
     }
