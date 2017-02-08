@@ -35,7 +35,9 @@ object TestUtil {
 
   val triggered = TriggeredV2(
     metadata = metadata,
-    templateData = templateData
+    templateData = templateData,
+    deliverAt = None,
+    expireAt = None
   )
 
 }

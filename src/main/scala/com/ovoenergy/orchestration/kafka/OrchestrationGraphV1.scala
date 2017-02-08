@@ -23,7 +23,7 @@ object OrchestrationGraphV1 extends LoggingWithMDC {
             triggeredConverter: Triggered => TriggeredV2,
             orchestrationProcess: (TriggeredV2, InternalMetadata) => Either[ErrorDetails, Future[_]],
             failureProcess: (String, TriggeredV2, ErrorCode, InternalMetadata) => Future[_],
-            config: OrchestrationGraphConfig,
+            config: SchedulingGraphConfig,
             traceTokenGenerator: () => String)
             (implicit actorSystem: ActorSystem, materializer: Materializer): RunnableGraph[Control] = {
 

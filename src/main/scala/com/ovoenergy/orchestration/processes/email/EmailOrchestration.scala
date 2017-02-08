@@ -1,5 +1,7 @@
 package com.ovoenergy.orchestration.processes.email
 
+import java.util.UUID
+
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, Validated}
 import cats.{Apply, Semigroup}
@@ -65,7 +67,8 @@ object EmailOrchestration {
               firstName = validFirstName,
               lastName = validLastName),
             templateData = triggered.templateData,
-            internalMetadata = internalMetadata
+            internalMetadata = internalMetadata,
+            expireAt = triggered.expireAt
           )
 
           orchestratedEmailProducer(orchestratedEmail)

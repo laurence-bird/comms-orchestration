@@ -2,7 +2,7 @@ package com.ovoenergy.orchestration.processes
 
 import com.ovoenergy.comms.model.Channel.Email
 import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
-import com.ovoenergy.comms.model._
+import com.ovoenergy.comms.model.{InternalMetadata, _}
 import com.ovoenergy.orchestration.domain.customer.CustomerProfile
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 
@@ -13,22 +13,23 @@ object Orchestrator extends LoggingWithMDC {
 
   type Orchestrator = (CustomerProfile, TriggeredV2, InternalMetadata) => Either[ErrorDetails, Future[_]]
 
-  def apply(customerProfiler: (String, Boolean, String) => Either[ErrorDetails, CustomerProfile],
-            channelSelector: (CustomerProfile) => Either[ErrorDetails, Channel],
-            emailOrchestrator: Orchestrator)
-           (triggered: TriggeredV2, internalMetadata: InternalMetadata): Either[ErrorDetails, Future[_]] = {
+  def apply(
+             profileCustomer: (String, Boolean, String) => Either[ErrorDetails, CustomerProfile],
+             determineChannel: (CustomerProfile) => Either[ErrorDetails, Channel],
+             orchestrateEmail: Orchestrator)
+       (triggered: TriggeredV2, internalMetadata: InternalMetadata): Either[ErrorDetails, Future[_]] = {
 
     def selectOrchestratorforChannel(channel: Channel): Either[ErrorDetails, Orchestrator] =
       channel match {
-        case Email => Right(emailOrchestrator)
-        case _ => Left(ErrorDetails(s"Unsupported channel selected $channel", OrchestrationError))
+        case Email => Right(orchestrateEmail)
+        case _     => Left(ErrorDetails(s"Unsupported channel selected $channel", OrchestrationError))
       }
 
     for {
-      customerProfile   <- customerProfiler(triggered.metadata.customerId, triggered.metadata.canary, triggered.metadata.traceToken).right
-      channel           <- channelSelector(customerProfile).right
-      orchestrator      <- selectOrchestratorforChannel(channel).right
-      res               <- orchestrator(customerProfile, triggered, internalMetadata).right
+      customerProfile   <- profileCustomer(triggered.metadata.customerId, triggered.metadata.canary, triggered.metadata.traceToken).right
+      channel           <- determineChannel(customerProfile).right
+      orchestrateComm   <- selectOrchestratorforChannel(channel).right
+      res               <- orchestrateComm(customerProfile, triggered, internalMetadata).right
     } yield res
   }
 

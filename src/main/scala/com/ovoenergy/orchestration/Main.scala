@@ -2,24 +2,29 @@ package com.ovoenergy.orchestration
 
 import java.io.File
 import java.nio.file.Files
-import java.time.Duration
+import java.time.{Duration, Instant}
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
+import com.amazonaws.regions.Regions
 import com.ovoenergy.comms.model.{TemplateData, Triggered, TriggeredV2}
+import com.ovoenergy.orchestration.aws.AwsDynamoClientProvider
 import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.email.EmailOrchestration
 import com.ovoenergy.orchestration.processes.failure.Failure
-import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator}
+import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator, Scheduler}
 import com.ovoenergy.orchestration.profile.{CustomerProfiler, Retry}
+import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence
+import com.ovoenergy.orchestration.scheduling.{Schedule, ScheduleStatus, TaskExecutor, TaskScheduler}
 import com.typesafe.config.ConfigFactory
 import shapeless.Coproduct
 
 import scala.collection.JavaConverters._
+import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
 
 object Main extends App
@@ -39,14 +44,25 @@ object Main extends App
   implicit val materializer = ActorMaterializer()
   implicit val executionContext = actorSystem.dispatcher
 
-  val channelSelector = ChannelSelector.determineChannel _
+  val region = Regions.fromName(config.getString("aws.region"))
+  val isRunningInCompose = sys.env.get("DOCKER_COMPOSE").contains("true")
 
-  val emailOrchestrator = EmailOrchestration(OrchestratedEmailProducer(
+  val schedulingPersistence = new DynamoPersistence(
+    orchestrationExpiryMinutes =  config.getInt("scheduling.orchestration.expiry"),
+    context = DynamoPersistence.Context(
+      db = AwsDynamoClientProvider(isRunningInCompose, region),
+      tableName = config.getString("scheduling.persistence.table")
+    )
+  )
+
+  val determineChannel = ChannelSelector.determineChannel _
+
+  val orchestrateEmail = EmailOrchestration(OrchestratedEmailProducer(
     hosts = config.getString("kafka.hosts"),
     topic = config.getString("kafka.topics.orchestrated.email.v2")
   )) _
 
-  val customerProfiler = {
+  val profileCustomer = {
     val retryConfig = Retry.RetryConfig(
         attempts = config.getInt("profile.service.http.attempts"),
         backoff = Retry.Backoff.constantDelay(config.getDuration("profile.service.http.interval").toFiniteDuration)
@@ -59,30 +75,34 @@ object Main extends App
     ) _
   }
 
-  val orchestrator = Orchestrator(
-    customerProfiler = customerProfiler,
-    channelSelector = channelSelector,
-    emailOrchestrator = emailOrchestrator
+  val orchestrateComm = Orchestrator(
+    profileCustomer = profileCustomer,
+    determineChannel = determineChannel,
+    orchestrateEmail = orchestrateEmail
   ) _
 
-  val failure = Failure(FailedProducer(
-    hosts = config.getString("kafka.hosts"),
-    topic = config.getString("kafka.topics.failed")
+  val sendFailedEvent = Failure(FailedProducer(
+      hosts = config.getString("kafka.hosts"),
+      topic = config.getString("kafka.topics.failed")
   )) _
 
-  val orchestrationGraph =  OrchestrationGraph(
+  val executeScheduledTask =  TaskExecutor.execute(schedulingPersistence, orchestrateComm, UUID.randomUUID.toString, sendFailedEvent) _
+  val scheduleTask = Scheduler(schedulingPersistence.storeSchedule _, TaskScheduler.addSchedule(executeScheduledTask)) _
+
+  val schedulingGraph =  SchedulingGraph(
     consumerDeserializer = Serialisation.triggeredV2Deserializer,
-    orchestrationProcess = orchestrator,
-    failureProcess = failure,
-    config = OrchestrationGraphConfig(
+    scheduleTask = scheduleTask,
+    sendFailedEvent = sendFailedEvent,
+    config = SchedulingGraphConfig(
       hosts = config.getString("kafka.hosts"),
       groupId = config.getString("kafka.group.id"),
       topic = config.getString("kafka.topics.triggered.v2")
     ),
-    traceTokenGenerator = () => UUID.randomUUID().toString
+    generateTraceToken = () => UUID.randomUUID().toString
   )
 
-  val control = orchestrationGraph.run()
+  TaskScheduler.init()
+  val control = schedulingGraph.run()
 
   control.isShutdown.foreach { _ =>
     log.error("ARGH! The Kafka source has shut down. Killing the JVM and nuking from orbit.")
@@ -93,15 +113,17 @@ object Main extends App
   {
     val triggeredConverter = (t: Triggered) => TriggeredV2(
       metadata = t.metadata,
-      templateData = t.templateData.mapValues(string => TemplateData(Coproduct[TemplateData.TD](string)))
+      templateData = t.templateData.mapValues(string => TemplateData(Coproduct[TemplateData.TD](string))),
+      deliverAt = None,
+      expireAt = None
     )
 
     val orchestrationGraphV1 = OrchestrationGraphV1(
       consumerDeserializer = Serialisation.triggeredDeserializer,
       triggeredConverter = triggeredConverter,
-      orchestrationProcess = orchestrator,
-      failureProcess = failure,
-      config = OrchestrationGraphConfig(
+      orchestrationProcess = orchestrateComm,
+      failureProcess = sendFailedEvent,
+      config = SchedulingGraphConfig(
         hosts = config.getString("kafka.hosts"),
         groupId = config.getString("kafka.group.id"),
         topic = config.getString("kafka.topics.triggered.v1")
