@@ -1,19 +1,19 @@
-package com.ovoenergy.orchestration.scheduling
+package com.ovoenergy.orchestration.scheduling.dynamo
 
 import java.time.{Clock, Instant, ZoneId}
-import java.util.UUID
 
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType._
-import com.ovoenergy.orchestration.scheduling.Persistence.{AlreadyBeingOrchestrated, Context, Successful}
-import org.scalatest.{FlatSpec, Ignore, Matchers}
-import com.ovoenergy.orchestration.util.LocalDynamoDB
+import com.ovoenergy.orchestration.scheduling.Persistence.{AlreadyBeingOrchestrated, Successful}
+import com.ovoenergy.orchestration.scheduling._
+import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence.Context
+import com.ovoenergy.orchestration.util.{ArbGenerator, LocalDynamoDB}
 import com.ovoenergy.orchestration.util.LocalDynamoDB.SecondaryIndexData
-import com.ovoenergy.orchestration.util.ArbGenerator
+import org.scalatest.{FlatSpec, Matchers}
 import org.scalacheck.Shapeless._
 
 import scala.collection.mutable
 
-class PersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
+class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
 
   val now = Instant.now()
   val clock = Clock.fixed(now, ZoneId.of("UTC"))
@@ -23,7 +23,7 @@ class PersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
     SecondaryIndexData("customerId-commName-index", Seq('customerId -> S, 'commName -> S)),
     SecondaryIndexData("status-orchestrationExpiry-index", Seq('status -> S, 'orchestrationExpiry -> N))
   )
-  val persistence = new Persistence(5, Context(client, tableName), clock)
+  val persistence = new DynamoPersistence(5, Context(client, tableName), clock)
 
   behavior of "Persistence"
 
@@ -55,11 +55,11 @@ class PersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
 
   it should "correctly mark a schedule as orchestrating" in {
     LocalDynamoDB.withTableWithSecondaryIndex(client, tableName)(Seq('scheduleId -> S))(secondaryIndices) {
-      val schedule = generate[Schedule].copy(status = ScheduleStatus.Pending)
+      val schedule = generate[Schedule].copy(status = ScheduleStatus.Pending, history = Seq())
       persistence.storeSchedule(schedule)
       val result = persistence.attemptSetScheduleAsOrchestrating(schedule.scheduleId.toString)
       val orchestratingSchedule = persistence.retrieveSchedule(schedule.scheduleId.toString)
-      result shouldBe Successful
+      result shouldBe Successful(schedule.copy(status = ScheduleStatus.Orchestrating, history = Seq(Change(now, "Start orchestrating")), orchestrationExpiry = now.plusSeconds(60 * 5)))
       orchestratingSchedule.get.status shouldBe ScheduleStatus.Orchestrating
       orchestratingSchedule.get.orchestrationExpiry shouldBe now.plusSeconds(60 * 5)
     }
@@ -114,9 +114,9 @@ class PersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
       val commName = "some-comm"
       val customerId = "23141141241"
       val howMany = 10000
-      val ids = mutable.MutableList[UUID]()
+      val ids = mutable.MutableList[ScheduleId]()
       (1 to howMany).foreach( _ => {
-        val id = UUID.randomUUID()
+        val id = DynamoPersistence.generateScheduleId()
         ids += id
         val pendingSchedule = generate[Schedule].copy(scheduleId = id, customerId = customerId, commName = commName, status = ScheduleStatus.Pending)
         persistence.storeSchedule(pendingSchedule)

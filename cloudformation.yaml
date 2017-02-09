@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
-Description: Load balancer and task role for the ECS service
+Description: Persistence and task role for the ECS service
 
 Resources:
 

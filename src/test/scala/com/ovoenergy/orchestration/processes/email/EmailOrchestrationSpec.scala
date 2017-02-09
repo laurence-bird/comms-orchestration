@@ -64,6 +64,7 @@ class EmailOrchestrationSpec extends FlatSpec
       passedOrchestratedEmail.customerProfile shouldBe model.CustomerProfile("John", "Smith")
       passedOrchestratedEmail.templateData shouldBe triggered.templateData
       passedOrchestratedEmail.metadata.traceToken shouldBe triggered.metadata.traceToken
+      passedOrchestratedEmail.expireAt shouldBe triggered.expireAt
     }
   }
 
@@ -81,6 +82,7 @@ class EmailOrchestrationSpec extends FlatSpec
       passedOrchestratedEmail.customerProfile shouldBe model.CustomerProfile("John", "Smith")
       passedOrchestratedEmail.templateData shouldBe triggered.templateData
       passedOrchestratedEmail.metadata.traceToken shouldBe triggered.metadata.traceToken
+      passedOrchestratedEmail.expireAt shouldBe triggered.expireAt
     }
   }
 

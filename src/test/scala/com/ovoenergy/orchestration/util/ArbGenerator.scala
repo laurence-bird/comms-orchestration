@@ -3,6 +3,7 @@ package com.ovoenergy.orchestration.util
 import java.time.{Instant, ZoneId, ZonedDateTime}
 import java.util.UUID
 
+import com.ovoenergy.orchestration.scheduling.ScheduleId
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Shapeless._
 import org.scalacheck.rng.Seed

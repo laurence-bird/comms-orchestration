@@ -2,16 +2,19 @@ package com.ovoenergy.orchestration
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
+import java.time.Instant
 
+import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType._
 import cakesolutions.kafka.KafkaConsumer.{Conf => KafkaConsumerConf}
 import cakesolutions.kafka.KafkaProducer.{Conf => KafkaProducerConf}
 import cakesolutions.kafka.{KafkaConsumer, KafkaProducer}
+import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, OrchestrationError, ProfileRetrievalFailed}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.serialisation.Serialisation._
 import com.ovoenergy.comms.serialisation.Decoders._
-import com.ovoenergy.orchestration.util.TestUtil
+import util.{LocalDynamoDB, TestUtil}
 import io.circe.generic.auto._
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
@@ -22,6 +25,7 @@ import org.mockserver.model.HttpRequest._
 import org.mockserver.model.HttpResponse._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, Tag}
+import util.LocalDynamoDB.SecondaryIndexData
 
 import scala.collection.JavaConverters._
 import scala.util.Random
@@ -35,6 +39,7 @@ class ServiceTestIT extends FlatSpec
   object DockerComposeTag extends Tag("DockerComposeTag")
 
   override def beforeAll() = {
+    createTable()
     setupTopics()
   }
 
@@ -49,6 +54,10 @@ class ServiceTestIT extends FlatSpec
   val commFailedConsumer = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[Failed], kafkaHosts, consumerGroup))
   val emailOrchestratedConsumer = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestratedEmailV2], kafkaHosts, consumerGroup))
 
+  val dynamoUrl = "http://localhost:8000"
+  val dynamoClient = LocalDynamoDB.client(dynamoUrl)
+  val tableName = "scheduling"
+
   val failedTopic = "comms.failed"
   val triggeredV1Topic = "comms.triggered"
   val triggeredTopic = "comms.triggered.v2"
@@ -56,21 +65,37 @@ class ServiceTestIT extends FlatSpec
 
   behavior of "Service Testing"
 
-  it should "orchestrate emails" taggedAs DockerComposeTag in {
+  it should "orchestrate emails request to send immediately" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse()
-
     val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
-      _ =>
-        val orchestratedEmails = emailOrchestratedConsumer.poll(200000).records(emailOrchestratedTopic).asScala.toList
-        orchestratedEmails.foreach(record => {
-          val orchestratedEmail = record.value().getOrElse(fail("No record for ${record.key()}"))
-          orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
-          orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
-          orchestratedEmail.templateData shouldBe TestUtil.templateData
-          orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
-        })
+      _ => assertSuccessfulOrchestration()
     }
+  }
+
+  it should "orchestrate emails request to send in the future" taggedAs DockerComposeTag in {
+    createOKCustomerProfileResponse()
+    val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(10).toString))
+    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggered))
+    whenReady(future) {
+      _ =>
+        //Assert nothing orchestrated
+        val orchestratedEmails = emailOrchestratedConsumer.poll(9000).records(emailOrchestratedTopic).asScala.toList
+        orchestratedEmails shouldBe empty
+
+        assertSuccessfulOrchestration()
+    }
+  }
+
+  def assertSuccessfulOrchestration() = {
+    val orchestratedEmails = emailOrchestratedConsumer.poll(200000).records(emailOrchestratedTopic).asScala.toList
+    orchestratedEmails.foreach(record => {
+      val orchestratedEmail = record.value().getOrElse(fail("No record for ${record.key()}"))
+      orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
+      orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
+      orchestratedEmail.templateData shouldBe TestUtil.templateData
+      orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
+    })
   }
 
  it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
@@ -238,6 +263,30 @@ class ServiceTestIT extends FlatSpec
       response(validResponseJson)
         .withStatusCode(200)
     )
+  }
+
+  private def createTable() = {
+    val secondaryIndices = Seq(
+      SecondaryIndexData("customerId-commName-index", Seq('customerId -> S, 'commName -> S)),
+      SecondaryIndexData("status-orchestrationExpiry-index", Seq('status -> S, 'orchestrationExpiry -> N))
+    )
+    LocalDynamoDB.createTableWithSecondaryIndex(dynamoClient, tableName)(Seq('scheduleId -> S))(secondaryIndices)
+    waitUntilTableMade(50)
+
+    def waitUntilTableMade(noAttemptsLeft: Int): String ={
+      try{
+        val tableStatus = dynamoClient.describeTable(tableName).getTable.getTableStatus
+        if (tableStatus != "ACTIVE" && noAttemptsLeft > 0){
+          Thread.sleep(100)
+          waitUntilTableMade(noAttemptsLeft -1)
+        } else tableName
+      } catch {
+        case e: AmazonDynamoDBException => {
+          Thread.sleep(100)
+          waitUntilTableMade(noAttemptsLeft -1)
+        }
+      }
+    }
   }
 
 
