@@ -31,7 +31,7 @@ class TaskSchedulerSpec extends FlatSpec with BeforeAndAfterAll with Eventually 
     addSchedule(scheduleId, Instant.now())
     eventually {
       functionInnvocations should contain(scheduleId)
-    }
+    }(PatienceConfig(scaled(Span(1, Seconds)), scaled(Span(5, Millis))))
   }
 
   it should "execute job when scheduled for future" in {
@@ -42,7 +42,7 @@ class TaskSchedulerSpec extends FlatSpec with BeforeAndAfterAll with Eventually 
     Thread.sleep(1000)
     eventually {
       functionInnvocations should contain(scheduleId)
-    }
+    }(PatienceConfig(scaled(Span(1, Seconds)), scaled(Span(5, Millis))))
   }
 
 
