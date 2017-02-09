@@ -16,6 +16,8 @@ lazy val service = (project in file("."))
   .settings(resolvers += Resolver.bintrayRepo("ovotech", "maven"))
   .settings(resolvers += Resolver.bintrayRepo("cakesolutions", "maven"))
   .settings(libraryDependencies ++= Dependencies.all)
+  .settings(test in Test := (test in Test).dependsOn(startDynamoDBLocal).value)
+  .settings(testOptions in Test += dynamoDBLocalTestCleanup.value)
   .settings(testTagsToExecute := "DockerComposeTag")
   .settings(dockerImageCreationTask := (publishLocal in Docker).value)
   .settings(credstashInputDir := file("conf"))
@@ -27,5 +29,12 @@ lazy val ipAddress: String = {
   println(s"My IP address appears to be $addr")
   addr
 }
+
+val testWithDynamo = taskKey[Unit]("start dynamo, run the tests, shut down dynamo")
+testWithDynamo := Def.sequential(
+  startDynamoDBLocal,
+  test in Test,
+  stopDynamoDBLocal
+).value
 
 
