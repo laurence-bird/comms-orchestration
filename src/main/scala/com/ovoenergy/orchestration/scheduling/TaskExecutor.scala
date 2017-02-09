@@ -44,7 +44,7 @@ object TaskExecutor extends LoggingWithMDC {
     val internalMetadata = InternalMetadata(generateTraceToken())
     persistence.attemptSetScheduleAsOrchestrating(scheduleId) match {
       case AlreadyBeingOrchestrated => ()
-      case Failed                   => log.warn("Unable to orchestrate, failed to mark as orchestrating in persistence. Unable to raise a failed event.")
+      case Failed                   => log.warn(s"Unable to orchestrate scheduleId: $scheduleId, failed to mark as orchestrating in persistence. Unable to raise a failed event.")
       case Successful(schedule)     => orchestrateTrigger(schedule.triggered, internalMetadata) match {
         case Right(f) => awaitOrchestrationFuture(schedule.triggered, internalMetadata, f)
         case Left(e)  => failed(e.reason, schedule.triggered, e.errorCode, internalMetadata)

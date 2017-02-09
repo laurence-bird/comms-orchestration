@@ -128,7 +128,7 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
     }
     val orchestrateTrigger = (triggeredV2: TriggeredV2, internalMetadata: InternalMetadata) => {
       triggerOrchestrated = Some(triggeredV2, internalMetadata)
-      Right(Future())
+      Right(Future(()))
     }
 
     TaskExecutor.execute(Orchestrating, orchestrateTrigger, generateTraceToken, sendFailedEvent)(scheduleId)

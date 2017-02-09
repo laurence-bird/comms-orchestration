@@ -75,10 +75,15 @@ class ServiceTestIT extends FlatSpec
 
   it should "orchestrate emails request to send in the future" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse()
-    val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(5).toString))
+    val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(10).toString))
     val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggered))
     whenReady(future) {
-      _ => assertSuccessfulOrchestration()
+      _ =>
+        //Assert nothing orchestrated
+        val orchestratedEmails = emailOrchestratedConsumer.poll(9000).records(emailOrchestratedTopic).asScala.toList
+        orchestratedEmails shouldBe empty
+
+        assertSuccessfulOrchestration()
     }
   }
 
