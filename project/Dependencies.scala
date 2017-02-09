@@ -9,7 +9,7 @@ object Dependencies {
     "com.typesafe.akka"   %% "akka-slf4j"                % "2.3.14",
     "net.cakesolutions"   %% "scala-kafka-client"        % "0.10.0.0",
     "com.ovoenergy"       %% "comms-kafka-messages"      % "1.1",
-    "com.ovoenergy"       %% "comms-kafka-serialisation" % "2.0",
+    "com.ovoenergy"       %% "comms-kafka-serialisation" % "2.1",
     "ch.qos.logback"       % "logback-classic"           % "1.1.7",
     "me.moocar"            % "logback-gelf"              % "0.2",
     "io.logz.logback"      % "logzio-logback-appender"   % "1.0.11",
