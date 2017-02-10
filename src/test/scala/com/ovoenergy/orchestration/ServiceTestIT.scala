@@ -23,7 +23,7 @@ import org.mockserver.client.server.MockServerClient
 import org.mockserver.matchers.Times
 import org.mockserver.model.HttpRequest._
 import org.mockserver.model.HttpResponse._
-import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, Tag}
 import util.LocalDynamoDB.SecondaryIndexData
 
@@ -34,7 +34,8 @@ import scala.util.control.NonFatal
 class ServiceTestIT extends FlatSpec
   with Matchers
   with ScalaFutures
-  with BeforeAndAfterAll {
+  with BeforeAndAfterAll
+  with IntegrationPatience {
 
   object DockerComposeTag extends Tag("DockerComposeTag")
 
