@@ -86,7 +86,7 @@ object Main extends App
       topic = config.getString("kafka.topics.failed")
   )) _
 
-  val executeScheduledTask =  TaskExecutor.execute(schedulingPersistence, orchestrateComm, UUID.randomUUID.toString, sendFailedEvent) _
+  val executeScheduledTask =  TaskExecutor.execute(schedulingPersistence, orchestrateComm, () => UUID.randomUUID.toString, sendFailedEvent) _
   val scheduleTask = Scheduler(schedulingPersistence.storeSchedule _, TaskScheduler.addSchedule(executeScheduledTask)) _
 
   val schedulingGraph =  SchedulingGraph(

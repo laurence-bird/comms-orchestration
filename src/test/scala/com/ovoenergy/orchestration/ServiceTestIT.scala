@@ -23,7 +23,7 @@ import org.mockserver.client.server.MockServerClient
 import org.mockserver.matchers.Times
 import org.mockserver.model.HttpRequest._
 import org.mockserver.model.HttpResponse._
-import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, Tag}
 import util.LocalDynamoDB.SecondaryIndexData
 
@@ -34,7 +34,8 @@ import scala.util.control.NonFatal
 class ServiceTestIT extends FlatSpec
   with Matchers
   with ScalaFutures
-  with BeforeAndAfterAll {
+  with BeforeAndAfterAll
+  with IntegrationPatience {
 
   object DockerComposeTag extends Tag("DockerComposeTag")
 
@@ -73,6 +74,21 @@ class ServiceTestIT extends FlatSpec
     }
   }
 
+  it should "generate unique internalTraceTokens" taggedAs DockerComposeTag in {
+    createOKCustomerProfileResponse()
+    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
+    whenReady(future) {
+      _ =>
+        val firstEvent = assertSuccessfulOrchestration()
+        val secondFuture = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
+        whenReady(secondFuture) {
+          _ =>
+            val secondEvent = assertSuccessfulOrchestration()
+            secondEvent.internalMetadata.internalTraceToken should not equal firstEvent.internalMetadata.internalTraceToken
+        }
+    }
+  }
+
   it should "orchestrate emails request to send in the future" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse()
     val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(10).toString))
@@ -87,15 +103,17 @@ class ServiceTestIT extends FlatSpec
     }
   }
 
-  def assertSuccessfulOrchestration() = {
+  def assertSuccessfulOrchestration(): OrchestratedEmailV2 = {
     val orchestratedEmails = emailOrchestratedConsumer.poll(200000).records(emailOrchestratedTopic).asScala.toList
-    orchestratedEmails.foreach(record => {
-      val orchestratedEmail = record.value().getOrElse(fail("No record for ${record.key()}"))
-      orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
-      orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
-      orchestratedEmail.templateData shouldBe TestUtil.templateData
-      orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
-    })
+    orchestratedEmails should have size 1
+    val record = orchestratedEmails.head
+    val orchestratedEmail = record.value().getOrElse(fail("No record for ${record.key()}"))
+    orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
+    orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
+    orchestratedEmail.templateData shouldBe TestUtil.templateData
+    orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
+
+    orchestratedEmail
   }
 
  it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
