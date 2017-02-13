@@ -18,7 +18,7 @@ services:
       LOCAL_DYNAMO: "http://dynamodb:8000"
       DOCKER_COMPOSE : "true"
       POLL_FOR_EXPIRED_INTERVAL: "5 seconds"
-    mem_limit: 512m
+    mem_limit: 380m
 
   zookeeper:
     image: confluentinc/cp-zookeeper:3.1.1
