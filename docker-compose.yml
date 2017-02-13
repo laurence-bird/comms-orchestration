@@ -18,6 +18,7 @@ services:
       LOCAL_DYNAMO: "http://dynamodb:8000"
       DOCKER_COMPOSE : "true"
       POLL_FOR_EXPIRED_INTERVAL: "5 seconds"
+    mem_limit: 512m
 
   zookeeper:
     image: confluentinc/cp-zookeeper:3.1.1
@@ -26,6 +27,7 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 32181
       ZOOKEEPER_TICK_TIME: 2000
+    mem_limit: 256m
 
   kafka:
     image: confluentinc/cp-kafka:3.1.1
@@ -37,11 +39,13 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${IP_ADDRESS}:29092
     depends_on:
       - zookeeper
+    mem_limit: 512m
 
   profile.service:
     image: jamesdbloom/mockserver
     ports:
       - "1080:1080"
+    mem_limit: 128m
 
   dynamodb:
       image: forty8bit/dynamodb-local
@@ -53,3 +57,4 @@ services:
         - "-jar"
         - "DynamoDBLocal.jar"
         - "-sharedDb"
+      mem_limit: 256m
