@@ -11,7 +11,7 @@ import cakesolutions.kafka.{KafkaConsumer, KafkaProducer}
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
 import com.gu.scanamo.{Scanamo, Table}
 import com.ovoenergy.comms.model
-import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, OrchestrationError, ProfileRetrievalFailed}
+import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, ProfileRetrievalFailed}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.serialisation.Serialisation._
 import com.ovoenergy.comms.serialisation.Decoders._
@@ -55,7 +55,6 @@ class ServiceTestIT extends FlatSpec
   val zookeeperHosts = "localhost:32181"
 
   val consumerGroup = Random.nextString(10)
-  val triggeredV1Producer = KafkaProducer(KafkaProducerConf(new StringSerializer, avroSerializer[Triggered], kafkaHosts))
   val triggeredProducer = KafkaProducer(KafkaProducerConf(new StringSerializer, avroSerializer[TriggeredV2], kafkaHosts))
   val commFailedConsumer = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[Failed], kafkaHosts, consumerGroup))
   val emailOrchestratedConsumer = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestratedEmailV2], kafkaHosts, consumerGroup))
@@ -65,7 +64,6 @@ class ServiceTestIT extends FlatSpec
   val tableName = "scheduling"
 
   val failedTopic = "comms.failed"
-  val triggeredV1Topic = "comms.triggered"
   val triggeredTopic = "comms.triggered.v2"
   val emailOrchestratedTopic = "comms.orchestrated.email.v2"
 
@@ -188,23 +186,6 @@ class ServiceTestIT extends FlatSpec
     }
   }
 
-  it should "also consume the old Triggered events" taggedAs DockerComposeTag in {
-    createOKCustomerProfileResponse()
-
-    val future = triggeredV1Producer.send(new ProducerRecord[String, Triggered](triggeredV1Topic, TestUtil.triggeredV1))
-    whenReady(future) {
-      _ =>
-        val orchestratedEmails = emailOrchestratedConsumer.poll(200000).records(emailOrchestratedTopic).asScala.toList
-        orchestratedEmails.foreach(record => {
-          val orchestratedEmail = record.value().getOrElse(fail("No record for ${record.key()}"))
-          orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
-          orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
-          orchestratedEmail.templateData shouldBe TestUtil.templateData
-          orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
-        })
-    }
-  }
-
   it should "pick up expired events via polling and orchestrate them" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse()
 
@@ -242,7 +223,7 @@ class ServiceTestIT extends FlatSpec
     var notStarted = true
     while (timeout.hasTimeLeft && notStarted) {
       try {
-        notStarted = !(AdminUtils.topicExists(zkUtils, triggeredTopic) && AdminUtils.topicExists(zkUtils, triggeredV1Topic))
+        notStarted = !AdminUtils.topicExists(zkUtils, triggeredTopic)
       } catch {
         case NonFatal(ex) => Thread.sleep(100)
       }
@@ -348,10 +329,9 @@ class ServiceTestIT extends FlatSpec
           waitUntilTableMade(noAttemptsLeft -1)
         } else tableName
       } catch {
-        case e: AmazonDynamoDBException => {
+        case _: AmazonDynamoDBException =>
           Thread.sleep(100)
           waitUntilTableMade(noAttemptsLeft -1)
-        }
       }
     }
   }
