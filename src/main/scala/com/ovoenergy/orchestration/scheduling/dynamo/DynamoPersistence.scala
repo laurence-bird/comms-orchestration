@@ -84,7 +84,10 @@ object DynamoPersistence {
   }
 }
 
-class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock: Clock = Clock.systemUTC()) extends Persistence.Orchestration {
+class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock: Clock = Clock.systemUTC())
+  extends Persistence.Orchestration
+  with Persistence.Listing {
+
   import DynamoPersistence._
 
   private val log = LoggerFactory.getLogger("Persistence")
@@ -149,15 +152,25 @@ class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock
     }
   }
 
-  def retrievePendingSchedules(): List[Schedule] = {
-    val now = Instant.now(clock).toEpochMilli
+  def listPendingSchedules(): List[Schedule] = {
     val pending = Scanamo.exec(context.db)(context.table.index("status-orchestrationExpiry-index").query('status -> (ScheduleStatus.Pending: ScheduleStatus)))
-    val expired = Scanamo.exec(context.db)(context.table.index("status-orchestrationExpiry-index").query('status -> (ScheduleStatus.Orchestrating: ScheduleStatus) and 'orchestrationExpiry < now))
 
-    pending ++ expired flatMap {
+    pending flatMap {
       case Right(schedule) => Some(schedule)
       case Left(e) =>
         log.warn("Problem retrieving pending schedule", e)
+        None
+    }
+  }
+
+  def listExpiredSchedules(): List[Schedule] = {
+    val now = Instant.now(clock).toEpochMilli
+    val expired = Scanamo.exec(context.db)(context.table.index("status-orchestrationExpiry-index").query('status -> (ScheduleStatus.Orchestrating: ScheduleStatus) and 'orchestrationExpiry < now))
+
+    expired flatMap {
+      case Right(schedule) => Some(schedule)
+      case Left(e) =>
+        log.warn("Problem retrieving expired schedule", e)
         None
     }
   }

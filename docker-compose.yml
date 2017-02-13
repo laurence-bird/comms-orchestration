@@ -17,6 +17,7 @@ services:
       PROFILE_SERVICE_HOST: http://profile.service:1080
       LOCAL_DYNAMO: "http://dynamodb:8000"
       DOCKER_COMPOSE : "true"
+      POLL_FOR_EXPIRED_INTERVAL: "5 seconds"
 
   zookeeper:
     image: confluentinc/cp-zookeeper:3.1.1

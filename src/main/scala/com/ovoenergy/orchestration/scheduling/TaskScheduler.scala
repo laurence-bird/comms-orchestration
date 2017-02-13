@@ -1,7 +1,7 @@
 package com.ovoenergy.orchestration.scheduling
 
 import java.time.Instant
-import java.util.Date
+import java.util.{Date, Properties}
 
 import org.quartz.JobBuilder._
 import org.quartz.TriggerBuilder._
@@ -9,9 +9,24 @@ import org.quartz._
 import org.quartz.impl.StdSchedulerFactory
 import org.slf4j.LoggerFactory
 
+import scala.util.{Failure, Success, Try}
+
 object TaskScheduler {
 
-  private val quartzScheduler = StdSchedulerFactory.getDefaultScheduler
+  private val quartzProperties = {
+    val properties = new Properties()
+    properties.put("org.quartz.scheduler.instanceName", "CommsScheduler")
+    properties.put("org.quartz.threadPool.threadCount", "1")
+    properties.put("org.quartz.jobStore.class", "org.quartz.simpl.RAMJobStore")
+    properties
+  }
+
+  private val quartzScheduler = {
+    val sf = new StdSchedulerFactory()
+    sf.initialize(quartzProperties)
+    sf.getScheduler
+  }
+
   private val log = LoggerFactory.getLogger("JobScheduler")
 
   class OrchestrationJob extends Job {
@@ -32,17 +47,32 @@ object TaskScheduler {
     quartzScheduler.start()
   }
 
-  def addSchedule(orchestrationFunction: (ScheduleId) => _)(scheduleId: ScheduleId, startAt: Instant): Unit = {
-    val jobDetail = newJob(classOf[OrchestrationJob])
-      .withIdentity(new JobKey(scheduleId))
-      .usingJobData(buildJobDataMap(scheduleId, orchestrationFunction))
-      .build()
-    val trigger = newTrigger()
-      .withIdentity(new TriggerKey(scheduleId.toString))
-      .startAt(Date.from(startAt))
-      .build()
-    log.debug(s"Scheduled comm (scheduleId: $scheduleId) to orchestrate at ${Date.from(startAt)}")
-    quartzScheduler.scheduleJob(jobDetail, trigger)
+  def shutdown(): Unit = quartzScheduler.shutdown()
+
+  def addSchedule(orchestrationFunction: (ScheduleId) => _)(scheduleId: ScheduleId, startAt: Instant): Boolean = {
+    val jobKey = new JobKey(scheduleId)
+    if (quartzScheduler.getJobDetail(jobKey) == null) {
+      val jobDetail = newJob(classOf[OrchestrationJob])
+        .withIdentity(jobKey)
+        .usingJobData(buildJobDataMap(scheduleId, orchestrationFunction))
+        .build()
+      val trigger = newTrigger()
+        .withIdentity(new TriggerKey(scheduleId.toString))
+        .startAt(Date.from(startAt))
+        .build()
+
+      Try(quartzScheduler.scheduleJob(jobDetail, trigger)) match {
+        case Success(_) =>
+          log.debug(s"Scheduled comm (scheduleId: $scheduleId) to orchestrate at ${Date.from(startAt)}")
+          true
+        case Failure(e) =>
+          log.warn(s"Failed to schedule comm (scheduleId: $scheduleId)", e)
+          false
+      }
+    } else {
+      // job is already scheduled, nothing to do
+      false
+    }
   }
 
   private def buildJobDataMap(scheduleId: ScheduleId, orchestrationFunction: (ScheduleId) => _): JobDataMap = {

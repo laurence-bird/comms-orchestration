@@ -2,13 +2,14 @@ package com.ovoenergy.orchestration
 
 import java.io.File
 import java.nio.file.Files
-import java.time.{Duration, Instant}
+import java.time.{Duration => JDuration}
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.amazonaws.regions.Regions
+import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
 import com.ovoenergy.comms.model.{TemplateData, Triggered, TriggeredV2}
 import com.ovoenergy.orchestration.aws.AwsDynamoClientProvider
 import com.ovoenergy.orchestration.http.HttpClient
@@ -19,13 +20,12 @@ import com.ovoenergy.orchestration.processes.failure.Failure
 import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator, Scheduler}
 import com.ovoenergy.orchestration.profile.{CustomerProfiler, Retry}
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence
-import com.ovoenergy.orchestration.scheduling.{Schedule, ScheduleStatus, TaskExecutor, TaskScheduler}
+import com.ovoenergy.orchestration.scheduling.{Restore, TaskExecutor, TaskScheduler}
 import com.typesafe.config.ConfigFactory
 import shapeless.Coproduct
 
 import scala.collection.JavaConverters._
-import scala.concurrent.Future
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
 
 object Main extends App
   with LoggingWithMDC {
@@ -34,7 +34,7 @@ object Main extends App
 
   Files.readAllLines(new File("banner.txt").toPath).asScala.foreach(println(_))
 
-  private implicit class RichDuration(val duration: Duration) extends AnyVal {
+  private implicit class RichDuration(val duration: JDuration) extends AnyVal {
     def toFiniteDuration: FiniteDuration = FiniteDuration.apply(duration.toNanos, TimeUnit.NANOSECONDS)
   }
 
@@ -87,7 +87,8 @@ object Main extends App
   )) _
 
   val executeScheduledTask =  TaskExecutor.execute(schedulingPersistence, orchestrateComm, () => UUID.randomUUID.toString, sendFailedEvent) _
-  val scheduleTask = Scheduler(schedulingPersistence.storeSchedule _, TaskScheduler.addSchedule(executeScheduledTask)) _
+  val addSchedule = TaskScheduler.addSchedule(executeScheduledTask) _
+  val scheduleTask = Scheduler(schedulingPersistence.storeSchedule _, addSchedule) _
 
   val schedulingGraph =  SchedulingGraph(
     consumerDeserializer = Serialisation.triggeredV2Deserializer,
@@ -102,6 +103,35 @@ object Main extends App
   )
 
   TaskScheduler.init()
+
+  /*
+  For pending schedules, we only need to load them once at startup.
+  Actually a few minutes after startup, as we need to wait until this instance
+  is consuming Kafka events. If we load the pending schedules while a previous
+  instance is still processing events, we might miss some.
+   */
+  actorSystem.scheduler.scheduleOnce(config.getDuration("scheduling.loadPending.delay").toFiniteDuration){
+    val scheduledCount = Restore.pickUpPendingSchedules(schedulingPersistence, addSchedule)
+    log.info(s"Loaded $scheduledCount pending schedules")
+  }
+
+  /*
+  For expired schedules, we poll every few minutes.
+  They should be very rare. Expiry only happens when an instance starts orchestrating
+  and then dies half way through.
+   */
+  val pollForExpiredInterval = config.getDuration("scheduling.pollForExpired.interval")
+  log.info(s"Polling for expired schedules with interval: $pollForExpiredInterval")
+  actorSystem.scheduler.schedule(1.second, pollForExpiredInterval.toFiniteDuration){
+    try {
+      val scheduledCount = Restore.pickUpExpiredSchedules(schedulingPersistence, addSchedule)
+      log.info(s"Recovered $scheduledCount expired schedules")
+    } catch {
+      case e: AmazonDynamoDBException =>
+        log.warn("Failed to poll for expired schedules", e)
+    }
+  }
+
   val control = schedulingGraph.run()
 
   control.isShutdown.foreach { _ =>

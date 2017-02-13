@@ -12,5 +12,10 @@ object Persistence {
     def setScheduleAsFailed(scheduleId: ScheduleId, reason: String): Unit
     def setScheduleAsComplete(scheduleId: ScheduleId): Unit
   }
+
+  trait Listing {
+    def listPendingSchedules(): List[Schedule]
+    def listExpiredSchedules(): List[Schedule]
+  }
 }
 

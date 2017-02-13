@@ -31,13 +31,13 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
     LocalDynamoDB.withTableWithSecondaryIndex(client, tableName)(Seq('scheduleId -> S))(secondaryIndices) {
       val scheduledComm = generate[Schedule].copy(status = ScheduleStatus.Pending)
       persistence.storeSchedule(scheduledComm)
-      val pending = persistence.retrievePendingSchedules()
+      val pending = persistence.listPendingSchedules()
       pending.size shouldBe 1
       pending.head shouldBe scheduledComm
     }
   }
 
-  it should "return pending schedules including expired orchestrating" in {
+  it should "return pending schedules" in {
     LocalDynamoDB.withTableWithSecondaryIndex(client, tableName)(Seq('scheduleId -> S))(secondaryIndices) {
       val completedSchedule = generate[Schedule].copy(status = ScheduleStatus.Complete)
       val pendingSchedule = generate[Schedule].copy(status = ScheduleStatus.Pending)
@@ -47,9 +47,23 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
       persistence.storeSchedule(pendingSchedule)
       persistence.storeSchedule(expiredOrchestratingSchedule)
       persistence.storeSchedule(inProgressOrchestratingSchedule)
-      val pending = persistence.retrievePendingSchedules()
-      pending.size shouldBe 2
-      pending should (contain(pendingSchedule) and contain(expiredOrchestratingSchedule))
+      val pending = persistence.listPendingSchedules()
+      pending shouldBe List(pendingSchedule)
+    }
+  }
+
+  it should "return expired orchestrating schedules" in {
+    LocalDynamoDB.withTableWithSecondaryIndex(client, tableName)(Seq('scheduleId -> S))(secondaryIndices) {
+      val completedSchedule = generate[Schedule].copy(status = ScheduleStatus.Complete)
+      val pendingSchedule = generate[Schedule].copy(status = ScheduleStatus.Pending)
+      val expiredOrchestratingSchedule = generate[Schedule].copy(status = ScheduleStatus.Orchestrating, orchestrationExpiry = now.minusSeconds(60 * 30))
+      val inProgressOrchestratingSchedule = generate[Schedule].copy(status = ScheduleStatus.Orchestrating, orchestrationExpiry = now.plusSeconds(60 * 10))
+      persistence.storeSchedule(completedSchedule)
+      persistence.storeSchedule(pendingSchedule)
+      persistence.storeSchedule(expiredOrchestratingSchedule)
+      persistence.storeSchedule(inProgressOrchestratingSchedule)
+      val pending = persistence.listExpiredSchedules()
+      pending shouldBe List(expiredOrchestratingSchedule)
     }
   }
 

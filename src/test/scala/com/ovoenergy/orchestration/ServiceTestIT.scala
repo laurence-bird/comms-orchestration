@@ -9,11 +9,13 @@ import cakesolutions.kafka.KafkaConsumer.{Conf => KafkaConsumerConf}
 import cakesolutions.kafka.KafkaProducer.{Conf => KafkaProducerConf}
 import cakesolutions.kafka.{KafkaConsumer, KafkaProducer}
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
+import com.gu.scanamo.{Scanamo, Table}
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, OrchestrationError, ProfileRetrievalFailed}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.serialisation.Serialisation._
 import com.ovoenergy.comms.serialisation.Decoders._
+import com.ovoenergy.orchestration.scheduling.{Schedule, ScheduleStatus}
 import util.{LocalDynamoDB, TestUtil}
 import io.circe.generic.auto._
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -28,6 +30,9 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, Tag}
 import util.LocalDynamoDB.SecondaryIndexData
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 import scala.util.Random
 import scala.util.control.NonFatal
 
@@ -79,17 +84,17 @@ class ServiceTestIT extends FlatSpec
     val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
       _ =>
-        val firstEvent = assertSuccessfulOrchestration()
+        val firstEvent = assertSuccessfulOrchestration().head
         val secondFuture = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
         whenReady(secondFuture) {
           _ =>
-            val secondEvent = assertSuccessfulOrchestration()
+            val secondEvent = assertSuccessfulOrchestration().head
             secondEvent.internalMetadata.internalTraceToken should not equal firstEvent.internalMetadata.internalTraceToken
         }
     }
   }
 
-  it should "orchestrate emails request to send in the future" taggedAs DockerComposeTag in {
+  it should "orchestrate emails requested to be sent in the future" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse()
     val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(10).toString))
     val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggered))
@@ -103,17 +108,37 @@ class ServiceTestIT extends FlatSpec
     }
   }
 
-  def assertSuccessfulOrchestration(): OrchestratedEmailV2 = {
-    val orchestratedEmails = emailOrchestratedConsumer.poll(200000).records(emailOrchestratedTopic).asScala.toList
-    orchestratedEmails should have size 1
-    val record = orchestratedEmails.head
-    val orchestratedEmail = record.value().getOrElse(fail("No record for ${record.key()}"))
-    orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
-    orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
-    orchestratedEmail.templateData shouldBe TestUtil.templateData
-    orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
+  it should "orchestrate multiple emails" taggedAs DockerComposeTag in {
+    createOKCustomerProfileResponse()
 
-    orchestratedEmail
+    var futures = new mutable.ListBuffer[Future[_]]
+    (1 to 10).foreach(counter => {
+      val triggered = TestUtil.triggered.copy(metadata = TestUtil.metadata.copy(traceToken = counter.toString))
+      futures += triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggered))
+    })
+
+    futures.foreach(future => Await.ready(future, 1.seconds))
+
+    val deadline = 30.seconds.fromNow
+    var orchestratedEmails =  mutable.ListBuffer[OrchestratedEmailV2]()
+    while(deadline.hasTimeLeft && orchestratedEmails.size < 10) {
+      orchestratedEmails ++= assertSuccessfulOrchestration(pollTime = 1000, assertTraceToken = false)
+    }
+    orchestratedEmails.size shouldBe 10
+    orchestratedEmails.map(_.metadata.traceToken) should contain allOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
+  }
+
+  def assertSuccessfulOrchestration(pollTime: Long = 20000, assertTraceToken: Boolean = true): Seq[OrchestratedEmailV2] = {
+    val orchestratedEmails = emailOrchestratedConsumer.poll(pollTime).records(emailOrchestratedTopic).asScala.toList
+    orchestratedEmails should not be 'empty
+    orchestratedEmails.foreach(record => {
+      val orchestratedEmail = record.value().getOrElse(fail("No record for ${record.key()}"))
+      orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
+      orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
+      orchestratedEmail.templateData shouldBe TestUtil.templateData
+      if (assertTraceToken) orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
+    })
+    orchestratedEmails.map(_.value().get)
   }
 
  it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
@@ -179,6 +204,30 @@ class ServiceTestIT extends FlatSpec
         })
     }
   }
+
+  it should "pick up expired events via polling and orchestrate them" taggedAs DockerComposeTag in {
+    createOKCustomerProfileResponse()
+
+    import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence._
+    val schedulesTable = Table[Schedule](tableName)
+    val triggered = TestUtil.triggered
+
+    Scanamo.exec(dynamoClient)(schedulesTable.put(
+      Schedule(
+        "testSchedule",
+        triggered,
+        Instant.now().minusSeconds(600),
+        ScheduleStatus.Orchestrating,
+        Nil,
+        Instant.now().minusSeconds(60),
+        triggered.metadata.customerId,
+        triggered.metadata.commManifest.name
+      )
+    ))
+
+    assertSuccessfulOrchestration()
+  }
+
 
   def setupTopics() {
     import _root_.kafka.admin.AdminUtils
