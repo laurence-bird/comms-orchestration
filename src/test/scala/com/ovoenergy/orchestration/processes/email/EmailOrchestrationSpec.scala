@@ -4,7 +4,11 @@ import akka.Done
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model.ErrorCode.InvalidProfile
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileEmailAddresses, CustomerProfileName}
+import com.ovoenergy.orchestration.domain.customer.{
+  CustomerProfile,
+  CustomerProfileEmailAddresses,
+  CustomerProfileName
+}
 import com.ovoenergy.orchestration.util.ArbGenerator
 import org.scalacheck.Shapeless._
 import org.scalatest.concurrent.ScalaFutures
@@ -12,16 +16,17 @@ import org.scalatest.{EitherValues, FlatSpec, Matchers, OneInstancePerTest}
 
 import scala.concurrent.Future
 
-class EmailOrchestrationSpec extends FlatSpec
-  with Matchers
-  with ScalaFutures
-  with OneInstancePerTest
-  with EitherValues
-  with ArbGenerator {
+class EmailOrchestrationSpec
+    extends FlatSpec
+    with Matchers
+    with ScalaFutures
+    with OneInstancePerTest
+    with EitherValues
+    with ArbGenerator {
 
   implicit val config = PatienceConfig()
 
-  var producerInvocationCount = 0
+  var producerInvocationCount                      = 0
   var passedOrchestratedEmail: OrchestratedEmailV2 = _
   def producer = (orchestratedEmail: OrchestratedEmailV2) => {
     producerInvocationCount = producerInvocationCount + 1
@@ -29,9 +34,8 @@ class EmailOrchestrationSpec extends FlatSpec
     Future.successful(Done)
   }
 
-
-  val customerProfile = generate[CustomerProfile]
-  val triggered       = generate[TriggeredV2]
+  val customerProfile  = generate[CustomerProfile]
+  val triggered        = generate[TriggeredV2]
   val internalMetadata = generate[InternalMetadata]
 
   behavior of "EmailOrchestration"
@@ -44,10 +48,10 @@ class EmailOrchestrationSpec extends FlatSpec
 
     val error = EmailOrchestration(producer)(badCustomerProfile, triggered, internalMetadata).left.value
 
-      error.reason should include("Customer has no usable email address")
-      error.reason should include("Customer has no last name")
-      error.reason should include("Customer has no first name")
-      error.errorCode shouldBe InvalidProfile
+    error.reason should include("Customer has no usable email address")
+    error.reason should include("Customer has no last name")
+    error.reason should include("Customer has no first name")
+    error.errorCode shouldBe InvalidProfile
   }
 
   it should "call producer with primary email address if exists" in {

@@ -14,31 +14,39 @@ import scala.concurrent.Future
 
 object FailedProducer extends LoggingWithMDC {
 
-  def failedTrigger(hosts: String, topic: String)
-           (implicit actorSystem: ActorSystem, materializer: Materializer): (String, TriggeredV2, ErrorCode, InternalMetadata) => Future[RecordMetadata] = {
+  def failedTrigger(hosts: String, topic: String)(
+      implicit actorSystem: ActorSystem,
+      materializer: Materializer): (String, TriggeredV2, ErrorCode, InternalMetadata) => Future[RecordMetadata] = {
     val producer = KafkaProducer(Conf(new StringSerializer, Serialisation.failedSerializer, hosts))
 
-    (reason: String, triggeredV2: TriggeredV2, errorCode: ErrorCode, internalMetadata: InternalMetadata) => {
-      val failed = Failed(
+    (reason: String, triggeredV2: TriggeredV2, errorCode: ErrorCode, internalMetadata: InternalMetadata) =>
+      {
+        val failed = Failed(
           metadata = Metadata.fromSourceMetadata("orchestration", triggeredV2.metadata),
           reason = reason,
           errorCode = errorCode,
           internalMetadata = internalMetadata
-      )
+        )
 
-      logWarn(failed.metadata.traceToken, s"Posting event to $topic - $failed")
-      producer.send(new ProducerRecord[String, Failed](topic, failed.metadata.customerId, failed))
-    }
+        logWarn(failed.metadata.traceToken, s"Posting event to $topic - $failed")
+        producer.send(new ProducerRecord[String, Failed](topic, failed.metadata.customerId, failed))
+      }
   }
 
-  def failedCancellation(hosts: String, topic: String)
-                        (implicit actorSystem: ActorSystem, materializer: Materializer): FailedCancellation => Future[RecordMetadata] = {
+  def failedCancellation(hosts: String, topic: String)(
+      implicit actorSystem: ActorSystem,
+      materializer: Materializer): FailedCancellation => Future[RecordMetadata] = {
     val producer = KafkaProducer(Conf(new StringSerializer, Serialisation.failedCancellationSerializer, hosts))
 
-    (failedCancellationRequest: FailedCancellation) => {
-      logWarn(failedCancellationRequest.cancellationRequested.metadata.traceToken, s"Posting event to $topic - $failedCancellationRequest")
-      producer.send(new ProducerRecord[String, FailedCancellation](topic, failedCancellationRequest.cancellationRequested.customerId, failedCancellationRequest))
-    }
+    (failedCancellationRequest: FailedCancellation) =>
+      {
+        logWarn(failedCancellationRequest.cancellationRequested.metadata.traceToken,
+                s"Posting event to $topic - $failedCancellationRequest")
+        producer.send(
+          new ProducerRecord[String, FailedCancellation](topic,
+                                                         failedCancellationRequest.cancellationRequested.customerId,
+                                                         failedCancellationRequest))
+      }
   }
 
   override def loggerName: String = "FailedProducer"

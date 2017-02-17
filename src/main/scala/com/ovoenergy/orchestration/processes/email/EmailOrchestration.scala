@@ -22,16 +22,19 @@ object EmailOrchestration {
     }
   }
   object ValidationErrors {
-    def apply(message: String): ValidationErrors = ValidationErrors(ValidationError(message))
+    def apply(message: String): ValidationErrors        = ValidationErrors(ValidationError(message))
     def apply(error: ValidationError): ValidationErrors = ValidationErrors(NonEmptyList.of(error))
     implicit val sg = new Semigroup[ValidationErrors] {
-      def combine(x: ValidationErrors, y: ValidationErrors): ValidationErrors = ValidationErrors(x.errors.concat(y.errors))
+      def combine(x: ValidationErrors, y: ValidationErrors): ValidationErrors =
+        ValidationErrors(x.errors.concat(y.errors))
     }
   }
   private type ValidationErrorsOr[A] = Validated[ValidationErrors, A]
 
-  def apply(orchestratedEmailProducer: (OrchestratedEmailV2) => Future[_])
-           (customerProfile: CustomerProfile, triggered: TriggeredV2, internalMetadata: InternalMetadata): Either[ErrorDetails, Future[_]] = {
+  def apply(orchestratedEmailProducer: (OrchestratedEmailV2) => Future[_])(
+      customerProfile: CustomerProfile,
+      triggered: TriggeredV2,
+      internalMetadata: InternalMetadata): Either[ErrorDetails, Future[_]] = {
 
     val emailAddress: ValidationErrorsOr[String] = {
       customerProfile.emailAddresses match {
@@ -63,9 +66,7 @@ object EmailOrchestration {
               sourceMetadata = triggered.metadata
             ),
             recipientEmailAddress = validEmailAddress,
-            customerProfile = model.CustomerProfile(
-              firstName = validFirstName,
-              lastName = validLastName),
+            customerProfile = model.CustomerProfile(firstName = validFirstName, lastName = validLastName),
             templateData = triggered.templateData,
             internalMetadata = internalMetadata,
             expireAt = triggered.expireAt
@@ -75,7 +76,7 @@ object EmailOrchestration {
       }
 
     resultOrValidationErrors match {
-      case Valid(result) => Right(result)
+      case Valid(result)   => Right(result)
       case Invalid(errors) => Left(ErrorDetails(errors.errorsString, InvalidProfile))
     }
 

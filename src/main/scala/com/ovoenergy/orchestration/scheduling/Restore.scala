@@ -11,9 +11,12 @@ object Restore {
     * @return a count of the number of tasks scheduled
     */
   def pickUpPendingSchedules(dynamo: Persistence.Listing, addSchedule: (ScheduleId, Instant) => Boolean): Int = {
-    dynamo.listPendingSchedules().map { schedule =>
-      addSchedule(schedule.scheduleId, schedule.deliverAt)
-    }.count(identity)
+    dynamo
+      .listPendingSchedules()
+      .map { schedule =>
+        addSchedule(schedule.scheduleId, schedule.deliverAt)
+      }
+      .count(identity)
   }
 
   /**
@@ -23,9 +26,12 @@ object Restore {
     * @return a count of the number of tasks scheduled
     */
   def pickUpExpiredSchedules(dynamo: Persistence.Listing, addSchedule: (ScheduleId, Instant) => Boolean): Int = {
-    dynamo.listExpiredSchedules().map { schedule =>
-      addSchedule(schedule.scheduleId, schedule.deliverAt)
-    }.count(identity)
+    dynamo
+      .listExpiredSchedules()
+      .map { schedule =>
+        addSchedule(schedule.scheduleId, schedule.deliverAt)
+      }
+      .count(identity)
   }
 
 }

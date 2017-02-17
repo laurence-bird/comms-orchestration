@@ -13,11 +13,10 @@ object Orchestrator extends LoggingWithMDC {
 
   type Orchestrator = (CustomerProfile, TriggeredV2, InternalMetadata) => Either[ErrorDetails, Future[_]]
 
-  def apply(
-             profileCustomer: (String, Boolean, String) => Either[ErrorDetails, CustomerProfile],
-             determineChannel: (CustomerProfile) => Either[ErrorDetails, Channel],
-             orchestrateEmail: Orchestrator)
-       (triggered: TriggeredV2, internalMetadata: InternalMetadata): Either[ErrorDetails, Future[_]] = {
+  def apply(profileCustomer: (String, Boolean, String) => Either[ErrorDetails, CustomerProfile],
+            determineChannel: (CustomerProfile) => Either[ErrorDetails, Channel],
+            orchestrateEmail: Orchestrator)(triggered: TriggeredV2,
+                                            internalMetadata: InternalMetadata): Either[ErrorDetails, Future[_]] = {
 
     def selectOrchestratorforChannel(channel: Channel): Either[ErrorDetails, Orchestrator] =
       channel match {
@@ -26,10 +25,12 @@ object Orchestrator extends LoggingWithMDC {
       }
 
     for {
-      customerProfile   <- profileCustomer(triggered.metadata.customerId, triggered.metadata.canary, triggered.metadata.traceToken).right
-      channel           <- determineChannel(customerProfile).right
-      orchestrateComm   <- selectOrchestratorforChannel(channel).right
-      res               <- orchestrateComm(customerProfile, triggered, internalMetadata).right
+      customerProfile <- profileCustomer(triggered.metadata.customerId,
+                                         triggered.metadata.canary,
+                                         triggered.metadata.traceToken).right
+      channel         <- determineChannel(customerProfile).right
+      orchestrateComm <- selectOrchestratorforChannel(channel).right
+      res             <- orchestrateComm(customerProfile, triggered, internalMetadata).right
     } yield res
   }
 

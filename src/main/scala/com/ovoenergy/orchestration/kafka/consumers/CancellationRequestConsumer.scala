@@ -21,13 +21,12 @@ object CancellationRequestConsumer extends LoggingWithMDC {
 
   val deserializer = Serialisation.cancellationRequestedDeserializer
 
-  def apply(
-             sendFailedCancellationEvent: (FailedCancellation) => Future[_],
-             sendSuccessfulCancellationEvent: (Cancelled => Future[RecordMetadata]),
-             descheduleComm: CancellationRequested => Seq[Either[ErrorDetails, Metadata]],
-             config: KafkaConfig,
-             generateTraceToken: () => String)
-           (implicit actorSystem: ActorSystem, materializer: Materializer): RunnableGraph[Control] = {
+  def apply(sendFailedCancellationEvent: (FailedCancellation) => Future[_],
+            sendSuccessfulCancellationEvent: (Cancelled => Future[RecordMetadata]),
+            descheduleComm: CancellationRequested => Seq[Either[ErrorDetails, Metadata]],
+            config: KafkaConfig,
+            generateTraceToken: () => String)(implicit actorSystem: ActorSystem,
+                                              materializer: Materializer): RunnableGraph[Control] = {
 
     implicit val executionContext = actorSystem.dispatcher
 
@@ -50,7 +49,8 @@ object CancellationRequestConsumer extends LoggingWithMDC {
           case Some(cancellationRequest) =>
             val futures = descheduleComm(cancellationRequest).map {
               case Left(err) =>
-                sendFailedCancellationEvent(FailedCancellation(cancellationRequest, s"Cancellation of scheduled comm failed: ${err.reason}"))
+                sendFailedCancellationEvent(
+                  FailedCancellation(cancellationRequest, s"Cancellation of scheduled comm failed: ${err.reason}"))
               case Right(metadata) =>
                 sendSuccessfulCancellationEvent(Cancelled(metadata))
             }
@@ -61,7 +61,8 @@ object CancellationRequestConsumer extends LoggingWithMDC {
         }
         result
           .flatMap(_ => msg.committableOffset.commitScaladsl())
-      }).withAttributes(ActorAttributes.supervisionStrategy(decider))
+      })
+      .withAttributes(ActorAttributes.supervisionStrategy(decider))
 
     val sink = Sink.ignore.withAttributes(ActorAttributes.supervisionStrategy(decider))
 

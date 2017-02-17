@@ -7,7 +7,9 @@ import scala.util.{Failure, Success, Try}
 object Retry {
 
   case class Failed(attemptsMade: Int, finalException: Throwable)
-    extends Exception(s"Operation failed after $attemptsMade attempts. The final exception message was: ${finalException.getMessage}", finalException)
+      extends Exception(
+        s"Operation failed after $attemptsMade attempts. The final exception message was: ${finalException.getMessage}",
+        finalException)
 
   case class Succeeded[A](result: A, attempts: Int)
 
@@ -23,11 +25,9 @@ object Retry {
     * @param onFailure A hook that is called after each failure. Useful for logging.
     * @param f The operation to perform.
     */
-  def retry[A](config: RetryConfig,
-               onFailure: Throwable => Unit)
-              (f: () => Try[A]): Either[Failed, Succeeded[A]] = {
+  def retry[A](config: RetryConfig, onFailure: Throwable => Unit)(f: () => Try[A]): Either[Failed, Succeeded[A]] = {
     @tailrec
-    def rec(attempt: Int): Either[Failed,Succeeded[A]] = {
+    def rec(attempt: Int): Either[Failed, Succeeded[A]] = {
       f() match {
         case Success(result) => Right(Succeeded(result, attempt))
         case Failure(e) =>

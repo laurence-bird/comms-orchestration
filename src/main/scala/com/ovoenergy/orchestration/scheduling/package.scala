@@ -11,11 +11,11 @@ package object scheduling {
 
   sealed trait ScheduleStatus
   object ScheduleStatus {
-    case object Pending extends ScheduleStatus
+    case object Pending       extends ScheduleStatus
     case object Orchestrating extends ScheduleStatus
-    case object Complete extends ScheduleStatus
-    case object Failed extends ScheduleStatus
-    case object Cancelled extends ScheduleStatus
+    case object Complete      extends ScheduleStatus
+    case object Failed        extends ScheduleStatus
+    case object Cancelled     extends ScheduleStatus
   }
 
   case class Change(timestamp: Instant, operation: String)
@@ -36,13 +36,13 @@ package object scheduling {
   }
 
   case class Schedule(
-                       scheduleId: ScheduleId,
-                       triggered: TriggeredV2,
-                       deliverAt: Instant,
-                       status: ScheduleStatus,
-                       history: Seq[Change],
-                       orchestrationExpiry: Instant,
-                       customerId: String,
-                       commName: String
+      scheduleId: ScheduleId,
+      triggered: TriggeredV2,
+      deliverAt: Instant,
+      status: ScheduleStatus,
+      history: Seq[Change],
+      orchestrationExpiry: Instant,
+      customerId: String,
+      commName: String
   )
 }

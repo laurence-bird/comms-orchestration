@@ -7,11 +7,11 @@ import io.circe.generic.auto._
 
 object Serialisation {
 
-  val orchestratedEmailV2Serializer = avroSerializer[OrchestratedEmailV2]
-  val triggeredV2Deserializer = avroDeserializer[TriggeredV2]
-  val failedSerializer = avroSerializer[Failed]
-  val cancelledSerializer = avroSerializer[Cancelled]
+  val orchestratedEmailV2Serializer     = avroSerializer[OrchestratedEmailV2]
+  val triggeredV2Deserializer           = avroDeserializer[TriggeredV2]
+  val failedSerializer                  = avroSerializer[Failed]
+  val cancelledSerializer               = avroSerializer[Cancelled]
   val cancellationRequestedDeserializer = avroDeserializer[CancellationRequested]
-  val failedCancellationSerializer = avroSerializer[FailedCancellation]
+  val failedCancellationSerializer      = avroSerializer[FailedCancellation]
 
 }

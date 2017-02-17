@@ -36,7 +36,7 @@ object QuartzScheduling {
       implicit val jobDataMap = context.getJobDetail.getJobDataMap
 
       val scheduleId = getAs[ScheduleId]("scheduleId")
-      val function = getAs[ScheduleId => _]("function")
+      val function   = getAs[ScheduleId => _]("function")
 
       log.info(s"Executing scheduled orchestration, scheduleId: $scheduleId")
       function.apply(scheduleId)
@@ -94,5 +94,3 @@ object QuartzScheduling {
   }
 
 }
-
-

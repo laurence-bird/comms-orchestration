@@ -16,11 +16,17 @@ object CustomerProfiler extends LoggingWithMDC {
 
   val loggerName = "CustomerProfiler"
 
-  def apply(httpClient: (Request) => Try[Response], profileApiKey: String, profileHost: String, retryConfig: RetryConfig)
-           (customerId: String, canary: Boolean, traceToken: String): Either[ErrorDetails, CustomerProfile] = {
+  def apply(httpClient: (Request) => Try[Response],
+            profileApiKey: String,
+            profileHost: String,
+            retryConfig: RetryConfig)(customerId: String,
+                                      canary: Boolean,
+                                      traceToken: String): Either[ErrorDetails, CustomerProfile] = {
 
     val url = {
-      val builder = HttpUrl.parse(s"$profileHost/api/customers/$customerId").newBuilder()
+      val builder = HttpUrl
+        .parse(s"$profileHost/api/customers/$customerId")
+        .newBuilder()
         .addQueryParameter("apikey", profileApiKey)
       if (canary) builder.addQueryParameter("canary", "true")
       builder.build()
@@ -34,7 +40,7 @@ object CustomerProfiler extends LoggingWithMDC {
     val result = Retry.retry(
       config = retryConfig,
       onFailure = e => logWarn(traceToken, "Failed to retrieve customer profile from profiles service", e)
-    ){ () =>
+    ) { () =>
       httpClient(request).flatMap { response =>
         val responseBody = response.body.string
         if (response.isSuccessful) {
@@ -44,10 +50,11 @@ object CustomerProfiler extends LoggingWithMDC {
         }
       }
     }
-    result.map(_.result)
-      .leftMap{ (err: Failed) =>
+    result
+      .map(_.result)
+      .leftMap { (err: Failed) =>
         ErrorDetails(s"Failed to retrive customer profile: ${err.finalException.getMessage}", ProfileRetrievalFailed)
-    }
+      }
   }
 
 }
