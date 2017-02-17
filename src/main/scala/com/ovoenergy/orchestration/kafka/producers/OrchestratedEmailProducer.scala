@@ -14,20 +14,22 @@ import scala.concurrent.Future
 
 object OrchestratedEmailProducer extends LoggingWithMDC {
 
-  def apply(hosts: String, topic: String)
-           (implicit actorSystem: ActorSystem, materializer: Materializer): OrchestratedEmailV2 => Future[_] = {
+  def apply(hosts: String, topic: String)(implicit actorSystem: ActorSystem,
+                                          materializer: Materializer): OrchestratedEmailV2 => Future[_] = {
     val producer = KafkaProducer(Conf(new StringSerializer, Serialisation.orchestratedEmailV2Serializer, hosts))
 
-    (email: OrchestratedEmailV2) => {
-      logInfo(email.metadata.traceToken, s"Posting event to $topic - $email")
-      val future = producer.send(new ProducerRecord[String, OrchestratedEmailV2](topic, email.metadata.customerId, email))
+    (email: OrchestratedEmailV2) =>
+      {
+        logInfo(email.metadata.traceToken, s"Posting event to $topic - $email")
+        val future =
+          producer.send(new ProducerRecord[String, OrchestratedEmailV2](topic, email.metadata.customerId, email))
 
-      import scala.concurrent.ExecutionContext.Implicits.global
-      future.foreach {
-        r => logInfo(email.metadata.traceToken, s"Posted event to $topic partion ${r.partition()} offset ${r.offset()}")
+        import scala.concurrent.ExecutionContext.Implicits.global
+        future.foreach { r =>
+          logInfo(email.metadata.traceToken, s"Posted event to $topic partion ${r.partition()} offset ${r.offset()}")
+        }
+        future
       }
-      future
-    }
   }
 
   override def loggerName: String = "OrchestratedEmailProducer"

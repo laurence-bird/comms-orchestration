@@ -55,6 +55,4 @@ class TaskSchedulerSpec extends FlatSpec with BeforeAndAfterAll with Eventually 
     addSchedule(scheduleId, Instant.now()) shouldBe false
   }
 
-
-
 }

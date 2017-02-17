@@ -23,8 +23,9 @@ trait ArbGenerator {
     UUID.randomUUID().toString
   }
 
-  def generate[A: Arbitrary] = implicitly[Arbitrary[A]].arbitrary
-    .apply(Gen.Parameters.default.withSize(Random.nextInt(5)), Seed.random())
-    .get
+  def generate[A: Arbitrary] =
+    implicitly[Arbitrary[A]].arbitrary
+      .apply(Gen.Parameters.default.withSize(Random.nextInt(5)), Seed.random())
+      .get
 
 }

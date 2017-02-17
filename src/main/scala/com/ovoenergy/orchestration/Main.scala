@@ -31,8 +31,7 @@ import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-object Main extends App
-  with LoggingWithMDC {
+object Main extends App with LoggingWithMDC {
 
   override def loggerName = "Main"
 
@@ -42,18 +41,17 @@ object Main extends App
     def toFiniteDuration: FiniteDuration = FiniteDuration.apply(duration.toNanos, TimeUnit.NANOSECONDS)
   }
 
-
   val config = ConfigFactory.load()
 
-  implicit val actorSystem = ActorSystem()
-  implicit val materializer = ActorMaterializer()
+  implicit val actorSystem      = ActorSystem()
+  implicit val materializer     = ActorMaterializer()
   implicit val executionContext = actorSystem.dispatcher
 
-  val region = Regions.fromName(config.getString("aws.region"))
+  val region             = Regions.fromName(config.getString("aws.region"))
   val isRunningInCompose = sys.env.get("DOCKER_COMPOSE").contains("true")
 
   val schedulingPersistence = new DynamoPersistence(
-    orchestrationExpiryMinutes =  config.getInt("scheduling.orchestration.expiry"),
+    orchestrationExpiryMinutes = config.getInt("scheduling.orchestration.expiry"),
     context = DynamoPersistence.Context(
       db = AwsDynamoClientProvider(isRunningInCompose, region),
       tableName = config.getString("scheduling.persistence.table")
@@ -62,16 +60,17 @@ object Main extends App
 
   val determineChannel = ChannelSelector.determineChannel _
 
-  val orchestrateEmail = EmailOrchestration(OrchestratedEmailProducer(
-    hosts = config.getString("kafka.hosts"),
-    topic = config.getString("kafka.topics.orchestrated.email.v2")
-  )) _
+  val orchestrateEmail = EmailOrchestration(
+    OrchestratedEmailProducer(
+      hosts = config.getString("kafka.hosts"),
+      topic = config.getString("kafka.topics.orchestrated.email.v2")
+    )) _
 
   val profileCustomer = {
     val retryConfig = Retry.RetryConfig(
-        attempts = config.getInt("profile.service.http.attempts"),
-        backoff = Retry.Backoff.constantDelay(config.getDuration("profile.service.http.interval").toFiniteDuration)
-      )
+      attempts = config.getInt("profile.service.http.attempts"),
+      backoff = Retry.Backoff.constantDelay(config.getDuration("profile.service.http.interval").toFiniteDuration)
+    )
     CustomerProfiler(
       httpClient = HttpClient.apply,
       profileApiKey = config.getString("profile.service.apiKey"),
@@ -86,10 +85,11 @@ object Main extends App
     orchestrateEmail = orchestrateEmail
   ) _
 
-  val sendFailedTriggerEvent: (String, TriggeredV2, ErrorCode, InternalMetadata) => Future[RecordMetadata] = FailedProducer.failedTrigger(
+  val sendFailedTriggerEvent: (String, TriggeredV2, ErrorCode, InternalMetadata) => Future[RecordMetadata] =
+    FailedProducer.failedTrigger(
       hosts = config.getString("kafka.hosts"),
       topic = config.getString("kafka.topics.failed")
-  ) _
+    ) _
 
   val sendCancelledEvent: (Cancelled) => Future[RecordMetadata] = CancelledProducer(
     hosts = config.getString("kafka.hosts"),
@@ -101,13 +101,16 @@ object Main extends App
     topic = config.getString("kafka.topics.scheduling.failedCancellation")
   )
 
-  val executeScheduledTask =  TaskExecutor.execute(schedulingPersistence, orchestrateComm, () => UUID.randomUUID.toString, sendFailedTriggerEvent) _
-  val addSchedule = QuartzScheduling.addSchedule(executeScheduledTask) _
-  val scheduleTask = Scheduler.scheduleComm(schedulingPersistence.storeSchedule _, addSchedule) _
+  val executeScheduledTask = TaskExecutor.execute(schedulingPersistence,
+                                                  orchestrateComm,
+                                                  () => UUID.randomUUID.toString,
+                                                  sendFailedTriggerEvent) _
+  val addSchedule    = QuartzScheduling.addSchedule(executeScheduledTask) _
+  val scheduleTask   = Scheduler.scheduleComm(schedulingPersistence.storeSchedule _, addSchedule) _
   val removeSchedule = QuartzScheduling.removeSchedule _
   val descheduleComm = Scheduler.descheduleComm(schedulingPersistence.cancelSchedules, removeSchedule) _
 
-  val schedulingGraph =  TriggeredConsumer(
+  val schedulingGraph = TriggeredConsumer(
     consumerDeserializer = Serialisation.triggeredV2Deserializer,
     scheduleTask = scheduleTask,
     sendFailedEvent = sendFailedTriggerEvent,
@@ -125,9 +128,9 @@ object Main extends App
     generateTraceToken = () => UUID.randomUUID().toString,
     descheduleComm = descheduleComm,
     config = KafkaConfig(
-    hosts = config.getString("kafka.hosts"),
-    groupId = config.getString("kafka.group.id"),
-    topic = config.getString("kafka.topics.scheduling.cancellationRequest")
+      hosts = config.getString("kafka.hosts"),
+      groupId = config.getString("kafka.group.id"),
+      topic = config.getString("kafka.topics.scheduling.cancellationRequest")
     )
   )
 
@@ -139,7 +142,7 @@ object Main extends App
   is consuming Kafka events. If we load the pending schedules while a previous
   instance is still processing events, we might miss some.
    */
-  actorSystem.scheduler.scheduleOnce(config.getDuration("scheduling.loadPending.delay").toFiniteDuration){
+  actorSystem.scheduler.scheduleOnce(config.getDuration("scheduling.loadPending.delay").toFiniteDuration) {
     val scheduledCount = Restore.pickUpPendingSchedules(schedulingPersistence, addSchedule)
     log.info(s"Loaded $scheduledCount pending schedules")
   }
@@ -151,7 +154,7 @@ object Main extends App
    */
   val pollForExpiredInterval = config.getDuration("scheduling.pollForExpired.interval")
   log.info(s"Polling for expired schedules with interval: $pollForExpiredInterval")
-  actorSystem.scheduler.schedule(1.second, pollForExpiredInterval.toFiniteDuration){
+  actorSystem.scheduler.schedule(1.second, pollForExpiredInterval.toFiniteDuration) {
     try {
       val scheduledCount = Restore.pickUpExpiredSchedules(schedulingPersistence, addSchedule)
       log.info(s"Recovered $scheduledCount expired schedules")
@@ -161,10 +164,10 @@ object Main extends App
     }
   }
 
-  val schedulingControl = schedulingGraph.run()
+  val schedulingControl   = schedulingGraph.run()
   val cancellationControl = cancellationRequestGraph.run()
 
-  cancellationControl.isShutdown.foreach{ _ =>
+  cancellationControl.isShutdown.foreach { _ =>
     log.error("ARGH! The Kafka cancellation event source has shut down. Killing the JVM and nuking from orbit.")
     System.exit(1)
   }

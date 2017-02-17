@@ -23,8 +23,8 @@ object TriggeredConsumer extends LoggingWithMDC {
             scheduleTask: (TriggeredV2) => Either[ErrorDetails, Boolean],
             sendFailedEvent: (String, TriggeredV2, ErrorCode, InternalMetadata) => Future[RecordMetadata],
             config: KafkaConfig,
-            generateTraceToken: () => String)
-            (implicit actorSystem: ActorSystem, materializer: Materializer): RunnableGraph[Control] = {
+            generateTraceToken: () => String)(implicit actorSystem: ActorSystem,
+                                              materializer: Materializer): RunnableGraph[Control] = {
 
     implicit val executionContext = actorSystem.dispatcher
 
@@ -45,7 +45,11 @@ object TriggeredConsumer extends LoggingWithMDC {
         val result: Future[_] = msg.record.value match {
           case Some(triggered) =>
             scheduleTask(triggered) match {
-              case Left(err) => sendFailedEvent(s"Scheduling of comm failed: ${err.reason}", triggered, err.errorCode, InternalMetadata(generateTraceToken()))
+              case Left(err) =>
+                sendFailedEvent(s"Scheduling of comm failed: ${err.reason}",
+                                triggered,
+                                err.errorCode,
+                                InternalMetadata(generateTraceToken()))
               case Right(_) => Future.successful(())
             }
           case None =>
@@ -54,7 +58,8 @@ object TriggeredConsumer extends LoggingWithMDC {
         }
         result
           .flatMap(_ => msg.committableOffset.commitScaladsl())
-      }).withAttributes(ActorAttributes.supervisionStrategy(decider))
+      })
+      .withAttributes(ActorAttributes.supervisionStrategy(decider))
 
     val sink = Sink.ignore.withAttributes(ActorAttributes.supervisionStrategy(decider))
 

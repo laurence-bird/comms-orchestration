@@ -45,13 +45,14 @@ class RetrySpec extends FlatSpec with Matchers {
 
   def failNtimesThenSucceed(n: Int): () => Try[String] = {
     var counter = 0
-    () => {
-      if (counter < n) {
-        counter = counter + 1
-        Failure(exception)
-      } else
-        Success("yay")
-    }
+    () =>
+      {
+        if (counter < n) {
+          counter = counter + 1
+          Failure(exception)
+        } else
+          Success("yay")
+      }
   }
 
 }

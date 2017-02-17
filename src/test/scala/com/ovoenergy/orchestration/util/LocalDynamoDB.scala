@@ -25,19 +25,25 @@ object LocalDynamoDB {
 
   case class SecondaryIndexData(indexName: String, attributes: Seq[(Symbol, ScalarAttributeType)])
 
-  def createTableWithSecondaryIndex(client: AmazonDynamoDB, tableName: String)
-                                   (primaryIndexAttributes: Seq[(Symbol, ScalarAttributeType)])(secondaryIndexes: Seq[SecondaryIndexData]) = {
+  def createTableWithSecondaryIndex(client: AmazonDynamoDB, tableName: String)(
+      primaryIndexAttributes: Seq[(Symbol, ScalarAttributeType)])(secondaryIndexes: Seq[SecondaryIndexData]) = {
 
-    val s: util.Collection[GlobalSecondaryIndex] = secondaryIndexes.map(index => new GlobalSecondaryIndex()
-      .withIndexName(index.indexName)
-      .withKeySchema(keySchema(index.attributes))
-      .withProvisionedThroughput(arbitraryThroughputThatIsIgnoredByDynamoDBLocal)
-      .withProjection(new Projection().withProjectionType(ProjectionType.ALL))).asJavaCollection
+    val s: util.Collection[GlobalSecondaryIndex] = secondaryIndexes
+      .map(
+        index =>
+          new GlobalSecondaryIndex()
+            .withIndexName(index.indexName)
+            .withKeySchema(keySchema(index.attributes))
+            .withProvisionedThroughput(arbitraryThroughputThatIsIgnoredByDynamoDBLocal)
+            .withProjection(new Projection().withProjectionType(ProjectionType.ALL)))
+      .asJavaCollection
 
     client.createTable(
-      new CreateTableRequest().withTableName(tableName)
-        .withAttributeDefinitions(attributeDefinitions(
-          primaryIndexAttributes.toList ++ (secondaryIndexes.flatMap(_.attributes).toSet diff primaryIndexAttributes.toSet)))
+      new CreateTableRequest()
+        .withTableName(tableName)
+        .withAttributeDefinitions(attributeDefinitions(primaryIndexAttributes.toList ++ (secondaryIndexes
+          .flatMap(_.attributes)
+          .toSet diff primaryIndexAttributes.toSet)))
         .withKeySchema(keySchema(primaryIndexAttributes))
         .withProvisionedThroughput(arbitraryThroughputThatIsIgnoredByDynamoDBLocal)
         .withGlobalSecondaryIndexes(s)
@@ -45,7 +51,7 @@ object LocalDynamoDB {
   }
 
   def withTable[T](client: AmazonDynamoDB)(tableName: String)(attributeDefinitions: (Symbol, ScalarAttributeType)*)(
-    thunk: => T
+      thunk: => T
   ): T = {
     createTable(client)(tableName)(attributeDefinitions: _*)
     val res = try {
@@ -58,16 +64,16 @@ object LocalDynamoDB {
   }
 
   def usingTable[T](client: AmazonDynamoDB)(tableName: String)(attributeDefinitions: (Symbol, ScalarAttributeType)*)(
-    thunk: => T
+      thunk: => T
   ): Unit = {
     withTable(client)(tableName)(attributeDefinitions: _*)(thunk)
     ()
   }
 
-  def withTableWithSecondaryIndex[T](client: AmazonDynamoDB, tableName: String)
-                                    (primaryIndexAttributes: Seq[(Symbol, ScalarAttributeType)])(secondaryIndexes: Seq[SecondaryIndexData])
-                                    (thunk: => T): T = {
-    try{
+  def withTableWithSecondaryIndex[T](client: AmazonDynamoDB, tableName: String)(
+      primaryIndexAttributes: Seq[(Symbol, ScalarAttributeType)])(secondaryIndexes: Seq[SecondaryIndexData])(
+      thunk: => T): T = {
+    try {
       createTableWithSecondaryIndex(client, tableName)(primaryIndexAttributes)(secondaryIndexes)
       thunk
     } finally {
@@ -78,12 +84,12 @@ object LocalDynamoDB {
 
   private def keySchema(attributes: Seq[(Symbol, ScalarAttributeType)]) = {
     val hashKeyWithType :: rangeKeyWithType = attributes.toList
-    val keySchemas = hashKeyWithType._1 -> KeyType.HASH :: rangeKeyWithType.map(_._1 -> KeyType.RANGE)
-    keySchemas.map{ case (symbol, keyType) => new KeySchemaElement(symbol.name, keyType)}.asJava
+    val keySchemas                          = hashKeyWithType._1 -> KeyType.HASH :: rangeKeyWithType.map(_._1 -> KeyType.RANGE)
+    keySchemas.map { case (symbol, keyType) => new KeySchemaElement(symbol.name, keyType) }.asJava
   }
 
   private def attributeDefinitions(attributes: Seq[(Symbol, ScalarAttributeType)]) = {
-    attributes.map{ case (symbol, attributeType) => new AttributeDefinition(symbol.name, attributeType)}.asJava
+    attributes.map { case (symbol, attributeType) => new AttributeDefinition(symbol.name, attributeType) }.asJava
   }
 
   private val arbitraryThroughputThatIsIgnoredByDynamoDBLocal = new ProvisionedThroughput(1L, 1L)

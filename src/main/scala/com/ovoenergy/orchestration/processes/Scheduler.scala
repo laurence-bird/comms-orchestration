@@ -12,27 +12,29 @@ import scala.util.Try
 
 object Scheduler extends LoggingWithMDC {
   type CustomerId = String
-  type CommName = String
+  type CommName   = String
 
   override def loggerName: String = "Scheduler"
 
-  def scheduleComm(storeInDb: (Schedule) => Unit, registerTask: (ScheduleId, Instant) => Boolean, clock: Clock = Clock.systemUTC())
-                  (triggered: TriggeredV2): Either[ErrorDetails, Boolean] = {
+  def scheduleComm(storeInDb: (Schedule) => Unit,
+                   registerTask: (ScheduleId, Instant) => Boolean,
+                   clock: Clock = Clock.systemUTC())(triggered: TriggeredV2): Either[ErrorDetails, Boolean] = {
     val result = Try {
       log.debug(s"Scheduling triggered event: $triggered")
-      val schedule = Schedule.buildFromTrigger(triggered, clock)
+      val schedule        = Schedule.buildFromTrigger(triggered, clock)
       val scheduleInstant = schedule.deliverAt
       storeInDb(schedule)
       registerTask(schedule.scheduleId, scheduleInstant)
     }
 
-    Either.fromTry(result)
+    Either
+      .fromTry(result)
       .leftMap(e => ErrorDetails("Failed to schedule comm", OrchestrationError))
   }
 
   def descheduleComm(removeFromDb: (CustomerId, CommName) => Seq[Either[ErrorDetails, Schedule]],
-                     removeTask: (ScheduleId) => Boolean)
-                    (cancellationRequested: CancellationRequested): Seq[Either[ErrorDetails, Metadata]] = {
+                     removeTask: (ScheduleId) => Boolean)(
+      cancellationRequested: CancellationRequested): Seq[Either[ErrorDetails, Metadata]] = {
 
     def removeScheduleFromMemory(schedule: Schedule): Either[ErrorDetails, Metadata] = {
       // Filter out failed schedule removals
@@ -43,7 +45,7 @@ object Scheduler extends LoggingWithMDC {
     }
     log.debug(s"Processing request: $cancellationRequested")
     val dynamoResult = removeFromDb(cancellationRequested.customerId, cancellationRequested.commName)
-    dynamoResult.map{ schedule =>
+    dynamoResult.map { schedule =>
       log.debug(s"Removing schedule from memory: $schedule")
       schedule.flatMap(removeScheduleFromMemory)
     }
