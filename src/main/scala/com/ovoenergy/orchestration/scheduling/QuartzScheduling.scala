@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory
 
 import scala.util.{Failure, Success, Try}
 
-object TaskScheduler {
+object QuartzScheduling {
 
   private val quartzProperties = {
     val properties = new Properties()
@@ -63,7 +63,6 @@ object TaskScheduler {
 
       Try(quartzScheduler.scheduleJob(jobDetail, trigger)) match {
         case Success(_) =>
-          log.debug(s"Scheduled comm (scheduleId: $scheduleId) to orchestrate at ${Date.from(startAt)}")
           true
         case Failure(e) =>
           log.warn(s"Failed to schedule comm (scheduleId: $scheduleId)", e)
@@ -72,6 +71,18 @@ object TaskScheduler {
     } else {
       // job is already scheduled, nothing to do
       false
+    }
+  }
+
+  def removeSchedule(scheduleId: ScheduleId): Boolean = {
+    val jobKey = new JobKey(scheduleId)
+    Try(quartzScheduler.deleteJob(jobKey)) match {
+      case Success(_) =>
+        log.debug(s"Descheduled comm for (scheduleId: $scheduleId)")
+        true
+      case Failure(e) =>
+        log.warn(s"Failed to remove scheduled comm for scheduleID: $scheduleId")
+        false
     }
   }
 

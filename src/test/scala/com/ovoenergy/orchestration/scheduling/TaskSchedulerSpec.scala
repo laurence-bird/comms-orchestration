@@ -18,14 +18,14 @@ class TaskSchedulerSpec extends FlatSpec with BeforeAndAfterAll with Eventually 
     Right(Future(()))
   }
 
-  val addSchedule = TaskScheduler.addSchedule(orchestrationFunction) _
+  val addSchedule = QuartzScheduling.addSchedule(orchestrationFunction) _
 
   override def beforeAll() = {
-    TaskScheduler.init()
+    QuartzScheduling.init()
   }
 
   override def afterAll() = {
-    TaskScheduler.shutdown()
+    QuartzScheduling.shutdown()
   }
 
   behavior of "JobScheduler"

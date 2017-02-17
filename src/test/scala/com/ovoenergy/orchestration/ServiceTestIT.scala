@@ -8,7 +8,7 @@ import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType._
 import cakesolutions.kafka.KafkaConsumer.{Conf => KafkaConsumerConf}
 import cakesolutions.kafka.KafkaProducer.{Conf => KafkaProducerConf}
 import cakesolutions.kafka.{KafkaConsumer, KafkaProducer}
-import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
+import com.amazonaws.services.dynamodbv2.model.{AmazonDynamoDBException, AttributeValue, PutItemRequest}
 import com.gu.scanamo.{Scanamo, Table}
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, ProfileRetrievalFailed}
@@ -16,9 +16,10 @@ import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.serialisation.Serialisation._
 import com.ovoenergy.comms.serialisation.Decoders._
 import com.ovoenergy.orchestration.scheduling.{Schedule, ScheduleStatus}
+import com.typesafe.config.{ConfigFactory, ConfigParseOptions, ConfigResolveOptions}
 import util.{LocalDynamoDB, TestUtil}
 import io.circe.generic.auto._
-import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
 import org.mockserver.client.server.MockServerClient
@@ -35,6 +36,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.util.Random
 import scala.util.control.NonFatal
+import scala.concurrent.ExecutionContext.Implicits.global
 
 class ServiceTestIT extends FlatSpec
   with Matchers
@@ -49,23 +51,37 @@ class ServiceTestIT extends FlatSpec
     setupTopics()
   }
 
+  override def afterAll() = {
+    dynamoClient.deleteTable(tableName)
+  }
+
   val mockServerClient = new MockServerClient("localhost", 1080)
 
   val kafkaHosts = "localhost:29092"
   val zookeeperHosts = "localhost:32181"
 
-  val consumerGroup = Random.nextString(10)
-  val triggeredProducer = KafkaProducer(KafkaProducerConf(new StringSerializer, avroSerializer[TriggeredV2], kafkaHosts))
-  val commFailedConsumer = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[Failed], kafkaHosts, consumerGroup))
-  val emailOrchestratedConsumer = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestratedEmailV2], kafkaHosts, consumerGroup))
+  val config =
+    ConfigFactory.load(ConfigParseOptions.defaults(), ConfigResolveOptions.defaults().setAllowUnresolved(true))
+
+  val consumerGroup                 = Random.nextString(10)
+  val triggeredProducer             = KafkaProducer(KafkaProducerConf(new StringSerializer, avroSerializer[TriggeredV2], kafkaHosts))
+  val cancelationRequestedProducer  = KafkaProducer(KafkaProducerConf(new StringSerializer, avroSerializer[CancellationRequested], kafkaHosts))
+  val cancelationRequestedConsumer  = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[CancellationRequested], kafkaHosts, consumerGroup))
+  val cancelledConsumer             = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[Cancelled], kafkaHosts, consumerGroup))
+  val commFailedConsumer            = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[Failed], kafkaHosts, consumerGroup))
+  val emailOrchestratedConsumer     = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestratedEmailV2], kafkaHosts, consumerGroup))
+  val failedCancellationConsumer    = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[FailedCancellation], kafkaHosts, consumerGroup))
 
   val dynamoUrl = "http://localhost:8000"
   val dynamoClient = LocalDynamoDB.client(dynamoUrl)
   val tableName = "scheduling"
 
-  val failedTopic = "comms.failed"
-  val triggeredTopic = "comms.triggered.v2"
-  val emailOrchestratedTopic = "comms.orchestrated.email.v2"
+  val failedTopic                 = config.getString("kafka.topics.failed")
+  val triggeredTopic              = config.getString("kafka.topics.triggered.v2")
+  val cancellationRequestTopic    = config.getString("kafka.topics.scheduling.cancellationRequest")
+  val cancelledTopic              = config.getString("kafka.topics.scheduling.cancelled")
+  val failedCancellationTopic     = config.getString("kafka.topics.scheduling.failedCancellation")
+  val emailOrchestratedTopic      = config.getString("kafka.topics.orchestrated.email.v2")
 
   behavior of "Service Testing"
 
@@ -73,7 +89,7 @@ class ServiceTestIT extends FlatSpec
     createOKCustomerProfileResponse()
     val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
-      _ => assertSuccessfulOrchestration()
+      _ => expectOrchestrationEvents(10000.millisecond, 1)
     }
   }
 
@@ -82,27 +98,25 @@ class ServiceTestIT extends FlatSpec
     val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
     whenReady(future) {
       _ =>
-        val firstEvent = assertSuccessfulOrchestration().head
+        val firstEvent = expectOrchestrationEvents(noOfEventsExpected = 1)
         val secondFuture = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
         whenReady(secondFuture) {
           _ =>
-            val secondEvent = assertSuccessfulOrchestration().head
-            secondEvent.internalMetadata.internalTraceToken should not equal firstEvent.internalMetadata.internalTraceToken
+            val secondEvent = expectOrchestrationEvents(noOfEventsExpected = 1)
+            secondEvent.head.internalMetadata.internalTraceToken should not equal firstEvent.head.internalMetadata.internalTraceToken
         }
     }
   }
 
   it should "orchestrate emails requested to be sent in the future" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse()
-    val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(10).toString))
+    val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(5).toString))
     val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggered))
     whenReady(future) {
       _ =>
-        //Assert nothing orchestrated
-        val orchestratedEmails = emailOrchestratedConsumer.poll(9000).records(emailOrchestratedTopic).asScala.toList
+        val orchestratedEmails = emailOrchestratedConsumer.poll(4500).records(emailOrchestratedTopic).asScala.toList
         orchestratedEmails shouldBe empty
-
-        assertSuccessfulOrchestration()
+        expectOrchestrationEvents(noOfEventsExpected = 1)
     }
   }
 
@@ -117,26 +131,36 @@ class ServiceTestIT extends FlatSpec
 
     futures.foreach(future => Await.ready(future, 1.seconds))
 
-    val deadline = 30.seconds.fromNow
-    var orchestratedEmails =  mutable.ListBuffer[OrchestratedEmailV2]()
-    while(deadline.hasTimeLeft && orchestratedEmails.size < 10) {
-      orchestratedEmails ++= assertSuccessfulOrchestration(pollTime = 1000, assertTraceToken = false)
-    }
-    orchestratedEmails.size shouldBe 10
+    val deadline = 15.seconds
+    val orchestratedEmails = expectOrchestrationEvents(pollTime = deadline, noOfEventsExpected = 10, shouldCheckTraceToken = false)
     orchestratedEmails.map(_.metadata.traceToken) should contain allOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
   }
 
-  def assertSuccessfulOrchestration(pollTime: Long = 20000, assertTraceToken: Boolean = true): Seq[OrchestratedEmailV2] = {
-    val orchestratedEmails = emailOrchestratedConsumer.poll(pollTime).records(emailOrchestratedTopic).asScala.toList
-    orchestratedEmails should not be 'empty
-    orchestratedEmails.foreach(record => {
-      val orchestratedEmail = record.value().getOrElse(fail("No record for ${record.key()}"))
+  def expectOrchestrationEvents(pollTime: FiniteDuration = 20000.millisecond, noOfEventsExpected: Int, shouldCheckTraceToken: Boolean = true) = {
+    def poll(deadline: Deadline, emails: Seq[OrchestratedEmailV2]): Seq[OrchestratedEmailV2]= {
+      if(deadline.hasTimeLeft){
+        val orchestratedEmails = emailOrchestratedConsumer
+          .poll(100)
+          .records(emailOrchestratedTopic)
+          .asScala
+          .toList
+          .flatMap(_.value())
+        val emailsSoFar = orchestratedEmails ++ emails
+        emailsSoFar.length match {
+          case n if n == noOfEventsExpected => emailsSoFar
+          case exceeded if exceeded > noOfEventsExpected => fail(s"Consumed more than $noOfEventsExpected orchestrated email event")
+          case _ => poll(deadline, emailsSoFar)
+        }
+      } else fail("Email was not orchestrated within time limit")
+    }
+    val orchestratedEmails = poll(pollTime.fromNow, Nil)
+    orchestratedEmails.map{ orchestratedEmail =>
       orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
       orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
       orchestratedEmail.templateData shouldBe TestUtil.templateData
-      if (assertTraceToken) orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
-    })
-    orchestratedEmails.map(_.value().get)
+      if(shouldCheckTraceToken) orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
+      orchestratedEmail
+    }
   }
 
  it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
@@ -206,9 +230,71 @@ class ServiceTestIT extends FlatSpec
       )
     ))
 
-    assertSuccessfulOrchestration()
+    expectOrchestrationEvents(noOfEventsExpected = 1)
   }
 
+  it should "deschedule comms and generate cancelled events" taggedAs DockerComposeTag in {
+    createOKCustomerProfileResponse()
+    val triggered1 = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(20).toString))
+    val triggered2 = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(21).toString), metadata = triggered1.metadata.copy(traceToken = "testTrace123"))
+
+    // 2 trigger events for the same customer and comm
+    val triggeredEvents = Seq(
+      triggered1,
+      triggered2
+    )
+    val genericMetadata = GenericMetadata(triggeredEvents.head.metadata.createdAt, triggered1.metadata.eventId, triggered1.metadata.traceToken, triggered1.metadata.source, false)
+    val cancellationRequested: CancellationRequested = CancellationRequested(genericMetadata, triggered1.metadata.commManifest.name, triggered1.metadata.customerId)
+
+    val triggeredFuture = Future.sequence(triggeredEvents.map(tr => triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, tr))))
+    Thread.sleep(100)
+    val cancelledFuture = triggeredFuture.flatMap(t => cancelationRequestedProducer.send(new ProducerRecord[String, CancellationRequested](cancellationRequestTopic, cancellationRequested)))
+
+    whenReady(cancelledFuture) {
+      _ =>
+        val orchestratedEmails = emailOrchestratedConsumer.poll(17000).records(emailOrchestratedTopic).asScala.toList
+        orchestratedEmails shouldBe empty
+        val cancelledComs = cancelledConsumer.poll(20000).records(cancelledTopic).asScala.toList
+        cancelledComs.length shouldBe 2
+        cancelledComs.map(_.value().get) should contain allOf(Cancelled(triggered1.metadata), Cancelled(triggered2.metadata))
+    }
+  }
+
+  it should "generate a cancellationFailed event if unable to deschedule a comm" taggedAs DockerComposeTag in {
+    val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(15).toString))
+    val commName = triggered.metadata.commManifest.name
+    val customerId = triggered.metadata.customerId
+
+    // Create an invalid schedule record
+    dynamoClient.putItem(
+      new PutItemRequest(
+        tableName,
+        Map[String, AttributeValue](
+          "scheduleId" -> new AttributeValue("scheduleId123"),
+          "customerId" -> new AttributeValue(customerId),
+          "status" -> new AttributeValue("Pending"),
+          "commName" -> new AttributeValue(commName)
+        ).asJava
+      )
+    )
+    val genericMetadata = GenericMetadata(triggered.metadata.createdAt, triggered.metadata.eventId, triggered.metadata.traceToken, triggered.metadata.source, false)
+
+    val triggeredFuture = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggered))
+    Thread.sleep(1000)
+    val cancellationRequested = CancellationRequested(genericMetadata, commName, customerId)
+    val cancelledFuture = triggeredFuture.flatMap{ t =>
+      cancelationRequestedProducer.send(new ProducerRecord[String, CancellationRequested](cancellationRequestTopic, cancellationRequested))
+    }
+
+      whenReady(cancelledFuture){
+      _ =>
+        val failedCancellations = failedCancellationConsumer.poll(20000).records(failedCancellationTopic).asScala.toList
+          failedCancellations.length shouldBe 1
+          failedCancellations.map(_.value().get) should contain (FailedCancellation(cancellationRequested, "Cancellation of scheduled comm failed: Failed to deserialise pending schedule"))
+        val cancelledComs = cancelledConsumer.poll(20000).records(cancelledTopic).asScala.toList
+        cancelledComs.length shouldBe 1
+    }
+  }
 
   def setupTopics() {
     import _root_.kafka.admin.AdminUtils
@@ -232,10 +318,20 @@ class ServiceTestIT extends FlatSpec
 
     if (!AdminUtils.topicExists(zkUtils, failedTopic)) AdminUtils.createTopic(zkUtils, failedTopic, 1, 1)
     if (!AdminUtils.topicExists(zkUtils, emailOrchestratedTopic)) AdminUtils.createTopic(zkUtils, emailOrchestratedTopic, 1, 1)
+    if (!AdminUtils.topicExists(zkUtils, cancellationRequestTopic)) AdminUtils.createTopic(zkUtils, cancellationRequestTopic, 1, 1)
+    if (!AdminUtils.topicExists(zkUtils, failedCancellationTopic)) AdminUtils.createTopic(zkUtils, failedCancellationTopic, 1, 1)
+
+    failedCancellationConsumer.assign(Seq(new TopicPartition(failedCancellationTopic, 0)).asJava)
+    failedCancellationConsumer.poll(5000).records(failedCancellationTopic).asScala.toList
     commFailedConsumer.assign(Seq(new TopicPartition(failedTopic, 0)).asJava)
     commFailedConsumer.poll(5000).records(failedTopic).asScala.toList
     emailOrchestratedConsumer.assign(Seq(new TopicPartition(emailOrchestratedTopic, 0)).asJava)
     emailOrchestratedConsumer.poll(5000).records(emailOrchestratedTopic).asScala.toList
+    cancelationRequestedConsumer.assign(Seq(new TopicPartition(cancellationRequestTopic, 0)).asJava)
+    cancelationRequestedConsumer.poll(5000).records(cancellationRequestTopic).asScala.toList
+    cancelledConsumer.assign(Seq(new TopicPartition(cancelledTopic, 0)).asJava)
+    cancelledConsumer.poll(5000).records(cancelledTopic).asScala.toList
+
   }
 
   def createOKCustomerProfileResponse() {

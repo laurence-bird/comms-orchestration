@@ -2,7 +2,7 @@ package com.ovoenergy.orchestration.scheduling
 
 import java.util.concurrent.TimeoutException
 
-import com.ovoenergy.comms.model.{ErrorCode, InternalMetadata, TriggeredV2}
+import com.ovoenergy.comms.model.{ErrorCode, InternalMetadata, Metadata, TriggeredV2}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.scheduling.Persistence.{AlreadyBeingOrchestrated, Failed, Successful}

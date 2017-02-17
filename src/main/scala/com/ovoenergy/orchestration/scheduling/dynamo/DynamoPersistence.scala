@@ -6,10 +6,12 @@ import java.util.{UUID, Map => JMap}
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB
 import com.amazonaws.services.dynamodbv2.model.{AttributeValue, QueryRequest}
 import com.gu.scanamo._
-import com.gu.scanamo.error.{ConditionNotMet, TypeCoercionError}
+import com.gu.scanamo.error.{ConditionNotMet, DynamoReadError, TypeCoercionError}
 import com.gu.scanamo.query.{AndCondition, Condition}
 import com.gu.scanamo.syntax._
+import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
 import com.ovoenergy.comms.model.{CommType, TemplateData}
+import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.scheduling.Persistence.{AlreadyBeingOrchestrated, Failed, SetAsOrchestratingResult, Successful}
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence.Context
 import com.ovoenergy.orchestration.scheduling.{Change, ScheduleStatus, _}
@@ -175,7 +177,8 @@ class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock
     }
   }
 
-  def cancelSchedules(customerId: String, commName: String): Seq[Schedule] = {
+  def cancelSchedules(customerId: String, commName: String): Seq[Either[ErrorDetails, Schedule]] = {
+    log.info(s"Removing schedule for $customerId, $commName")
     val now = Instant.now(clock)
     val db = context.db
     val tableName = context.table.name
@@ -204,20 +207,21 @@ class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock
       else pageQuery(evaluationKey, items)
     }
 
-    pageQuery(null, Vector.empty[JMap[String,AttributeValue]])
+    val items = pageQuery(null, Vector.empty[JMap[String,AttributeValue]])
       .map(item => {
         DynamoFormat[Schedule].read(new AttributeValue().withM(item))
       })
-      .flatMap {
-        case Right(schedule) =>
-          attemptToCancelSchedule(schedule.scheduleId)
-        case Left(e) =>
-          log.warn("Problem retrieving pending schedule", e)
-          None
-      }
+
+    items.flatMap {
+      case Right(schedule) =>
+        attemptToCancelSchedule(schedule.scheduleId)
+      case Left(e) =>
+        log.warn("Problem retrieving pending schedule", e)
+        Some(Left(ErrorDetails("Failed to deserialise pending schedule", OrchestrationError)))
+    }
   }
 
-  private def attemptToCancelSchedule(scheduleId: ScheduleId): Option[Schedule] = {
+  private def attemptToCancelSchedule(scheduleId: ScheduleId) = {
     val now = Instant.now(clock)
     val operation = context.table
       .given(
@@ -230,11 +234,11 @@ class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock
       )
 
     Scanamo.exec(context.db)(operation) match {
-      case Right(schedule)          => Some(schedule)
+      case Right(schedule)          => Some(Right(schedule))
       case Left(ConditionNotMet(_)) => None
       case Left(error)              =>
         log.warn(s"Problem cancelling schedule: $scheduleId", error)
-        None
+        Some(Left(ErrorDetails(s"Failed to remove schedule from dynamo: $scheduleId", OrchestrationError)))
     }
   }
 }

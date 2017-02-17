@@ -1,10 +1,11 @@
-package com.ovoenergy.orchestration.kafka
+package com.ovoenergy.orchestration.kafka.producers
 
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import cakesolutions.kafka.KafkaProducer
 import cakesolutions.kafka.KafkaProducer.Conf
-import com.ovoenergy.comms.model.{OrchestratedEmail, OrchestratedEmailV2}
+import com.ovoenergy.comms.model.OrchestratedEmailV2
+import com.ovoenergy.orchestration.kafka.Serialisation
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.StringSerializer

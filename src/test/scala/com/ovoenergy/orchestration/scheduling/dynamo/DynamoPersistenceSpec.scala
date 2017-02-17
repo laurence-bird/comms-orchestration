@@ -117,8 +117,8 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
       persistence.retrieveSchedule(expiredOrchestratingSchedule.scheduleId.toString).get shouldBe cancelledExpiredOrchestratingSchedule
 
       cancelled.size shouldBe 2
-      cancelled should contain(cancelledPendingSchedule)
-      cancelled should contain(cancelledExpiredOrchestratingSchedule)
+      cancelled should contain(Right(cancelledPendingSchedule))
+      cancelled should contain(Right(cancelledExpiredOrchestratingSchedule))
     }
   }
 
@@ -137,7 +137,7 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
       })
       val returned = persistence.cancelSchedules(customerId, commName)
       returned.size shouldBe howMany
-      returned.map(_.scheduleId).sorted shouldBe ids.toList.sorted
+      returned.map(_.right.get.scheduleId).sorted shouldBe ids.toList.sorted
     }
   }
 

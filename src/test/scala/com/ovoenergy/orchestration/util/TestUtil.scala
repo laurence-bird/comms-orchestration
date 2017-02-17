@@ -39,5 +39,4 @@ object TestUtil {
     deliverAt = None,
     expireAt = None
   )
-
 }
