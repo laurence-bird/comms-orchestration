@@ -6,7 +6,7 @@ import akka.kafka.scaladsl.Consumer.Control
 import akka.kafka.{ConsumerSettings, Subscriptions}
 import akka.stream.scaladsl.{RunnableGraph, Sink}
 import akka.stream.{ActorAttributes, Materializer, Supervision}
-import com.ovoenergy.comms.model.{ErrorCode, InternalMetadata, Metadata, TriggeredV2}
+import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.kafka.KafkaConfig
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
@@ -21,7 +21,7 @@ object TriggeredConsumer extends LoggingWithMDC {
 
   def apply(consumerDeserializer: Deserializer[Option[TriggeredV2]],
             scheduleTask: (TriggeredV2) => Either[ErrorDetails, Boolean],
-            sendFailedEvent: (String, TriggeredV2, ErrorCode, InternalMetadata) => Future[RecordMetadata],
+            sendFailedEvent: Failed => Future[RecordMetadata],
             config: KafkaConfig,
             generateTraceToken: () => String)(implicit actorSystem: ActorSystem,
                                               materializer: Materializer): RunnableGraph[Control] = {
@@ -46,10 +46,11 @@ object TriggeredConsumer extends LoggingWithMDC {
           case Some(triggered) =>
             scheduleTask(triggered) match {
               case Left(err) =>
-                sendFailedEvent(s"Scheduling of comm failed: ${err.reason}",
-                                triggered,
-                                err.errorCode,
-                                InternalMetadata(generateTraceToken()))
+                sendFailedEvent(
+                  Failed(triggered.metadata,
+                         InternalMetadata(generateTraceToken()),
+                         s"Scheduling of comm failed: ${err.reason}",
+                         err.errorCode))
               case Right(_) => Future.successful(())
             }
           case None =>

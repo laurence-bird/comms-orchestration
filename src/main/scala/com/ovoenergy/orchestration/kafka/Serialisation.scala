@@ -11,6 +11,7 @@ object Serialisation {
   val triggeredV2Deserializer           = avroDeserializer[TriggeredV2]
   val failedSerializer                  = avroSerializer[Failed]
   val cancelledSerializer               = avroSerializer[Cancelled]
+  val orchestrationStartedSerializer    = avroSerializer[OrchestrationStarted]
   val cancellationRequestedDeserializer = avroDeserializer[CancellationRequested]
   val failedCancellationSerializer      = avroSerializer[FailedCancellation]
 

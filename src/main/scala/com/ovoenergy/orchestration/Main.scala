@@ -17,8 +17,10 @@ import com.ovoenergy.orchestration.aws.AwsDynamoClientProvider
 import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
 import com.ovoenergy.orchestration.kafka.consumers.{CancellationRequestConsumer, TriggeredConsumer}
-import com.ovoenergy.orchestration.kafka.producers.{CancelledProducer, FailedProducer, OrchestratedEmailProducer}
+
+import com.ovoenergy.orchestration.domain.HasIds._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.processes.email.EmailOrchestration
 import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator, Scheduler}
 import com.ovoenergy.orchestration.profile.{CustomerProfiler, Retry}
@@ -32,8 +34,6 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 
 object Main extends App with LoggingWithMDC {
-
-  override def loggerName = "Main"
 
   Files.readAllLines(new File("banner.txt").toPath).asScala.foreach(println(_))
 
@@ -61,9 +61,10 @@ object Main extends App with LoggingWithMDC {
   val determineChannel = ChannelSelector.determineChannel _
 
   val orchestrateEmail = EmailOrchestration(
-    OrchestratedEmailProducer(
+    Producer(
       hosts = config.getString("kafka.hosts"),
-      topic = config.getString("kafka.topics.orchestrated.email.v2")
+      topic = config.getString("kafka.topics.orchestrated.email.v2"),
+      serialiser = Serialisation.orchestratedEmailV2Serializer
     )) _
 
   val profileCustomer = {
@@ -79,30 +80,43 @@ object Main extends App with LoggingWithMDC {
     ) _
   }
 
-  val orchestrateComm = Orchestrator(
+  val orchestrateComm: (TriggeredV2, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]] = Orchestrator(
     profileCustomer = profileCustomer,
     determineChannel = determineChannel,
     orchestrateEmail = orchestrateEmail
-  ) _
+  )
 
-  val sendFailedTriggerEvent: (String, TriggeredV2, ErrorCode, InternalMetadata) => Future[RecordMetadata] =
-    FailedProducer.failedTrigger(
+  val sendFailedTriggerEvent: Failed => Future[RecordMetadata] = {
+    Producer(
       hosts = config.getString("kafka.hosts"),
-      topic = config.getString("kafka.topics.failed")
-    ) _
+      topic = config.getString("kafka.topics.failed"),
+      serialiser = Serialisation.failedSerializer
+    )
+  }
 
-  val sendCancelledEvent: (Cancelled) => Future[RecordMetadata] = CancelledProducer(
+  val sendCancelledEvent: (Cancelled) => Future[RecordMetadata] = Producer(
     hosts = config.getString("kafka.hosts"),
-    topic = config.getString("kafka.topics.scheduling.cancelled")
+    topic = config.getString("kafka.topics.scheduling.cancelled"),
+    serialiser = Serialisation.cancelledSerializer
   )
 
-  val sendFailedCancellationEvent: (FailedCancellation) => Future[_] = FailedProducer.failedCancellation(
-    hosts = config.getString("kafka.hosts"),
-    topic = config.getString("kafka.topics.scheduling.failedCancellation")
-  )
+  val sendFailedCancellationEvent: (FailedCancellation) => Future[RecordMetadata] =
+    Producer(
+      hosts = config.getString("kafka.hosts"),
+      topic = config.getString("kafka.topics.scheduling.failedCancellation"),
+      serialiser = Serialisation.failedCancellationSerializer
+    )
+
+  val sendOrchestrationStartedEvent: OrchestrationStarted => Future[RecordMetadata] =
+    Producer(
+      hosts = config.getString("kafka.hosts"),
+      topic = config.getString("kafka.topics.orchestration.started"),
+      serialiser = Serialisation.orchestrationStartedSerializer
+    )
 
   val executeScheduledTask = TaskExecutor.execute(schedulingPersistence,
                                                   orchestrateComm,
+                                                  sendOrchestrationStartedEvent,
                                                   () => UUID.randomUUID.toString,
                                                   sendFailedTriggerEvent) _
   val addSchedule    = QuartzScheduling.addSchedule(executeScheduledTask) _

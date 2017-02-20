@@ -14,8 +14,6 @@ object Scheduler extends LoggingWithMDC {
   type CustomerId = String
   type CommName   = String
 
-  override def loggerName: String = "Scheduler"
-
   def scheduleComm(storeInDb: (Schedule) => Unit,
                    registerTask: (ScheduleId, Instant) => Boolean,
                    clock: Clock = Clock.systemUTC())(triggered: TriggeredV2): Either[ErrorDetails, Boolean] = {

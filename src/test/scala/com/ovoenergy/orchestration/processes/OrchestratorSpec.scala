@@ -7,6 +7,8 @@ import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.customer.CustomerProfile
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.util.ArbGenerator
+import org.apache.kafka.clients.producer.RecordMetadata
+import org.apache.kafka.common.TopicPartition
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{EitherValues, FlatSpec, Matchers, OneInstancePerTest}
 import org.scalacheck.Shapeless._
@@ -25,12 +27,14 @@ class OrchestratorSpec
   var passedTriggered: TriggeredV2           = _
   var invocationCount: Int                   = 0
 
+  val recordMetadata = new RecordMetadata(new TopicPartition("test", 1), 1, 1)
+
   def emailOrchestrator =
     (customerProfile: CustomerProfile, triggered: TriggeredV2, internalMetadata: InternalMetadata) => {
       passedCustomerProfile = customerProfile
       passedTriggered = triggered
       invocationCount = invocationCount + 1
-      Right(Future.successful(Done))
+      Right(Future.successful(recordMetadata))
     }
 
   val customerProfile  = generate[CustomerProfile]
@@ -45,8 +49,8 @@ class OrchestratorSpec
 
   it should "handle unsupported channels" in {
     def selectNonSupportedChannel = (customerProfile: CustomerProfile) => Right(SMS)
-    val orchestrator =
-      Orchestrator(customerProfiler, selectNonSupportedChannel, emailOrchestrator)(triggered, internalMetadata)
+    val orchestrator = //(CustomerProfile, TriggeredV2, InternalMetadata)
+    Orchestrator(customerProfiler, selectNonSupportedChannel, emailOrchestrator)(triggered, internalMetadata)
 
     orchestrator.left.value shouldBe ErrorDetails("Unsupported channel selected SMS", OrchestrationError)
   }
@@ -54,7 +58,7 @@ class OrchestratorSpec
   it should "handle failed channel selection" in {
     def failedChannelSelection =
       (customerProfile: CustomerProfile) => Left(ErrorDetails("whatever", OrchestrationError))
-    val orchestrator =
+    val orchestrator: Either[ErrorDetails, Future[RecordMetadata]] =
       Orchestrator(customerProfiler, failedChannelSelection, emailOrchestrator)(triggered, internalMetadata)
     orchestrator.left.value shouldBe ErrorDetails("whatever", OrchestrationError)
   }

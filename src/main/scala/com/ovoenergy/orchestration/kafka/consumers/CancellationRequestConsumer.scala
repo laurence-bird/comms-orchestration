@@ -17,11 +17,10 @@ import scala.concurrent.Future
 import scala.util.control.NonFatal
 
 object CancellationRequestConsumer extends LoggingWithMDC {
-  override def loggerName: String = "CancellationRequestGraph"
 
   val deserializer = Serialisation.cancellationRequestedDeserializer
 
-  def apply(sendFailedCancellationEvent: (FailedCancellation) => Future[_],
+  def apply(sendFailedCancellationEvent: (FailedCancellation) => Future[RecordMetadata],
             sendSuccessfulCancellationEvent: (Cancelled => Future[RecordMetadata]),
             descheduleComm: CancellationRequested => Seq[Either[ErrorDetails, Metadata]],
             config: KafkaConfig,
@@ -45,7 +44,7 @@ object CancellationRequestConsumer extends LoggingWithMDC {
       .committableSource(consumerSettings, Subscriptions.topics(config.topic))
       .mapAsync(1)(msg => {
         log.debug(s"Event received $msg")
-        val result: Future[_] = msg.record.value match {
+        val result: Future[Seq[RecordMetadata]] = msg.record.value match {
           case Some(cancellationRequest) =>
             val futures = descheduleComm(cancellationRequest).map {
               case Left(err) =>
@@ -57,7 +56,7 @@ object CancellationRequestConsumer extends LoggingWithMDC {
             Future.sequence(futures)
           case None =>
             log.warn(s"Skipping event: $msg, failed to parse")
-            Future.successful(())
+            Future.successful(Nil)
         }
         result
           .flatMap(_ => msg.committableOffset.commitScaladsl())

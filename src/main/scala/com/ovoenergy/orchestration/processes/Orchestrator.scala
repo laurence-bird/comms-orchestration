@@ -5,18 +5,20 @@ import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
 import com.ovoenergy.comms.model.{InternalMetadata, _}
 import com.ovoenergy.orchestration.domain.customer.CustomerProfile
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
+import org.apache.kafka.clients.producer.RecordMetadata
 
 import scala.concurrent.Future
 
 object Orchestrator extends LoggingWithMDC {
   case class ErrorDetails(reason: String, errorCode: ErrorCode)
 
-  type Orchestrator = (CustomerProfile, TriggeredV2, InternalMetadata) => Either[ErrorDetails, Future[_]]
+  type Orchestrator = (CustomerProfile, TriggeredV2, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]]
 
   def apply(profileCustomer: (String, Boolean, String) => Either[ErrorDetails, CustomerProfile],
             determineChannel: (CustomerProfile) => Either[ErrorDetails, Channel],
-            orchestrateEmail: Orchestrator)(triggered: TriggeredV2,
-                                            internalMetadata: InternalMetadata): Either[ErrorDetails, Future[_]] = {
+            orchestrateEmail: Orchestrator)(
+      triggered: TriggeredV2,
+      internalMetadata: InternalMetadata): Either[ErrorDetails, Future[RecordMetadata]] = {
 
     def selectOrchestratorforChannel(channel: Channel): Either[ErrorDetails, Orchestrator] =
       channel match {
@@ -33,6 +35,4 @@ object Orchestrator extends LoggingWithMDC {
       res             <- orchestrateComm(customerProfile, triggered, internalMetadata).right
     } yield res
   }
-
-  override def loggerName: String = "Orchestrator"
 }

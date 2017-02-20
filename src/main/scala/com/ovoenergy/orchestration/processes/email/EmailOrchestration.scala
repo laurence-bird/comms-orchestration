@@ -10,6 +10,7 @@ import com.ovoenergy.comms.model.ErrorCode.InvalidProfile
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileEmailAddresses}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
+import org.apache.kafka.clients.producer.RecordMetadata
 
 import scala.concurrent.Future
 
@@ -31,10 +32,10 @@ object EmailOrchestration {
   }
   private type ValidationErrorsOr[A] = Validated[ValidationErrors, A]
 
-  def apply(orchestratedEmailProducer: (OrchestratedEmailV2) => Future[_])(
+  def apply(orchestratedEmailProducer: (OrchestratedEmailV2) => Future[RecordMetadata])(
       customerProfile: CustomerProfile,
       triggered: TriggeredV2,
-      internalMetadata: InternalMetadata): Either[ErrorDetails, Future[_]] = {
+      internalMetadata: InternalMetadata): Either[ErrorDetails, Future[RecordMetadata]] = {
 
     val emailAddress: ValidationErrorsOr[String] = {
       customerProfile.emailAddresses match {
@@ -57,7 +58,7 @@ object EmailOrchestration {
       else Validated.valid(customerProfile.name.lastName)
     }
 
-    val resultOrValidationErrors: ValidationErrorsOr[Future[_]] =
+    val resultOrValidationErrors: ValidationErrorsOr[Future[RecordMetadata]] =
       Apply[ValidationErrorsOr].map3(emailAddress, firstName, lastName) {
         case (validEmailAddress, validFirstName, validLastName) =>
           val orchestratedEmail = OrchestratedEmailV2(

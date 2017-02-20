@@ -10,6 +10,8 @@ import com.ovoenergy.orchestration.domain.customer.{
   CustomerProfileName
 }
 import com.ovoenergy.orchestration.util.ArbGenerator
+import org.apache.kafka.clients.producer.RecordMetadata
+import org.apache.kafka.common.TopicPartition
 import org.scalacheck.Shapeless._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{EitherValues, FlatSpec, Matchers, OneInstancePerTest}
@@ -28,10 +30,12 @@ class EmailOrchestrationSpec
 
   var producerInvocationCount                      = 0
   var passedOrchestratedEmail: OrchestratedEmailV2 = _
+
+  val recordMetadata = new RecordMetadata(new TopicPartition("test", 1), 1, 1)
   def producer = (orchestratedEmail: OrchestratedEmailV2) => {
     producerInvocationCount = producerInvocationCount + 1
     passedOrchestratedEmail = orchestratedEmail
-    Future.successful(Done)
+    Future.successful(recordMetadata)
   }
 
   val customerProfile  = generate[CustomerProfile]

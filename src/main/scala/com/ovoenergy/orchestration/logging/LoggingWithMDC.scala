@@ -4,7 +4,7 @@ import org.slf4j.{LoggerFactory, MDC}
 
 trait LoggingWithMDC {
 
-  def loggerName: String
+  def loggerName: String = getClass.getSimpleName.reverse.dropWhile(_ == '$').reverse
 
   lazy val log = LoggerFactory.getLogger(loggerName)
 

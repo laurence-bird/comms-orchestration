@@ -1,21 +1,25 @@
 package com.ovoenergy.orchestration.scheduling
 
-import com.ovoenergy.comms.model.{ErrorCode, InternalMetadata, TriggeredV2}
+import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.scheduling.Persistence.{
   AlreadyBeingOrchestrated,
-  Failed,
   SetAsOrchestratingResult,
-  Successful
+  Successful,
+  Failed => FailedPersistence
 }
 import com.ovoenergy.orchestration.util.ArbGenerator
+import org.apache.kafka.clients.producer.RecordMetadata
+import org.apache.kafka.common.TopicPartition
 import org.scalatest.{FlatSpec, Matchers, OneInstancePerTest}
 import org.scalacheck.Shapeless._
+import org.scalatest.concurrent.Eventually
+import org.scalatest.time.{Second, Seconds, Span}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest with ArbGenerator {
+class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest with ArbGenerator with Eventually {
 
   trait StubPersistence extends Persistence.Orchestration {
     override def attemptSetScheduleAsOrchestrating(scheduleId: ScheduleId): SetAsOrchestratingResult = {
@@ -32,17 +36,20 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
   var triggerOrchestrated = Option.empty[(TriggeredV2, InternalMetadata)]
   val orchestrateTrigger = (triggeredV2: TriggeredV2, internalMetadata: InternalMetadata) => {
     triggerOrchestrated = Some(triggeredV2, internalMetadata)
-    Right(Future(()))
+    Right(Future.successful(recordMetadata))
   }
+  val recordMetadata = new RecordMetadata(new TopicPartition("test", 1), 1, 1)
+
+  val sendOrchestrationStartedEvent = (orchStarted: OrchestrationStarted) => Future.successful(recordMetadata)
 
   val traceToken         = "ssfifjsof"
   val generateTraceToken = () => traceToken
 
-  var failedEventSent = Option.empty[(String, TriggeredV2, ErrorCode, InternalMetadata)]
+  var failedEventSent = Option.empty[Failed]
   val sendFailedEvent =
-    (reason: String, triggeredV2: TriggeredV2, errorCode: ErrorCode, internalMetadata: InternalMetadata) => {
-      failedEventSent = Some(reason, triggeredV2, errorCode, internalMetadata)
-      Future(())
+    (failed: Failed) => {
+      failedEventSent = Some(failed)
+      Future(recordMetadata)
     }
 
   behavior of "TaskExecutor"
@@ -55,7 +62,11 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
       }
     }
 
-    TaskExecutor.execute(AlreadyOrchestrating, orchestrateTrigger, generateTraceToken, sendFailedEvent)(scheduleId)
+    TaskExecutor.execute(AlreadyOrchestrating,
+                         orchestrateTrigger,
+                         sendOrchestrationStartedEvent,
+                         generateTraceToken,
+                         sendFailedEvent)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe None
@@ -65,12 +76,16 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
   it should "handle failure setting comm schedule as orchestrating" in {
     object FailureOrchestrating extends StubPersistence {
       override def attemptSetScheduleAsOrchestrating(scheduleId: ScheduleId): SetAsOrchestratingResult = {
-        if (scheduleId == scheduleId) Failed
+        if (scheduleId == scheduleId) FailedPersistence
         else fail("Incorrect scheduleId requested")
       }
     }
 
-    TaskExecutor.execute(FailureOrchestrating, orchestrateTrigger, generateTraceToken, sendFailedEvent)(scheduleId)
+    TaskExecutor.execute(FailureOrchestrating,
+                         orchestrateTrigger,
+                         sendOrchestrationStartedEvent,
+                         generateTraceToken,
+                         sendFailedEvent)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe None
@@ -94,14 +109,16 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
       Left(ErrorDetails("Some error", ErrorCode.OrchestrationError))
     }
 
-    TaskExecutor.execute(Orchestrating, orchestrateTrigger, generateTraceToken, sendFailedEvent)(scheduleId)
+    TaskExecutor.execute(Orchestrating,
+                         orchestrateTrigger,
+                         sendOrchestrationStartedEvent,
+                         generateTraceToken,
+                         sendFailedEvent)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe Some(schedule.triggered, InternalMetadata(traceToken))
-    failedEventSent shouldBe Some("Some error",
-                                  schedule.triggered,
-                                  ErrorCode.OrchestrationError,
-                                  InternalMetadata(traceToken))
+    failedEventSent shouldBe Some(
+      Failed(schedule.triggered.metadata, InternalMetadata(traceToken), "Some error", ErrorCode.OrchestrationError))
     scheduleFailedPersist shouldBe Some(scheduleId, "Some error")
   }
 
@@ -115,19 +132,26 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
     }
     val orchestrateTrigger = (triggeredV2: TriggeredV2, internalMetadata: InternalMetadata) => {
       triggerOrchestrated = Some(triggeredV2, internalMetadata)
-      val future = Future { Thread.sleep(11000) }
+      val future = Future[RecordMetadata] { Thread.sleep(11000); recordMetadata }
       Right(future)
     }
 
-    TaskExecutor.execute(Orchestrating, orchestrateTrigger, generateTraceToken, sendFailedEvent)(scheduleId)
+    TaskExecutor.execute(Orchestrating,
+                         orchestrateTrigger,
+                         sendOrchestrationStartedEvent,
+                         generateTraceToken,
+                         sendFailedEvent)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe Some(schedule.triggered, InternalMetadata(traceToken))
-    failedEventSent shouldBe Some("Orchestrating comm timed out",
-                                  schedule.triggered,
-                                  ErrorCode.OrchestrationError,
-                                  InternalMetadata(traceToken))
-    scheduleAsFailed shouldBe Some(scheduleId, "Orchestrating comm timed out")
+    eventually {
+      failedEventSent shouldBe Some(
+        Failed(schedule.triggered.metadata,
+               InternalMetadata(traceToken),
+               "Orchestrating comm timed out",
+               ErrorCode.OrchestrationError))
+      scheduleAsFailed shouldBe Some(scheduleId, "Orchestrating comm timed out")
+    }(PatienceConfig(Span(11, Seconds)))
   }
 
   it should "should orchestrate" in {
@@ -140,15 +164,21 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
     }
     val orchestrateTrigger = (triggeredV2: TriggeredV2, internalMetadata: InternalMetadata) => {
       triggerOrchestrated = Some(triggeredV2, internalMetadata)
-      Right(Future(()))
+      Right(Future(recordMetadata))
     }
 
-    TaskExecutor.execute(Orchestrating, orchestrateTrigger, generateTraceToken, sendFailedEvent)(scheduleId)
+    TaskExecutor.execute(Orchestrating,
+                         orchestrateTrigger,
+                         sendOrchestrationStartedEvent,
+                         generateTraceToken,
+                         sendFailedEvent)(scheduleId)
 
-    //side effects
-    triggerOrchestrated shouldBe Some(schedule.triggered, InternalMetadata(traceToken))
-    failedEventSent shouldBe None
-    scheduleAsComplete shouldBe Some(scheduleId)
+    eventually {
+      //side effects
+      triggerOrchestrated shouldBe Some(schedule.triggered, InternalMetadata(traceToken))
+      failedEventSent shouldBe None
+      scheduleAsComplete shouldBe Some(scheduleId)
+    }(PatienceConfig(Span(3, Seconds)))
   }
 
   it should "handle send failed event timeout" in {
@@ -167,21 +197,26 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
       triggerOrchestrated = Some(triggeredV2, internalMetadata)
       Left(ErrorDetails("Some error", ErrorCode.OrchestrationError))
     }
-    val sendFailedEvent =
-      (reason: String, triggeredV2: TriggeredV2, errorCode: ErrorCode, internalMetadata: InternalMetadata) => {
-        failedEventSent = Some(reason, triggeredV2, errorCode, internalMetadata)
-        Future { Thread.sleep(6000) }
+
+    var sendFailedEventInvoked = false
+    val timedOutSendFailedEvent: (Failed) => Future[RecordMetadata] =
+      (failed: Failed) => {
+        sendFailedEventInvoked = true
+        Future { Thread.sleep(6000); recordMetadata }
       }
 
-    TaskExecutor.execute(Orchestrating, orchestrateTrigger, generateTraceToken, sendFailedEvent)(scheduleId)
+    TaskExecutor.execute(Orchestrating,
+                         orchestrateTrigger,
+                         sendOrchestrationStartedEvent,
+                         generateTraceToken,
+                         timedOutSendFailedEvent)(scheduleId)
 
     //side effects
-    triggerOrchestrated shouldBe Some(schedule.triggered, InternalMetadata(traceToken))
-    failedEventSent shouldBe Some("Some error",
-                                  schedule.triggered,
-                                  ErrorCode.OrchestrationError,
-                                  InternalMetadata(traceToken))
-    scheduleFailedPersist shouldBe Some(scheduleId, "Some error")
+    eventually {
+      triggerOrchestrated shouldBe Some(schedule.triggered, InternalMetadata(traceToken))
+      sendFailedEventInvoked shouldBe true
+      scheduleFailedPersist shouldBe Some(scheduleId, "Some error")
+    }(PatienceConfig(Span(6, Seconds)))
   }
 
   it should "handle send failed event failure" in {
@@ -200,20 +235,22 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
       triggerOrchestrated = Some(triggeredV2, internalMetadata)
       Left(ErrorDetails("Some error", ErrorCode.OrchestrationError))
     }
+    var sendFailedEventInvoked = false
     val sendFailedEvent =
-      (reason: String, triggeredV2: TriggeredV2, errorCode: ErrorCode, internalMetadata: InternalMetadata) => {
-        failedEventSent = Some(reason, triggeredV2, errorCode, internalMetadata)
-        Future { throw new RuntimeException("failing the future") }
+      (failed: Failed) => {
+        sendFailedEventInvoked = true
+        Future { throw new RuntimeException("failing the future"); null }
       }
 
-    TaskExecutor.execute(Orchestrating, orchestrateTrigger, generateTraceToken, sendFailedEvent)(scheduleId)
+    TaskExecutor.execute(Orchestrating,
+                         orchestrateTrigger,
+                         sendOrchestrationStartedEvent,
+                         generateTraceToken,
+                         sendFailedEvent)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe Some(schedule.triggered, InternalMetadata(traceToken))
-    failedEventSent shouldBe Some("Some error",
-                                  schedule.triggered,
-                                  ErrorCode.OrchestrationError,
-                                  InternalMetadata(traceToken))
+    sendFailedEventInvoked shouldBe true
     scheduleFailedPersist shouldBe Some(scheduleId, "Some error")
   }
 

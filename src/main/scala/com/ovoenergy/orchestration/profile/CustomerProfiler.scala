@@ -14,8 +14,6 @@ import scala.util.{Failure, Try}
 
 object CustomerProfiler extends LoggingWithMDC {
 
-  val loggerName = "CustomerProfiler"
-
   def apply(httpClient: (Request) => Try[Response],
             profileApiKey: String,
             profileHost: String,

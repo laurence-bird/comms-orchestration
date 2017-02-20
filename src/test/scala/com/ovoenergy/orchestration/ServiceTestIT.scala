@@ -30,6 +30,7 @@ import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, Tag}
 import util.LocalDynamoDB.SecondaryIndexData
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -72,6 +73,8 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
     KafkaConsumerConf(new StringDeserializer, avroDeserializer[Failed], kafkaHosts, consumerGroup))
   val emailOrchestratedConsumer = KafkaConsumer(
     KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestratedEmailV2], kafkaHosts, consumerGroup))
+  val orchestrationStartedConsumer = KafkaConsumer(
+    KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestrationStarted], kafkaHosts, consumerGroup))
   val failedCancellationConsumer = KafkaConsumer(
     KafkaConsumerConf(new StringDeserializer, avroDeserializer[FailedCancellation], kafkaHosts, consumerGroup))
 
@@ -79,12 +82,13 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
   val dynamoClient = LocalDynamoDB.client(dynamoUrl)
   val tableName    = "scheduling"
 
-  val failedTopic              = config.getString("kafka.topics.failed")
-  val triggeredTopic           = config.getString("kafka.topics.triggered.v2")
-  val cancellationRequestTopic = config.getString("kafka.topics.scheduling.cancellationRequest")
-  val cancelledTopic           = config.getString("kafka.topics.scheduling.cancelled")
-  val failedCancellationTopic  = config.getString("kafka.topics.scheduling.failedCancellation")
-  val emailOrchestratedTopic   = config.getString("kafka.topics.orchestrated.email.v2")
+  val failedTopic               = config.getString("kafka.topics.failed")
+  val triggeredTopic            = config.getString("kafka.topics.triggered.v2")
+  val cancellationRequestTopic  = config.getString("kafka.topics.scheduling.cancellationRequest")
+  val cancelledTopic            = config.getString("kafka.topics.scheduling.cancelled")
+  val failedCancellationTopic   = config.getString("kafka.topics.scheduling.failedCancellation")
+  val emailOrchestratedTopic    = config.getString("kafka.topics.orchestrated.email.v2")
+  val orchestrationStartedTopic = config.getString("kafka.topics.orchestration.started")
 
   behavior of "Service Testing"
 
@@ -92,21 +96,20 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
     createOKCustomerProfileResponse()
     val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
     whenReady(future) { _ =>
+      expectOrchestrationStartedEvents(10000.millisecond, 1)
       expectOrchestrationEvents(10000.millisecond, 1)
     }
   }
 
   it should "generate unique internalTraceTokens" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse()
-    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
-    whenReady(future) { _ =>
-      val firstEvent = expectOrchestrationEvents(noOfEventsExpected = 1)
-      val secondFuture =
-        triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
-      whenReady(secondFuture) { _ =>
-        val secondEvent = expectOrchestrationEvents(noOfEventsExpected = 1)
-        secondEvent.head.internalMetadata.internalTraceToken should not equal firstEvent.head.internalMetadata.internalTraceToken
-      }
+    triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
+    triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
+    expectOrchestrationStartedEvents(noOfEventsExpected = 2)
+    val events = expectOrchestrationEvents(noOfEventsExpected = 2)
+    events match {
+      case head :: tail =>
+        head.internalMetadata.internalTraceToken should not equal tail.head.internalMetadata.internalTraceToken
     }
   }
 
@@ -117,6 +120,7 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
     whenReady(future) { _ =>
       val orchestratedEmails = emailOrchestratedConsumer.poll(4500).records(emailOrchestratedTopic).asScala.toList
       orchestratedEmails shouldBe empty
+      expectOrchestrationStartedEvents(noOfEventsExpected = 1)
       expectOrchestrationEvents(noOfEventsExpected = 1)
     }
   }
@@ -133,45 +137,18 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
     futures.foreach(future => Await.ready(future, 1.seconds))
 
     val deadline = 15.seconds
+    val orchestrationStartedEvents =
+      expectOrchestrationStartedEvents(noOfEventsExpected = 10, shouldCheckTraceToken = false)
+    orchestrationStartedEvents.map(_.metadata.traceToken) should contain allOf ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
     val orchestratedEmails =
       expectOrchestrationEvents(pollTime = deadline, noOfEventsExpected = 10, shouldCheckTraceToken = false)
     orchestratedEmails.map(_.metadata.traceToken) should contain allOf ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
   }
 
-  def expectOrchestrationEvents(pollTime: FiniteDuration = 20000.millisecond,
-                                noOfEventsExpected: Int,
-                                shouldCheckTraceToken: Boolean = true) = {
-    def poll(deadline: Deadline, emails: Seq[OrchestratedEmailV2]): Seq[OrchestratedEmailV2] = {
-      if (deadline.hasTimeLeft) {
-        val orchestratedEmails = emailOrchestratedConsumer
-          .poll(100)
-          .records(emailOrchestratedTopic)
-          .asScala
-          .toList
-          .flatMap(_.value())
-        val emailsSoFar = orchestratedEmails ++ emails
-        emailsSoFar.length match {
-          case n if n == noOfEventsExpected => emailsSoFar
-          case exceeded if exceeded > noOfEventsExpected =>
-            fail(s"Consumed more than $noOfEventsExpected orchestrated email event")
-          case _ => poll(deadline, emailsSoFar)
-        }
-      } else fail("Email was not orchestrated within time limit")
-    }
-    val orchestratedEmails = poll(pollTime.fromNow, Nil)
-    orchestratedEmails.map { orchestratedEmail =>
-      orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
-      orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
-      orchestratedEmail.templateData shouldBe TestUtil.templateData
-      if (shouldCheckTraceToken) orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
-      orchestratedEmail
-    }
-  }
-
   it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
     createInvalidCustomerProfileResponse()
-
     val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
     whenReady(future) { _ =>
       val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
       failures.size shouldBe 1
@@ -190,6 +167,7 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
     createBadCustomerProfileResponse()
 
     val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
     whenReady(future) { _ =>
       val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
       failures.size shouldBe 1
@@ -205,11 +183,9 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
   it should "retry if the profile service returns an error response" taggedAs DockerComposeTag in {
     createFlakyCustomerProfileResponse()
 
-    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
-    whenReady(future) { _ =>
-      val orchestratedEmails = emailOrchestratedConsumer.poll(30000).records(emailOrchestratedTopic).asScala.toList
-      orchestratedEmails.size shouldBe 1
-    }
+    triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
+    expectOrchestrationEvents(noOfEventsExpected = 1)
   }
 
   it should "pick up expired events via polling and orchestrate them" taggedAs DockerComposeTag in {
@@ -232,7 +208,7 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
           triggered.metadata.commManifest.name
         )
       ))
-
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
     expectOrchestrationEvents(noOfEventsExpected = 1)
   }
 
@@ -262,10 +238,10 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
       t =>
         cancelationRequestedProducer.send(
           new ProducerRecord[String, CancellationRequested](cancellationRequestTopic, cancellationRequested)))
-
     whenReady(cancelledFuture) { _ =>
-      val orchestratedEmails = emailOrchestratedConsumer.poll(17000).records(emailOrchestratedTopic).asScala.toList
-      orchestratedEmails shouldBe empty
+      orchestrationStartedConsumer.poll(15000).records(orchestrationStartedTopic).asScala.toList shouldBe empty
+      emailOrchestratedConsumer.poll(2000).records(emailOrchestratedTopic).asScala.toList shouldBe empty
+
       val cancelledComs = cancelledConsumer.poll(20000).records(cancelledTopic).asScala.toList
       cancelledComs.length shouldBe 2
       cancelledComs.map(_.value().get) should contain allOf (Cancelled(triggered1.metadata), Cancelled(
@@ -296,15 +272,15 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
                                           triggered.metadata.source,
                                           false)
 
-    val triggeredFuture = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggered))
-    Thread.sleep(1000)
     val cancellationRequested = CancellationRequested(genericMetadata, commName, customerId)
-    val cancelledFuture = triggeredFuture.flatMap { t =>
-      cancelationRequestedProducer.send(
-        new ProducerRecord[String, CancellationRequested](cancellationRequestTopic, cancellationRequested))
-    }
 
-    whenReady(cancelledFuture) { _ =>
+    for {
+      _ <- triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggered))
+      _ <- cancelationRequestedProducer.send(
+        new ProducerRecord[String, CancellationRequested](cancellationRequestTopic, cancellationRequested))
+    } yield checkCancellations()
+
+    def checkCancellations() = {
       val failedCancellations = failedCancellationConsumer.poll(20000).records(failedCancellationTopic).asScala.toList
       failedCancellations.length shouldBe 1
       failedCancellations.map(_.value().get) should contain(
@@ -345,6 +321,8 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
 
     failedCancellationConsumer.assign(Seq(new TopicPartition(failedCancellationTopic, 0)).asJava)
     failedCancellationConsumer.poll(5000).records(failedCancellationTopic).asScala.toList
+    orchestrationStartedConsumer.assign(Seq(new TopicPartition(orchestrationStartedTopic, 0)).asJava)
+    orchestrationStartedConsumer.poll(5000).records(orchestrationStartedTopic).asScala.toList
     commFailedConsumer.assign(Seq(new TopicPartition(failedTopic, 0)).asJava)
     commFailedConsumer.poll(5000).records(failedTopic).asScala.toList
     emailOrchestratedConsumer.assign(Seq(new TopicPartition(emailOrchestratedTopic, 0)).asJava)
@@ -466,5 +444,62 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
       }
     }
   }
+  def expectOrchestrationEvents(pollTime: FiniteDuration = 20000.millisecond,
+                                noOfEventsExpected: Int,
+                                shouldCheckTraceToken: Boolean = true) = {
+    @tailrec
+    def poll(deadline: Deadline, emails: Seq[OrchestratedEmailV2]): Seq[OrchestratedEmailV2] = {
+      if (deadline.hasTimeLeft) {
+        val orchestratedEmails = emailOrchestratedConsumer
+          .poll(1000)
+          .records(emailOrchestratedTopic)
+          .asScala
+          .toList
+          .flatMap(_.value())
+        val emailsSoFar = orchestratedEmails ++ emails
+        emailsSoFar.length match {
+          case n if n == noOfEventsExpected => emailsSoFar
+          case exceeded if exceeded > noOfEventsExpected =>
+            fail(s"Consumed more than $noOfEventsExpected orchestrated email event")
+          case _ => poll(deadline, emailsSoFar)
+        }
+      } else fail("Email was not orchestrated within time limit")
+    }
+    val orchestratedEmails = poll(pollTime.fromNow, Nil)
+    orchestratedEmails.map { orchestratedEmail =>
+      orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
+      orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
+      orchestratedEmail.templateData shouldBe TestUtil.templateData
+      if (shouldCheckTraceToken) orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
+      orchestratedEmail
+    }
+  }
 
+  def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 20000.millisecond,
+                                       noOfEventsExpected: Int,
+                                       shouldCheckTraceToken: Boolean = true) = {
+    @tailrec
+    def poll(deadline: Deadline, events: Seq[OrchestrationStarted]): Seq[OrchestrationStarted] = {
+      if (deadline.hasTimeLeft) {
+        val eventsThisPoll = orchestrationStartedConsumer
+          .poll(1000)
+          .records(orchestrationStartedTopic)
+          .asScala
+          .toList
+          .flatMap(_.value())
+        val eventsSoFar = events ++ eventsThisPoll
+        eventsSoFar.length match {
+          case n if n == noOfEventsExpected => eventsSoFar
+          case exceeded if exceeded > noOfEventsExpected =>
+            fail(s"Consumed more than $noOfEventsExpected events")
+          case _ => poll(deadline, eventsSoFar)
+        }
+      } else fail("Comm orchestration not started within time limit")
+    }
+    val orchestratedEmails = poll(pollTime.fromNow, Nil)
+    orchestratedEmails.foreach { o =>
+      if (shouldCheckTraceToken) o.metadata.traceToken shouldBe TestUtil.traceToken
+    }
+    orchestratedEmails
+  }
 }
