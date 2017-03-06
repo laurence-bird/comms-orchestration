@@ -244,9 +244,10 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
 
       val cancelledComs = cancelledConsumer.poll(20000).records(cancelledTopic).asScala.toList
       cancelledComs.length shouldBe 2
-      cancelledComs.map(_.value().get) should contain allOf (Cancelled(
-        triggered1.metadata,
-        Some(cancellationRequested)), Cancelled(triggered2.metadata, Some(cancellationRequested)))
+      cancelledComs.map(_.value().get) should contain allOf (
+        Cancelled(triggered1.metadata, cancellationRequested),
+        Cancelled(triggered2.metadata, cancellationRequested)
+      )
     }
   }
 
