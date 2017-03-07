@@ -51,7 +51,8 @@ object CancellationRequestConsumer extends LoggingWithMDC {
                 sendFailedCancellationEvent(
                   FailedCancellation(cancellationRequest, s"Cancellation of scheduled comm failed: ${err.reason}"))
               case Right(metadata) =>
-                sendSuccessfulCancellationEvent(Cancelled(metadata, cancellationRequest))
+                sendSuccessfulCancellationEvent(
+                  Cancelled(Metadata.fromSourceMetadata("orchestration", metadata), cancellationRequest))
             }
             Future.sequence(futures)
           case None =>
