@@ -1,5 +1,8 @@
 package com.ovoenergy.orchestration.kafka.consumers
 
+import java.time.OffsetDateTime
+import java.util.UUID
+
 import akka.actor.ActorSystem
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.Control
@@ -49,9 +52,14 @@ object CancellationRequestConsumer extends LoggingWithMDC {
             val futures = descheduleComm(cancellationRequest).map {
               case Left(err) =>
                 sendFailedCancellationEvent(
-                  FailedCancellation(cancellationRequest, s"Cancellation of scheduled comm failed: ${err.reason}"))
+                  FailedCancellation(
+                    GenericMetadata.fromSourceGenericMetadata("orchestration", cancellationRequest.metadata),
+                    cancellationRequest,
+                    s"Cancellation of scheduled comm failed: ${err.reason}"
+                  ))
               case Right(metadata) =>
-                sendSuccessfulCancellationEvent(Cancelled(metadata, cancellationRequest))
+                sendSuccessfulCancellationEvent(
+                  Cancelled(Metadata.fromSourceMetadata("orchestration", metadata), cancellationRequest))
             }
             Future.sequence(futures)
           case None =>
