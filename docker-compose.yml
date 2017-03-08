@@ -27,6 +27,7 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 32181
       ZOOKEEPER_TICK_TIME: 2000
+      KAFKA_HEAP_OPTS: "-Xmx256M -Xms128M"
     mem_limit: 256m
 
   kafka:
@@ -37,9 +38,10 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:32181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${IP_ADDRESS}:29092
+      KAFKA_HEAP_OPTS: "-Xmx256M -Xms128M"
     depends_on:
       - zookeeper
-    mem_limit: 512m
+    mem_limit: 256m
 
   profile.service:
     image: jamesdbloom/mockserver
@@ -53,6 +55,8 @@ services:
         - "8000:8000"
       entrypoint:
         - "java"
+        - "-Xmx256M"
+        - "-Xms128M"
         - "-Djava.library.path=./DynamoDBLocal_lib"
         - "-jar"
         - "DynamoDBLocal.jar"
