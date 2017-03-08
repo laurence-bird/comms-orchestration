@@ -244,9 +244,9 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
 
       val cancelledComs = cancelledConsumer.poll(20000).records(cancelledTopic).asScala.toList
       cancelledComs.length shouldBe 2
-      cancelledComs.map(_.value().get) should contain allOf (
-        Cancelled(triggered1.metadata, cancellationRequested),
-        Cancelled(triggered2.metadata, cancellationRequested)
+      cancelledComs.map(record => (record.value().get.metadata.traceToken, record.value().get.cancellationRequested)) should contain allOf (
+        (triggered1.metadata.traceToken, cancellationRequested),
+        (triggered2.metadata.traceToken, cancellationRequested)
       )
     }
   }
@@ -286,8 +286,11 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
       val failedCancellations = failedCancellationConsumer.poll(20000).records(failedCancellationTopic).asScala.toList
       failedCancellations.length shouldBe 1
       failedCancellations.map(_.value().get) should contain(
-        FailedCancellation(cancellationRequested,
-                           "Cancellation of scheduled comm failed: Failed to deserialise pending schedule"))
+        FailedCancellation(
+          GenericMetadata.fromSourceGenericMetadata("orchestrated", cancellationRequested.metadata),
+          cancellationRequested,
+          "Cancellation of scheduled comm failed: Failed to deserialise pending schedule"
+        ))
       val cancelledComs = cancelledConsumer.poll(20000).records(cancelledTopic).asScala.toList
       cancelledComs.length shouldBe 1
     }
