@@ -59,7 +59,8 @@ object Retry {
     * @param onFailure A hook that is called after each failure. Useful for logging.
     * @param f the operation to perform.
     */
-  def retryAsync[A](config: RetryConfig, onFailure: Throwable => Unit, attempt: Int = 1)(f: () => Future[A])(implicit ec: ExecutionContext, s: Scheduler): Future[A] = {
+  def retryAsync[A](config: RetryConfig, onFailure: Throwable => Unit, attempt: Int = 1)(
+      f: () => Future[A])(implicit ec: ExecutionContext, s: Scheduler): Future[A] = {
     f() recoverWith {
       case e if attempt < config.attempts =>
         onFailure(e)

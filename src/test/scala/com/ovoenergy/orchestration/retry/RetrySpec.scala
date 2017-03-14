@@ -64,7 +64,7 @@ class RetrySpec extends FlatSpec with Matchers with BeforeAndAfterAll with Scala
 
   behavior of "#retryAsync"
 
-  val actorSystem = ActorSystem("test", ConfigFactory.empty())
+  val actorSystem        = ActorSystem("test", ConfigFactory.empty())
   implicit val scheduler = actorSystem.scheduler
 
   override def afterAll(): Unit = {
@@ -103,13 +103,14 @@ class RetrySpec extends FlatSpec with Matchers with BeforeAndAfterAll with Scala
 
   def failNtimesThenSucceed_async(n: Int): () => Future[String] = {
     var counter = 0
-    () => {
-      if (counter < n) {
-        counter = counter + 1
-        Future.failed(exception)
-      } else
-        Future.successful("yay")
-    }
+    () =>
+      {
+        if (counter < n) {
+          counter = counter + 1
+          Future.failed(exception)
+        } else
+          Future.successful("yay")
+      }
   }
 
 }
