@@ -4,11 +4,12 @@ import com.ovoenergy.orchestration.domain.customer.CustomerProfile
 import okhttp3.{HttpUrl, Request, Response}
 import com.ovoenergy.orchestration.http.JsonDecoding._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.profile.Retry.{Failed, RetryConfig}
+import com.ovoenergy.orchestration.retry.Retry.{Failed, RetryConfig}
 import io.circe.generic.auto._
 import cats.syntax.either._
 import com.ovoenergy.comms.model.ErrorCode.ProfileRetrievalFailed
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.orchestration.retry.Retry
 
 import scala.util.{Failure, Try}
 

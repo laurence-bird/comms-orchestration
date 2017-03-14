@@ -17,13 +17,13 @@ import com.ovoenergy.orchestration.aws.AwsDynamoClientProvider
 import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
 import com.ovoenergy.orchestration.kafka.consumers.{CancellationRequestConsumer, TriggeredConsumer}
-
 import com.ovoenergy.orchestration.domain.HasIds._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.processes.email.EmailOrchestration
 import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator, Scheduler}
-import com.ovoenergy.orchestration.profile.{CustomerProfiler, Retry}
+import com.ovoenergy.orchestration.profile.CustomerProfiler
+import com.ovoenergy.orchestration.retry.Retry
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence
 import com.ovoenergy.orchestration.scheduling.{QuartzScheduling, Restore, TaskExecutor}
 import com.typesafe.config.ConfigFactory

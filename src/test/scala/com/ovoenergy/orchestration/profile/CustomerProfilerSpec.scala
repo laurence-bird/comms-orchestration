@@ -9,6 +9,7 @@ import com.ovoenergy.orchestration.domain.customer.{
   CustomerProfileName
 }
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.orchestration.retry.Retry
 import okhttp3._
 import org.scalatest.{FlatSpec, Matchers}
 
