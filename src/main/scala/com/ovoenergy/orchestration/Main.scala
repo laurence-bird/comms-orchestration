@@ -63,7 +63,10 @@ object Main extends App with LoggingWithMDC {
   val kafkaHosts = config.getString("kafka.hosts")
   val kafkaProducerRetryConfig = Retry.RetryConfig(
     attempts = config.getInt("kafka.producer.retry.attempts"),
-    backoff = Retry.Backoff.constantDelay(config.getDuration("kafka.producer.retry.interval").toFiniteDuration)
+    backoff = Retry.Backoff.exponential(
+      config.getDuration("kafka.producer.retry.initialInterval").toFiniteDuration,
+      config.getDouble("kafka.producer.retry.exponent")
+    )
   )
 
   val orchestrateEmail = EmailOrchestration(

@@ -76,7 +76,7 @@ object Retry {
     def constantDelay(interval: FiniteDuration) = (_: Int) => interval
 
     def exponential(initialInterval: FiniteDuration, exponent: Double) = (attemptsSoFar: Int) => {
-      initialInterval * Math.pow(exponent, attemptsSoFar - 1)
+      Duration.fromNanos((initialInterval.toNanos * Math.pow(exponent, attemptsSoFar - 1)).toLong)
     }
 
   }

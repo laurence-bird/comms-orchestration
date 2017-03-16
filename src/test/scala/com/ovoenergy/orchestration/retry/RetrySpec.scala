@@ -10,6 +10,7 @@ import org.scalatest.concurrent.ScalaFutures
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.language.postfixOps
 
 class RetrySpec extends FlatSpec with Matchers with BeforeAndAfterAll with ScalaFutures {
   import com.ovoenergy.orchestration.retry.Retry._
@@ -111,6 +112,17 @@ class RetrySpec extends FlatSpec with Matchers with BeforeAndAfterAll with Scala
         } else
           Future.successful("yay")
       }
+  }
+
+  behavior of "exponential backoff"
+
+  it should "double after each attempt" in {
+    import scala.concurrent.duration._
+    val backoff = Backoff.exponential(1.5 seconds, 2.0)
+    backoff(1) should be(1.5 seconds)
+    backoff(2) should be(3 seconds)
+    backoff(3) should be(6 seconds)
+    backoff(4) should be(12 seconds)
   }
 
 }
