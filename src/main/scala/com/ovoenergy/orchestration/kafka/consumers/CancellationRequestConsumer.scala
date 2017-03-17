@@ -1,12 +1,10 @@
 package com.ovoenergy.orchestration.kafka.consumers
 
-import java.time.OffsetDateTime
-import java.util.UUID
-
 import akka.actor.ActorSystem
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.Control
 import akka.kafka.{ConsumerSettings, Subscriptions}
+import akka.stream.ThrottleMode.Shaping
 import akka.stream.scaladsl.{RunnableGraph, Sink}
 import akka.stream.{ActorAttributes, Materializer, Supervision}
 import com.ovoenergy.comms.model._
@@ -14,8 +12,9 @@ import com.ovoenergy.orchestration.kafka.{KafkaConfig, Serialisation}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.clients.producer.RecordMetadata
-import org.apache.kafka.common.serialization.{Deserializer, StringDeserializer}
+import org.apache.kafka.common.serialization.StringDeserializer
 
+import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.util.control.NonFatal
 
@@ -45,6 +44,7 @@ object CancellationRequestConsumer extends LoggingWithMDC {
 
     val source = Consumer
       .committableSource(consumerSettings, Subscriptions.topics(config.topic))
+      .throttle(5, 1.second, 10, Shaping)
       .mapAsync(1)(msg => {
         log.debug(s"Event received $msg")
         val result: Future[Seq[RecordMetadata]] = msg.record.value match {

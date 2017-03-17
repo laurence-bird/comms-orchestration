@@ -61,10 +61,12 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
     ConfigFactory.load(ConfigParseOptions.defaults(), ConfigResolveOptions.defaults().setAllowUnresolved(true))
 
   val consumerGroup = Random.nextString(10)
+
   val triggeredProducer = KafkaProducer(
     KafkaProducerConf(new StringSerializer, avroSerializer[TriggeredV2], kafkaHosts))
   val cancelationRequestedProducer = KafkaProducer(
     KafkaProducerConf(new StringSerializer, avroSerializer[CancellationRequested], kafkaHosts))
+
   val cancelationRequestedConsumer = KafkaConsumer(
     KafkaConsumerConf(new StringDeserializer, avroDeserializer[CancellationRequested], kafkaHosts, consumerGroup))
   val cancelledConsumer = KafkaConsumer(
