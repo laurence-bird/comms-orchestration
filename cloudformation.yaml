@@ -79,4 +79,41 @@ Resources:
           ReadCapacityUnits: 5
           WriteCapacityUnits: 5
 
+  SchedulingTableReadCapacityAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Namespace: "AWS/DynamoDB"
+      Dimensions:
+        - Name: TableName
+          Value: !Ref SchedulingTable
+      MetricName: ConsumedReadCapacityUnits
+      AlarmActions:
+        - !ImportValue "CloudwatchPagerDutyTopic"
+      OKActions:
+        - !ImportValue "CloudwatchPagerDutyTopic"
+      Period: 60
+      EvaluationPeriods: 3
+      Statistic: Sum
+      Threshold: 240 # Alert when greater than 4 units per second (4/sec * 60 seconds = 240)
+
+  SchedulingTableWriteCapacityAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Namespace: "AWS/DynamoDB"
+      Dimensions:
+        - Name: TableName
+          Value: !Ref SchedulingTable
+      MetricName: ConsumedWriteCapacityUnits
+      AlarmActions:
+        - !ImportValue "CloudwatchPagerDutyTopic"
+      OKActions:
+        - !ImportValue "CloudwatchPagerDutyTopic"
+      Period: 60
+      EvaluationPeriods: 3
+      Statistic: Sum
+      Threshold: 240 # Alert when greater than 4 units per second (4/sec * 60 seconds = 240)
+
+
 
