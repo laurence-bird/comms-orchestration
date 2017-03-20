@@ -9,6 +9,7 @@ import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.util.ArbGenerator
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.record.Record
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{EitherValues, FlatSpec, Matchers, OneInstancePerTest}
 import org.scalacheck.Shapeless._
@@ -27,7 +28,7 @@ class OrchestratorSpec
   var passedTriggered: TriggeredV2           = _
   var invocationCount: Int                   = 0
 
-  val recordMetadata = new RecordMetadata(new TopicPartition("test", 1), 1, 1)
+  val recordMetadata = new RecordMetadata(new TopicPartition("test", 1), 1, 1, Record.NO_TIMESTAMP, -1, -1, -1)
 
   def emailOrchestrator =
     (customerProfile: CustomerProfile, triggered: TriggeredV2, internalMetadata: InternalMetadata) => {

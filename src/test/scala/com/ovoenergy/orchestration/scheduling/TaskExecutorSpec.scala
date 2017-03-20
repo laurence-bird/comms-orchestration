@@ -11,6 +11,7 @@ import com.ovoenergy.orchestration.scheduling.Persistence.{
 import com.ovoenergy.orchestration.util.ArbGenerator
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.record.Record
 import org.scalatest.{FlatSpec, Matchers, OneInstancePerTest}
 import org.scalacheck.Shapeless._
 import org.scalatest.concurrent.Eventually
@@ -33,12 +34,12 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
   val scheduleId = "1234567890A"
   val schedule   = generate[Schedule].copy(scheduleId = scheduleId)
 
+  val recordMetadata      = new RecordMetadata(new TopicPartition("test", 1), 1, 1, Record.NO_TIMESTAMP, -1, -1, -1)
   var triggerOrchestrated = Option.empty[(TriggeredV2, InternalMetadata)]
   val orchestrateTrigger = (triggeredV2: TriggeredV2, internalMetadata: InternalMetadata) => {
     triggerOrchestrated = Some(triggeredV2, internalMetadata)
     Right(Future.successful(recordMetadata))
   }
-  val recordMetadata = new RecordMetadata(new TopicPartition("test", 1), 1, 1)
 
   val sendOrchestrationStartedEvent = (orchStarted: OrchestrationStarted) => Future.successful(recordMetadata)
 
