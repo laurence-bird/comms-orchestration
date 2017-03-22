@@ -13,7 +13,10 @@ import scala.util.Success
 class ChannelSelectorSpec extends FlatSpec with Matchers {
 
   val customerProfile = CustomerProfile(CustomerProfileName(Some("Mr"), "John", "Smith", None),
-                                        CustomerProfileEmailAddresses(Some("some.email@ovoenergy.com"), None))
+                                        CustomerProfileEmailAddresses(Some("some.email@ovoenergy.com"), None),
+                                        None,
+                                        None,
+                                        Seq.empty)
 
   behavior of "ChannelSelector"
 

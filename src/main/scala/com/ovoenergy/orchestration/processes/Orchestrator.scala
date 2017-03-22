@@ -1,6 +1,6 @@
 package com.ovoenergy.orchestration.processes
 
-import com.ovoenergy.comms.model.Channel.Email
+import com.ovoenergy.comms.model.Channel.{Email, SMS}
 import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
 import com.ovoenergy.comms.model.{InternalMetadata, _}
 import com.ovoenergy.orchestration.domain.customer.CustomerProfile
@@ -16,13 +16,15 @@ object Orchestrator extends LoggingWithMDC {
 
   def apply(profileCustomer: (String, Boolean, String) => Either[ErrorDetails, CustomerProfile],
             determineChannel: (CustomerProfile) => Either[ErrorDetails, Channel],
-            orchestrateEmail: Orchestrator)(
+            orchestrateEmail: Orchestrator,
+            orchestrateSMS: Orchestrator)(
       triggered: TriggeredV2,
       internalMetadata: InternalMetadata): Either[ErrorDetails, Future[RecordMetadata]] = {
 
     def selectOrchestratorforChannel(channel: Channel): Either[ErrorDetails, Orchestrator] =
       channel match {
         case Email => Right(orchestrateEmail)
+        case SMS   => Right(orchestrateSMS)
         case _     => Left(ErrorDetails(s"Unsupported channel selected $channel", OrchestrationError))
       }
 

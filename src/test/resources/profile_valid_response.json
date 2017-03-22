@@ -6,5 +6,12 @@
   },
   "emailAddresses": {
     "primary": "qatesting@ovoenergy.com"
-  }
+  },
+  "emailAddress": "qatesting@ovoenergy.com",
+  "communicationPreferences": [
+    {
+      "commType": "Service",
+      "channels": ["SMS", "Email"]
+    }
+  ]
 }

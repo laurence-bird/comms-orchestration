@@ -7,6 +7,9 @@ import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 
 object ChannelSelector {
 
-  def determineChannel(customerProfile: CustomerProfile): Either[ErrorDetails, Channel] = Right(Email)
+  def determineChannel(customerProfile: CustomerProfile): Either[ErrorDetails, Channel] = {
+
+    Right(Email)
+  }
 
 }

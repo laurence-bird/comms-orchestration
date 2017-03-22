@@ -37,6 +37,7 @@ object TestUtil {
     metadata = metadata,
     templateData = templateData,
     deliverAt = None,
-    expireAt = None
+    expireAt = None,
+    None
   )
 }

@@ -3,6 +3,11 @@ package com.ovoenergy.orchestration.profile
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
+import com.ovoenergy.comms.model.Channel.{Email, SMS}
+import com.ovoenergy.comms.model.CommType.Service
+import com.ovoenergy.orchestration.domain.customer.CommunicationPreference._
+import com.ovoenergy.comms.model.ErrorCode.ProfileRetrievalFailed
+import com.ovoenergy.orchestration.domain.customer
 import com.ovoenergy.orchestration.domain.customer.{
   CustomerProfile,
   CustomerProfileEmailAddresses,
@@ -11,13 +16,13 @@ import com.ovoenergy.orchestration.domain.customer.{
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.retry.Retry
 import okhttp3._
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{EitherValues, FlatSpec, Matchers}
 
 import scala.util.{Failure, Success}
 
-class CustomerProfilerSpec extends FlatSpec with Matchers {
+class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
 
-  val failureHttpClient = (request: Request) => Failure(new Exception())
+  val failureHttpClient = (request: Request) => Failure(new Exception("uh oh"))
   val profileApiKey     = "apiKey"
   val profileHost       = "http://somehost.com"
   val traceToken        = "token"
@@ -29,16 +34,12 @@ class CustomerProfilerSpec extends FlatSpec with Matchers {
   behavior of "Customer Profiler"
 
   it should "Fail when request fails" in {
-    val result: Either[ErrorDetails, CustomerProfile] =
+    val result =
       CustomerProfiler(failureHttpClient, profileApiKey, profileHost, retryConfig)("whatever",
                                                                                    canary = false,
                                                                                    traceToken)
-    result match {
-      case Right(customerProfile) =>
-        fail("Failure expected")
-      case Left(ex) =>
-      //OK
-    }
+
+    result shouldBe Left(ErrorDetails(s"Failed to retrive customer profile: uh oh", ProfileRetrievalFailed))
   }
 
   it should "Fail when response is not a success code" in {
@@ -54,12 +55,9 @@ class CustomerProfilerSpec extends FlatSpec with Matchers {
     val result = CustomerProfiler(nonOkResponseHttpClient, profileApiKey, profileHost, retryConfig)("whatever",
                                                                                                     canary = false,
                                                                                                     traceToken)
-    result match {
-      case Right(customerProfile) =>
-        fail("Failure expected")
-      case Left(ex) =>
-      //OK
-    }
+    result shouldBe Left(
+      ErrorDetails("Failed to retrive customer profile: Error response (401) from profile service: Some error message",
+                   ProfileRetrievalFailed))
   }
 
   it should "Fail when response body is invalid" in {
@@ -75,12 +73,9 @@ class CustomerProfilerSpec extends FlatSpec with Matchers {
     val result = CustomerProfiler(badResponseHttpClient, profileApiKey, profileHost, retryConfig)("whatever",
                                                                                                   canary = false,
                                                                                                   traceToken)
-    result match {
-      case Right(customerProfile) =>
-        fail("Failure expected")
-      case Left(ex) =>
-      //OK
-    }
+    result.isLeft shouldBe true
+    result.left.value.errorCode shouldBe ProfileRetrievalFailed
+    result.left.value.reason should include("Failed to retrive customer profile: Invalid JSON")
   }
 
   it should "Succeed when response is valid" in {
@@ -100,23 +95,27 @@ class CustomerProfilerSpec extends FlatSpec with Matchers {
     val result = CustomerProfiler(okResponseHttpClient, profileApiKey, profileHost, retryConfig)("whatever",
                                                                                                  canary = false,
                                                                                                  traceToken)
-    result match {
-      case Right(customerProfile) =>
-        customerProfile shouldBe CustomerProfile(
-          name = CustomerProfileName(
-            title = Some("Mr"),
-            firstName = "Gary",
-            lastName = "Philpott",
-            suffix = None
-          ),
-          emailAddresses = CustomerProfileEmailAddresses(
-            primary = Some("qatesting@ovoenergy.com"),
-            secondary = None
+    result shouldBe Right(
+      CustomerProfile(
+        name = CustomerProfileName(
+          title = Some("Mr"),
+          firstName = "Gary",
+          lastName = "Philpott",
+          suffix = None
+        ),
+        emailAddresses = CustomerProfileEmailAddresses(
+          primary = Some("qatesting@ovoenergy.com"),
+          secondary = None
+        ),
+        emailAddress = Some("qatesting@ovoenergy.com"),
+        phoneNumber = None,
+        communicationPreferences = Seq(
+          customer.CommunicationPreference(
+            Service,
+            Seq(SMS, Email)
           )
         )
-      case Left(err) =>
-        fail(s"Unexpected failure: ${err.reason}")
-    }
+      ))
   }
 
   it should "Ask the profiles service for the canary when requested" in {

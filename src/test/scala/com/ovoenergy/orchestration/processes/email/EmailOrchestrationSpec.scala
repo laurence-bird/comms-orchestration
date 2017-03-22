@@ -48,7 +48,10 @@ class EmailOrchestrationSpec
   it should "fail when required parameters not set" in {
     val badCustomerProfile = CustomerProfile(
       CustomerProfileName(Some("Mr"), "", "", Some("Esq")),
-      CustomerProfileEmailAddresses(Some(""), None)
+      CustomerProfileEmailAddresses(Some(""), None),
+      None,
+      None,
+      Seq.empty
     )
 
     val error = EmailOrchestration(producer)(badCustomerProfile, triggered, internalMetadata).left.value
@@ -63,7 +66,10 @@ class EmailOrchestrationSpec
 
     val customerProfile = CustomerProfile(
       CustomerProfileName(Some("Mr"), "John", "Smith", None),
-      CustomerProfileEmailAddresses(Some("some.email@ovoenergy.com"), Some("some.other.email@ovoenergy.com"))
+      CustomerProfileEmailAddresses(Some("some.email@ovoenergy.com"), Some("some.other.email@ovoenergy.com")),
+      Some("some.email@ovoenergy.com"),
+      None,
+      Seq.empty
     )
 
     val future = EmailOrchestration(producer)(customerProfile, triggered, internalMetadata).right.value
@@ -81,7 +87,10 @@ class EmailOrchestrationSpec
 
     val customerProfile = CustomerProfile(
       CustomerProfileName(Some("Mr"), "John", "Smith", None),
-      CustomerProfileEmailAddresses(None, Some("some.other.email@ovoenergy.com"))
+      CustomerProfileEmailAddresses(None, Some("some.other.email@ovoenergy.com")),
+      Some("some.other.email@ovoenergy.com"),
+      None,
+      Seq.empty
     )
 
     val future = EmailOrchestration(producer)(customerProfile, triggered, internalMetadata).right.value

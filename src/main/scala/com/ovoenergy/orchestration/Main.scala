@@ -96,7 +96,8 @@ object Main extends App with LoggingWithMDC {
   val orchestrateComm: (TriggeredV2, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]] = Orchestrator(
     profileCustomer = profileCustomer,
     determineChannel = determineChannel,
-    orchestrateEmail = orchestrateEmail
+    orchestrateEmail = orchestrateEmail,
+    orchestrateSMS = ???
   )
 
   val sendFailedTriggerEvent: Failed => Future[RecordMetadata] = {
