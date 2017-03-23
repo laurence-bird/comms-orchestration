@@ -15,7 +15,7 @@ object Orchestrator extends LoggingWithMDC {
   type Orchestrator = (CustomerProfile, TriggeredV2, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]]
 
   def apply(profileCustomer: (String, Boolean, String) => Either[ErrorDetails, CustomerProfile],
-            determineChannel: (CustomerProfile) => Either[ErrorDetails, Channel],
+            determineChannel: (CustomerProfile, TriggeredV2) => Either[ErrorDetails, Channel],
             orchestrateEmail: Orchestrator,
             orchestrateSMS: Orchestrator)(
       triggered: TriggeredV2,
@@ -32,7 +32,7 @@ object Orchestrator extends LoggingWithMDC {
       customerProfile <- profileCustomer(triggered.metadata.customerId,
                                          triggered.metadata.canary,
                                          triggered.metadata.traceToken).right
-      channel         <- determineChannel(customerProfile).right
+      channel         <- determineChannel(customerProfile, triggered).right
       orchestrateComm <- selectOrchestratorforChannel(channel).right
       res             <- orchestrateComm(customerProfile, triggered, internalMetadata).right
     } yield res

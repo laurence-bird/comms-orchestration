@@ -58,7 +58,7 @@ object Main extends App with LoggingWithMDC {
     )
   )
 
-  val determineChannel = ChannelSelector.determineChannel _
+  val determineChannel = ChannelSelector.determineChannel(???) _
 
   val kafkaHosts = config.getString("kafka.hosts")
   val kafkaProducerRetryConfig = Retry.RetryConfig(
