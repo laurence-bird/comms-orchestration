@@ -63,7 +63,7 @@ class OrchestratorSpec
   behavior of "Orchestrator"
 
   it should "handle unsupported channels" in {
-    def selectNonSupportedChannel = (customerProfile: CustomerProfile) => Right(Post)
+    def selectNonSupportedChannel = (customerProfile: CustomerProfile, triggeredV2: TriggeredV2) => Right(Post)
     val orchestrator = //(CustomerProfile, TriggeredV2, InternalMetadata)
     Orchestrator(customerProfiler, selectNonSupportedChannel, emailOrchestrator, smsOrchestrator)(triggered,
                                                                                                   internalMetadata)
@@ -72,7 +72,8 @@ class OrchestratorSpec
 
   it should "handle failed channel selection" in {
     def failedChannelSelection =
-      (customerProfile: CustomerProfile) => Left(ErrorDetails("whatever", OrchestrationError))
+      (customerProfile: CustomerProfile, triggeredV2: TriggeredV2) =>
+        Left(ErrorDetails("whatever", OrchestrationError))
     val orchestrator: Either[ErrorDetails, Future[RecordMetadata]] =
       Orchestrator(customerProfiler, failedChannelSelection, emailOrchestrator, smsOrchestrator)(triggered,
                                                                                                  internalMetadata)
@@ -80,7 +81,7 @@ class OrchestratorSpec
   }
 
   it should "handle failed customer profiler" in {
-    def selectEmailChannel = (customerProfile: CustomerProfile) => Right(Email)
+    def selectEmailChannel = (customerProfile: CustomerProfile, triggeredV2: TriggeredV2) => Right(Email)
     def badCustomerProfiler: (String, Boolean, String) => Either[ErrorDetails, CustomerProfile] =
       (customerId: String, canary: Boolean, traceToken: String) =>
         Left(ErrorDetails("whatever", ProfileRetrievalFailed))
@@ -91,7 +92,7 @@ class OrchestratorSpec
   }
 
   it should "handle email channel" in {
-    def selectEmailChannel = (customerProfile: CustomerProfile) => Right(Email)
+    def selectEmailChannel = (customerProfile: CustomerProfile, triggeredV2: TriggeredV2) => Right(Email)
     val orchestrator =
       Orchestrator(customerProfiler, selectEmailChannel, emailOrchestrator, smsOrchestrator)(triggered,
                                                                                              internalMetadata)
@@ -103,7 +104,7 @@ class OrchestratorSpec
   }
 
   it should "handle SMS channel" in {
-    def selectEmailChannel = (customerProfile: CustomerProfile) => Right(SMS)
+    def selectEmailChannel = (customerProfile: CustomerProfile, triggeredV2: TriggeredV2) => Right(SMS)
     val orchestrator =
       Orchestrator(customerProfiler, selectEmailChannel, emailOrchestrator, smsOrchestrator)(triggered,
                                                                                              internalMetadata)
