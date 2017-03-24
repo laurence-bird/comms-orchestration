@@ -17,15 +17,20 @@ object ChannelSelector {
       customerProfile: CustomerProfile,
       triggeredV2: TriggeredV2): Either[ErrorDetails, Channel] = {
 
-    val preferredChannels = triggeredV2.preferredChannels.flatMap(NonEmptyList.fromList)
-    val availableChannels = findAvailableChannels(retrieveTemplate, triggeredV2)
+    val preferredChannels          = triggeredV2.preferredChannels.flatMap(NonEmptyList.fromList)
+    val channelsWithTemplates      = findAvailableChannels(retrieveTemplate, triggeredV2)
+    val channelsWithContactDetails = findChannelsWithContactDetails(customerProfile)
 
-    availableChannels.right.map { avChannels =>
+    val availableChannels = channelsWithTemplates.right.map(channels =>
+      channelsWithContactDetails.filterNot(yolo => channels.exists(_ == yolo)))
+
+    val availableChannelsNel = availableChannels.right.flatMap(avChans =>
+      NonEmptyList.fromList(avChans).toRight(ErrorDetails("yolo", ErrorCode.OrchestrationError)))
+
+    availableChannelsNel.right.map { (availableChans: NonEmptyList[Channel]) =>
       preferredChannels
-        .map { prefChans =>
-          findPreferredChannel(avChannels, prefChans)
-        }
-        .getOrElse(determineCheapestChannel(avChannels))
+        .map(triggerChannelPreferences => findPreferredChannel(availableChans, triggerChannelPreferences))
+        .getOrElse(determineCheapestChannel(availableChans))
     }
   }
 
@@ -70,6 +75,13 @@ object ChannelSelector {
             ErrorCode.InvalidTemplate
           ))
     }
+  }
+
+  private def findChannelsWithContactDetails(customerProfile: CustomerProfile): List[Channel] = {
+    List(
+      customerProfile.phoneNumber.map(_ => SMS),
+      customerProfile.emailAddress.map(_ => Email)
+    ).flatten
   }
 
 }

@@ -7,9 +7,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
-import akka.kafka.scaladsl.Consumer.Control
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.RunnableGraph
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
 import com.ovoenergy.comms.model._
@@ -20,7 +18,6 @@ import com.ovoenergy.orchestration.kafka.consumers.{CancellationRequestConsumer,
 import com.ovoenergy.orchestration.domain.HasIds._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.processes.email.EmailOrchestration
 import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator, Scheduler}
 import com.ovoenergy.orchestration.profile.CustomerProfiler
 import com.ovoenergy.orchestration.retry.Retry
@@ -28,7 +25,7 @@ import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence
 import com.ovoenergy.orchestration.scheduling.{QuartzScheduling, Restore, TaskExecutor}
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.producer.RecordMetadata
-
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -43,9 +40,8 @@ object Main extends App with LoggingWithMDC {
 
   val config = ConfigFactory.load()
 
-  implicit val actorSystem      = ActorSystem()
-  implicit val materializer     = ActorMaterializer()
-  implicit val executionContext = actorSystem.dispatcher
+  implicit val actorSystem  = ActorSystem()
+  implicit val materializer = ActorMaterializer()
 
   val region             = Regions.fromName(config.getString("aws.region"))
   val isRunningInCompose = sys.env.get("DOCKER_COMPOSE").contains("true")
@@ -69,7 +65,7 @@ object Main extends App with LoggingWithMDC {
     )
   )
 
-  val orchestrateEmail = EmailOrchestration(
+  val orchestrateEmail = OrchestratedEmailEvent.send(
     Producer(
       hosts = kafkaHosts,
       topic = config.getString("kafka.topics.orchestrated.email.v2"),
@@ -97,7 +93,8 @@ object Main extends App with LoggingWithMDC {
     profileCustomer = profileCustomer,
     determineChannel = determineChannel,
     orchestrateEmail = orchestrateEmail,
-    orchestrateSMS = ???
+    orchestrateSMS = ???,
+    validateProfile = ???
   )
 
   val sendFailedTriggerEvent: Failed => Future[RecordMetadata] = {
@@ -154,7 +151,7 @@ object Main extends App with LoggingWithMDC {
     generateTraceToken = () => UUID.randomUUID().toString
   )
 
-  val cancellationRequestGraph: RunnableGraph[Control] = CancellationRequestConsumer(
+  val cancellationRequestGraph = CancellationRequestConsumer(
     sendFailedCancellationEvent = sendFailedCancellationEvent,
     sendSuccessfulCancellationEvent = sendCancelledEvent,
     generateTraceToken = () => UUID.randomUUID().toString,

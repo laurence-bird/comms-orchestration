@@ -17,4 +17,9 @@ package object customer {
                              phoneNumber: Option[String],
                              communicationPreferences: Seq[CommunicationPreference])
 
+  // DeliverTo is either phone number or email address
+  case class CustomerDeliveryDetails(name: CustomerProfileName, deliverTo: String)
+
+  case class CommDeliveryDetails(channel: Channel, customerDeliveryDetails: CustomerDeliveryDetails)
+
 }

@@ -20,11 +20,13 @@ import org.scalacheck.Shapeless._
 
 class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
 
-  val customerProfile = CustomerProfile(CustomerProfileName(Some("Mr"), "John", "Smith", None),
-                                        CustomerProfileEmailAddresses(Some("some.email@ovoenergy.com"), None),
-                                        None,
-                                        None,
-                                        Seq.empty)
+  val customerProfile = CustomerProfile(
+    CustomerProfileName(Some("Mr"), "John", "Smith", None),
+    CustomerProfileEmailAddresses(Some("some.email@ovoenergy.com"), None),
+    Some("some.email@ovoenergy.com"),
+    Some("123456789"),
+    Seq.empty
+  )
 
   def retrieveTemplate(template: CommTemplate[Id]) = (commManifest: CommManifest) => Valid(template)
 
@@ -43,7 +45,6 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
     val channelResult =
       ChannelSelector.determineChannel(retrieveTemplate(noChannelsTemplate))(customerProfile, triggeredBase)
 
-    println(channelResult)
     channelResult shouldBe
       Left(
         ErrorDetails(
