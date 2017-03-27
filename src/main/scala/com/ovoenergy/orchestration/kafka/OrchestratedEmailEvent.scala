@@ -20,7 +20,7 @@ object OrchestratedEmailEvent {
       ),
       recipientEmailAddress = customerDeliveryDetails.deliverTo,
       customerProfile = model.CustomerProfile(firstName = customerDeliveryDetails.name.firstName,
-        lastName = customerDeliveryDetails.name.lastName),
+                                              lastName = customerDeliveryDetails.name.lastName),
       templateData = triggered.templateData,
       internalMetadata = internalMetadata,
       expireAt = triggered.expireAt

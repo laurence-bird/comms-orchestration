@@ -5,8 +5,8 @@ import cats.data.NonEmptyList
 import cats.data.Validated.Valid
 import com.ovoenergy.comms.model.Channel.{Email, SMS}
 import com.ovoenergy.comms.model.{Channel, CommManifest, ErrorCode, TriggeredV2}
+import com.ovoenergy.comms.templates.ErrorsOr
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
-import com.ovoenergy.comms.templates.{ErrorsOr, TemplatesContext, TemplatesRepo}
 import com.ovoenergy.orchestration.domain.customer.CustomerProfile
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 
@@ -15,47 +15,73 @@ import scala.annotation.tailrec
 object ChannelSelector {
   def determineChannel(retrieveTemplate: CommManifest => ErrorsOr[CommTemplate[Id]])(
       customerProfile: CustomerProfile,
-      triggeredV2: TriggeredV2): Either[ErrorDetails, Channel] = {
+      triggered: TriggeredV2): Either[ErrorDetails, Channel] = {
 
-    val preferredChannels          = triggeredV2.preferredChannels.flatMap(NonEmptyList.fromList)
-    val channelsWithTemplates      = findAvailableChannels(retrieveTemplate, triggeredV2)
     val channelsWithContactDetails = findChannelsWithContactDetails(customerProfile)
+    val channelsWithTemplates      = findChannelsWithTemplates(retrieveTemplate, triggered)
 
-    val availableChannels = channelsWithTemplates.right.map(channels =>
-      channelsWithContactDetails.filterNot(yolo => channels.exists(_ == yolo)))
+    /*
+     Channels with delivery details in the customer profile, matching the trigger preferences
+     */
+    val channelsAvailableForCustomer: Either[ErrorDetails, List[Channel]] =
+      channelsWithTemplates.right.map(_.filter(channelsWithContactDetails.contains))
 
-    val availableChannelsNel = availableChannels.right.flatMap(avChans =>
-      NonEmptyList.fromList(avChans).toRight(ErrorDetails("yolo", ErrorCode.OrchestrationError)))
+    /*
+      Channels available, in priority order according to trigger preferences
+     */
 
-    availableChannelsNel.right.map { (availableChans: NonEmptyList[Channel]) =>
-      preferredChannels
-        .map(triggerChannelPreferences => findPreferredChannel(availableChans, triggerChannelPreferences))
-        .getOrElse(determineCheapestChannel(availableChans))
+    val priorityOrderedChannelsAvailable = triggered.preferredChannels
+      .map { triggerPreferences =>
+        channelsAvailableForCustomer.right.map { avChannels =>
+          triggerPreferences.filter((t: Channel) => avChannels.contains(t))
+        }
+      }
+      .getOrElse(channelsAvailableForCustomer)
+
+    /*
+      Comm preferences specified in the customer account
+     */
+    priorityOrderedChannelsAvailable.right.map { availableChannels =>
+      val customerPreferences = customerProfile.communicationPreferences
+        .find(_.commType == triggered.metadata.commManifest.commType)
+        .map(_.channels)
+        .getOrElse(Nil)
+        .toList
+
+      /*
+        Preferred channel for customer
+       */
+      if (customerPreferences.isEmpty)
+        availableChannels.head
+      else
+        findPreferredChannel(availableChannels, customerPreferences)
     }
   }
 
   @tailrec
-  private def findPreferredChannel(availableChannels: NonEmptyList[Channel],
-                                   preferredChannels: NonEmptyList[Channel]): Channel = {
-    val preferencesHead = preferredChannels.head
-    val preferencesTail = preferredChannels.tail
+  private def findPreferredChannel(availableChannels: List[Channel], preferredChannels: List[Channel]): Channel = {
+    val availableChannel = availableChannels.head
 
-    if (availableChannels.exists(_ == preferencesHead))
-      preferencesHead
-    else if (preferencesTail.nonEmpty)
-      findPreferredChannel(availableChannels, NonEmptyList.fromListUnsafe(preferencesTail))
-    else determineCheapestChannel(availableChannels)
-  }
-
-  private def determineCheapestChannel(availableChannels: NonEmptyList[Channel]): Channel = {
-    if (availableChannels.find(_ == Channel.Email).isDefined)
-      Email
+    if (preferredChannels.contains(availableChannel))
+      availableChannel
+    else if (preferredChannels.length > 1)
+      findPreferredChannel(availableChannels, preferredChannels.tail)
     else
-      SMS
+      determineCheapestChannel(availableChannels)
   }
 
-  private def findAvailableChannels(retrieveTemplate: CommManifest => ErrorsOr[CommTemplate[Id]],
-                                    triggeredV2: TriggeredV2): Either[ErrorDetails, NonEmptyList[Channel]] = {
+  private def determineCheapestChannel(availableChannels: List[Channel]) = {
+    println("Cheapest channel being found yo")
+    if (availableChannels.contains(Channel.Email))
+      Email
+    else if (availableChannels.contains(Channel.SMS))
+      SMS
+    else
+      availableChannels.head
+  }
+
+  private def findChannelsWithTemplates(retrieveTemplate: CommManifest => ErrorsOr[CommTemplate[Id]],
+                                        triggeredV2: TriggeredV2): Either[ErrorDetails, NonEmptyList[Channel]] = {
     retrieveTemplate(triggeredV2.metadata.commManifest) match {
       case Valid(template) =>
         val channelsAvailable: List[Channel] = List(template.email.map(_ => Email), template.sms.map(_ => SMS)).flatten

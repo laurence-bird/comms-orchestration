@@ -11,14 +11,15 @@ object OrchestratedSmsEvent {
 
   def send(sendEvent: OrchestratedSMS => Future[RecordMetadata])(customerProfile: CustomerDeliveryDetails,
                                                                  triggered: TriggeredV2,
-                                                                 internalMetadata: InternalMetadata){
+                                                                 internalMetadata: InternalMetadata) {
 
     val orchestratedSMSEvent = OrchestratedSMS(
       metadata = Metadata.fromSourceMetadata(
         source = "orchestration",
         sourceMetadata = triggered.metadata
       ),
-      customerProfile = model.CustomerProfile(firstName = customerProfile.name.firstName, lastName = customerProfile.name.lastName),
+      customerProfile =
+        model.CustomerProfile(firstName = customerProfile.name.firstName, lastName = customerProfile.name.lastName),
       templateData = triggered.templateData,
       internalMetadata = internalMetadata,
       expireAt = triggered.expireAt,

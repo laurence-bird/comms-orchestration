@@ -42,8 +42,8 @@ object ProfileValidation {
     }
 
     profileOrErrors match {
-      case Valid(profile)   => Right(profile)
-      case Invalid(errors)  => Left(ErrorDetails(errors.errorsString, InvalidProfile))
+      case Valid(profile)  => Right(profile)
+      case Invalid(errors) => Left(ErrorDetails(errors.errorsString, InvalidProfile))
     }
   }
 }
