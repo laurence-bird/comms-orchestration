@@ -101,6 +101,8 @@ class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock
 
   private val log = LoggerFactory.getLogger("Persistence")
 
+  Instant.now
+
   def storeSchedule(commSchedule: Schedule): Unit = {
     Scanamo.exec(context.db)(context.table.put(commSchedule))
     log.debug(s"Persisted comm schedule: $commSchedule")
@@ -178,6 +180,7 @@ class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock
 
   def listExpiredSchedules(): List[Schedule] = {
     val now = Instant.now(clock).toEpochMilli
+    log.info(s"Now for expired schedules: $now")
     val expired = Scanamo.exec(context.db)(
       context.table
         .index("status-orchestrationExpiry-index")

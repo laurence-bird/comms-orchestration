@@ -5,9 +5,10 @@ import cats.data.{NonEmptyList, Validated}
 import cats.{Apply, Semigroup}
 import com.ovoenergy.comms.model.ErrorCode.InvalidProfile
 import com.ovoenergy.orchestration.domain.customer.CustomerProfile
+import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 
-object ProfileValidation {
+object ProfileValidation extends LoggingWithMDC {
 
   case class ValidationError(message: String)
   case class ValidationErrors(errors: NonEmptyList[ValidationError]) {
@@ -42,8 +43,9 @@ object ProfileValidation {
     }
 
     profileOrErrors match {
-      case Valid(profile)  => Right(profile)
-      case Invalid(errors) => Left(ErrorDetails(errors.errorsString, InvalidProfile))
+      case Valid(profile) => log.info(s"GOT VALID PROFILE $profile"); Right(profile)
+      case Invalid(errors) =>
+        log.info(s"GOT INVALID PROFILE  $errors"); Left(ErrorDetails(errors.errorsString, InvalidProfile))
     }
   }
 }

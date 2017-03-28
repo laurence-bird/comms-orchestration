@@ -25,7 +25,8 @@ object Producer extends LoggingWithMDC {
 
     (event: A) =>
       {
-        logDebug(hasids.traceToken(event), s"Posting event to $topic - $topic")
+        logDebug(hasids.traceToken(event), s"Posting event to $topic")
+        logInfo(hasids.traceToken(event), s"Posting event to $topic")
 
         import scala.concurrent.ExecutionContext.Implicits.global
         retryAsync(

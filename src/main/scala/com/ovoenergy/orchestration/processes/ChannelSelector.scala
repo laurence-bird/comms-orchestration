@@ -4,32 +4,32 @@ import cats.Id
 import cats.data.NonEmptyList
 import cats.data.Validated.Valid
 import com.ovoenergy.comms.model.Channel.{Email, SMS}
+import com.ovoenergy.comms.model.ErrorCode.InvalidProfile
 import com.ovoenergy.comms.model.{Channel, CommManifest, ErrorCode, TriggeredV2}
 import com.ovoenergy.comms.templates.ErrorsOr
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
 import com.ovoenergy.orchestration.domain.customer.CustomerProfile
+import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 
 import scala.annotation.tailrec
 
-object ChannelSelector {
+object ChannelSelector extends LoggingWithMDC {
   def determineChannel(retrieveTemplate: CommManifest => ErrorsOr[CommTemplate[Id]])(
       customerProfile: CustomerProfile,
       triggered: TriggeredV2): Either[ErrorDetails, Channel] = {
 
-    val channelsWithContactDetails = findChannelsWithContactDetails(customerProfile)
-    val channelsWithTemplates      = findChannelsWithTemplates(retrieveTemplate, triggered)
-
     /*
-     Channels with delivery details in the customer profile, matching the trigger preferences
+     Channels with delivery details in the customer profile, and available templates
      */
-    val channelsAvailableForCustomer: Either[ErrorDetails, List[Channel]] =
-      channelsWithTemplates.right.map(_.filter(channelsWithContactDetails.contains))
+    val channelsAvailableForCustomer = for {
+      channelsWithContactDetails <- findChannelsWithContactDetails(customerProfile).right
+      channelsWithTemplates      <- findChannelsWithTemplates(retrieveTemplate, triggered).right
+    } yield channelsWithTemplates.filter(channel => channelsWithContactDetails.exists(_ == channel))
 
     /*
       Channels available, in priority order according to trigger preferences
      */
-
     val priorityOrderedChannelsAvailable = triggered.preferredChannels
       .map { triggerPreferences =>
         channelsAvailableForCustomer.right.map { avChannels =>
@@ -38,10 +38,8 @@ object ChannelSelector {
       }
       .getOrElse(channelsAvailableForCustomer)
 
-    /*
-      Comm preferences specified in the customer account
-     */
-    priorityOrderedChannelsAvailable.right.map { availableChannels =>
+    val result = priorityOrderedChannelsAvailable.right.map { availableChannels =>
+      // Comm preferences specified in the customer account
       val customerPreferences = customerProfile.communicationPreferences
         .find(_.commType == triggered.metadata.commManifest.commType)
         .map(_.channels)
@@ -49,19 +47,20 @@ object ChannelSelector {
         .toList
 
       /*
-        Preferred channel for customer
+        Preferred channel for customer based on customer preferences and the above specifications
        */
       if (customerPreferences.isEmpty)
         availableChannels.head
       else
         findPreferredChannel(availableChannels, customerPreferences)
     }
+    logInfo(triggered.metadata.traceToken, s"Channel retrieved result yo :$result")
+    result
   }
 
   @tailrec
   private def findPreferredChannel(availableChannels: List[Channel], preferredChannels: List[Channel]): Channel = {
     val availableChannel = availableChannels.head
-
     if (preferredChannels.contains(availableChannel))
       availableChannel
     else if (preferredChannels.length > 1)
@@ -71,7 +70,6 @@ object ChannelSelector {
   }
 
   private def determineCheapestChannel(availableChannels: List[Channel]) = {
-    println("Cheapest channel being found yo")
     if (availableChannels.contains(Channel.Email))
       Email
     else if (availableChannels.contains(Channel.SMS))
@@ -103,11 +101,15 @@ object ChannelSelector {
     }
   }
 
-  private def findChannelsWithContactDetails(customerProfile: CustomerProfile): List[Channel] = {
-    List(
+  private def findChannelsWithContactDetails(
+      customerProfile: CustomerProfile): Either[ErrorDetails, NonEmptyList[Channel]] = {
+    val channels = List(
       customerProfile.phoneNumber.map(_ => SMS),
       customerProfile.emailAddress.map(_ => Email)
     ).flatten
-  }
 
+    NonEmptyList
+      .fromList(channels)
+      .toRight(Orchestrator.ErrorDetails(s"No contact details found on customer profile", InvalidProfile))
+  }
 }

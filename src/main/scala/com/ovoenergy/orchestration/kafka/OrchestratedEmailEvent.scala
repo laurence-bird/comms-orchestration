@@ -9,24 +9,22 @@ import scala.concurrent.Future
 
 object OrchestratedEmailEvent {
 
-  def send(sendEvent: OrchestratedEmailV2 => Future[RecordMetadata])(customerDeliveryDetails: CustomerDeliveryDetails,
-                                                                     triggered: TriggeredV2,
-                                                                     internalMetadata: InternalMetadata) = {
+  def send(sendEvent: OrchestratedEmailV2 => Future[RecordMetadata]) = {
+    (customerDeliveryDetails: CustomerDeliveryDetails, triggered: TriggeredV2, internalMetadata: InternalMetadata) =>
+      val orchestratedEmailEvent = OrchestratedEmailV2(
+        metadata = Metadata.fromSourceMetadata(
+          source = "orchestration",
+          sourceMetadata = triggered.metadata
+        ),
+        recipientEmailAddress = customerDeliveryDetails.deliverTo,
+        customerProfile = model.CustomerProfile(firstName = customerDeliveryDetails.name.firstName,
+                                                lastName = customerDeliveryDetails.name.lastName),
+        templateData = triggered.templateData,
+        internalMetadata = internalMetadata,
+        expireAt = triggered.expireAt
+      )
 
-    val orchestratedEmailEvent = OrchestratedEmailV2(
-      metadata = Metadata.fromSourceMetadata(
-        source = "orchestration",
-        sourceMetadata = triggered.metadata
-      ),
-      recipientEmailAddress = customerDeliveryDetails.deliverTo,
-      customerProfile = model.CustomerProfile(firstName = customerDeliveryDetails.name.firstName,
-                                              lastName = customerDeliveryDetails.name.lastName),
-      templateData = triggered.templateData,
-      internalMetadata = internalMetadata,
-      expireAt = triggered.expireAt
-    )
-
-    sendEvent(orchestratedEmailEvent)
+      sendEvent(orchestratedEmailEvent)
   }
 
 }
