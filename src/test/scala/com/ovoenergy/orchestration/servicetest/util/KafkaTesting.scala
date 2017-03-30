@@ -3,16 +3,16 @@ package com.ovoenergy.orchestration.serviceTest.util
 import cakesolutions.kafka.KafkaConsumer.{Conf => KafkaConsumerConf}
 import cakesolutions.kafka.KafkaProducer.{Conf => KafkaProducerConf}
 import cakesolutions.kafka.{KafkaConsumer, KafkaProducer}
-import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.serialisation.Decoders._
 import com.ovoenergy.comms.serialisation.Serialisation._
-import com.ovoenergy.orchestration.util.TestUtil
 import com.typesafe.config.Config
 import io.circe.generic.auto._
+import org.apache.kafka.clients.consumer.{KafkaConsumer => ApacheKafkaConsumer}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
 import org.apache.kafka.clients.producer.ProducerRecord
+
 import scala.concurrent.duration._
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
@@ -108,49 +108,29 @@ class KafkaTesting(config: Config) {
 
   }
 
-  def pollForOrchestratedEmailEvents(pollTime: FiniteDuration = 20000.millisecond,
-                                     noOfEventsExpected: Int,
-                                     shouldCheckTraceToken: Boolean = true) = {
+  def pollForEvents[E](pollTime: FiniteDuration = 20000.millisecond,
+                       noOfEventsExpected: Int,
+                       consumer: ApacheKafkaConsumer[String, Option[E]],
+                       topic: String) = {
     @tailrec
-    def poll(deadline: Deadline, emails: Seq[OrchestratedEmailV2]): Seq[OrchestratedEmailV2] = {
+    def poll(deadline: Deadline, events: Seq[E]): Seq[E] = {
       if (deadline.hasTimeLeft) {
-        val orchestratedEmails = emailOrchestratedConsumer
-          .poll(100)
-          .records(emailOrchestratedTopic)
-          .asScala
-          .toList
-          .flatMap(_.value())
-        val emailsSoFar = orchestratedEmails ++ emails
-        emailsSoFar.length match {
-          case n if n == noOfEventsExpected => emailsSoFar
-          case exceeded if exceeded > noOfEventsExpected =>
-            throw new Exception(s"Consumed more than $noOfEventsExpected orchestrated email event")
-          case _ => poll(deadline, emailsSoFar)
-        }
-      } else throw new Exception("Email was not orchestrated within time limit")
-    }
-    poll(pollTime.fromNow, Nil)
-  }
-
-  def pollForOrchestratedSMSEvents(pollTime: FiniteDuration = 20000.millisecond, noOfEventsExpected: Int) = {
-    @tailrec
-    def poll(deadline: Deadline, sms: Seq[OrchestratedSMS]): Seq[OrchestratedSMS] = {
-      if (deadline.hasTimeLeft) {
-        val orchestratedSMS = smsOrchestratedConsumer
+        val polledEvents = consumer
           .poll(100)
           .records(smsOrchestratedTopic)
           .asScala
           .toList
           .flatMap(_.value())
-        val smsSoFar = orchestratedSMS ++ sms
-        smsSoFar.length match {
-          case n if n == noOfEventsExpected => smsSoFar
+        val eventsSoFar = events ++ polledEvents
+        eventsSoFar.length match {
+          case n if n == noOfEventsExpected => eventsSoFar
           case exceeded if exceeded > noOfEventsExpected =>
-            throw new Exception(s"Consumed more than $noOfEventsExpected orchestrated email event")
-          case _ => poll(deadline, smsSoFar)
+            throw new Exception(s"Consumed more than $noOfEventsExpected events from $topic")
+          case _ => poll(deadline, eventsSoFar)
         }
-      } else throw new Exception("Email was not orchestrated within time limit")
+      } else throw new Exception("Events didn't appear within the timelimit")
     }
     poll(pollTime.fromNow, Nil)
+
   }
 }

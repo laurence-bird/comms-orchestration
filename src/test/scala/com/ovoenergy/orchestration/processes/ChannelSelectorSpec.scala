@@ -51,8 +51,9 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
     channelResult shouldBe
       Left(
         ErrorDetails(
-          s"No Channel found for comm: ${triggeredBase.metadata.commManifest.name} version ${triggeredBase.metadata.commManifest.version}",
-          InvalidTemplate)
+          s"No valid template found for comm: ${triggeredBase.metadata.commManifest.name} version ${triggeredBase.metadata.commManifest.version}",
+          InvalidTemplate
+        )
       )
   }
 

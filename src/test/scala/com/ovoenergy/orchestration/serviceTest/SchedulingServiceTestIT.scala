@@ -199,73 +199,44 @@ class SchedulingServiceTestIT
       val orchestratedSMS = smsOrchestratedConsumer.poll(1000).records(smsOrchestratedTopic).asScala.toList
       orchestratedSMS shouldBe empty
       expectOrchestrationStartedEvents(noOfEventsExpected = 1)
-      val orchestratedSMSEvents = pollForOrchestratedSMSEvents(noOfEventsExpected = 1)
+      val orchestratedSMSEvents = pollForEvents[OrchestratedSMS](noOfEventsExpected = 1,
+                                                                 consumer = smsOrchestratedConsumer,
+                                                                 topic = smsOrchestratedTopic)
 
       orchestratedSMSEvents.foreach { ev =>
-        ev.recipientPhoneNumber shouldBe "+447834774651"
-        ev.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
+        ev.recipientPhoneNumber shouldBe "+447985631544"
+        ev.customerProfile shouldBe model.CustomerProfile("John", "Wayne")
         ev.templateData shouldBe triggered.templateData
       }
     }
   }
 
-  def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 20000.millisecond,
+  def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25000.millisecond,
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true) = {
-    @tailrec
-    def poll(deadline: Deadline, events: Seq[OrchestrationStarted]): Seq[OrchestrationStarted] = {
-      if (deadline.hasTimeLeft) {
-        val eventsThisPoll = orchestrationStartedConsumer
-          .poll(100)
-          .records(orchestrationStartedTopic)
-          .asScala
-          .toList
-          .flatMap(_.value())
-        val eventsSoFar = events ++ eventsThisPoll
-        eventsSoFar.length match {
-          case n if n == noOfEventsExpected => eventsSoFar
-          case exceeded if exceeded > noOfEventsExpected =>
-            fail(s"Consumed more than $noOfEventsExpected events")
-          case _ => poll(deadline, eventsSoFar)
-        }
-      } else throw new Exception("Comm orchestration not started within time limit")
-    }
-    val orchestratedEmails = poll(pollTime.fromNow, Nil)
-    orchestratedEmails.foreach { o =>
+    val orchestrationStartedEvents = pollForEvents[OrchestrationStarted](pollTime,
+                                                                         noOfEventsExpected,
+                                                                         orchestrationStartedConsumer,
+                                                                         orchestrationStartedTopic)
+    orchestrationStartedEvents.foreach { o =>
       if (shouldCheckTraceToken) o.metadata.traceToken shouldBe TestUtil.traceToken
     }
-    orchestratedEmails
+    orchestrationStartedEvents
   }
 
-  def expectOrchestratedEmailEvents(pollTime: FiniteDuration = 20000.millisecond,
+  def expectOrchestratedEmailEvents(pollTime: FiniteDuration = 25000.millisecond,
                                     noOfEventsExpected: Int,
                                     shouldCheckTraceToken: Boolean = true) = {
-    @tailrec
-    def poll(deadline: Deadline, emails: Seq[OrchestratedEmailV2]): Seq[OrchestratedEmailV2] = {
-      if (deadline.hasTimeLeft) {
-        val orchestratedEmails = emailOrchestratedConsumer
-          .poll(100)
-          .records(emailOrchestratedTopic)
-          .asScala
-          .toList
-          .flatMap(_.value())
-        val emailsSoFar = orchestratedEmails ++ emails
-        emailsSoFar.length match {
-          case n if n == noOfEventsExpected => emailsSoFar
-          case exceeded if exceeded > noOfEventsExpected =>
-            fail(s"Consumed more than $noOfEventsExpected orchestrated email event")
-          case _ => poll(deadline, emailsSoFar)
-        }
-      } else fail("Email was not orchestrated within time limit")
-    }
-    val orchestratedEmails = poll(pollTime.fromNow, Nil)
+    val orchestratedEmails = pollForEvents[OrchestratedEmailV2](pollTime,
+                                                                noOfEventsExpected,
+                                                                emailOrchestratedConsumer,
+                                                                emailOrchestratedTopic)
     orchestratedEmails.map { orchestratedEmail =>
       orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
-      orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
+      orchestratedEmail.customerProfile shouldBe model.CustomerProfile("John", "Wayne")
       orchestratedEmail.templateData shouldBe TestUtil.templateData
       if (shouldCheckTraceToken) orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
       orchestratedEmail
     }
   }
-
 }

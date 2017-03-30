@@ -29,7 +29,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
-class ServiceTestIT
+class EmailServiceTestIT
     extends FlatSpec
     with Matchers
     with ScalaFutures
@@ -60,7 +60,7 @@ class ServiceTestIT
   val region           = config.getString("aws.region")
   val s3Endpoint       = "http://localhost:4569"
 
-  behavior of "Service Testing"
+  behavior of "Email Orchestration"
 
   // Upload valid template to S3 with both email and SMS templates available
 
@@ -69,7 +69,7 @@ class ServiceTestIT
     val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
     whenReady(future) { _ =>
       expectOrchestrationStartedEvents(10000.millisecond, 1)
-      expectOrchestrationEvents(10000.millisecond, 1)
+      expectOrchestratedEmailEvents(10000.millisecond, 1)
     }
   }
 
@@ -78,7 +78,7 @@ class ServiceTestIT
     triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
     triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 2)
-    val events = expectOrchestrationEvents(noOfEventsExpected = 2)
+    val events = expectOrchestratedEmailEvents(noOfEventsExpected = 2)
     events match {
       case head :: tail =>
         head.internalMetadata.internalTraceToken should not equal tail.head.internalMetadata.internalTraceToken
@@ -99,7 +99,7 @@ class ServiceTestIT
       expectOrchestrationStartedEvents(noOfEventsExpected = 10, shouldCheckTraceToken = false)
     orchestrationStartedEvents.map(_.metadata.traceToken) should contain allOf ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
     val orchestratedEmails =
-      expectOrchestrationEvents(pollTime = deadline, noOfEventsExpected = 10, shouldCheckTraceToken = false)
+      expectOrchestratedEmailEvents(pollTime = deadline, noOfEventsExpected = 10, shouldCheckTraceToken = false)
     orchestratedEmails.map(_.metadata.traceToken) should contain allOf ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
   }
 
@@ -142,62 +142,32 @@ class ServiceTestIT
 
     triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
-    expectOrchestrationEvents(noOfEventsExpected = 1)
+    expectOrchestratedEmailEvents(noOfEventsExpected = 1)
   }
 
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25000.millisecond,
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true) = {
-    @tailrec
-    def poll(deadline: Deadline, events: Seq[OrchestrationStarted]): Seq[OrchestrationStarted] = {
-      if (deadline.hasTimeLeft) {
-        val eventsThisPoll = orchestrationStartedConsumer
-          .poll(500)
-          .records(orchestrationStartedTopic)
-          .asScala
-          .toList
-          .flatMap(_.value())
-        val eventsSoFar = events ++ eventsThisPoll
-        eventsSoFar.length match {
-          case n if n == noOfEventsExpected => eventsSoFar
-          case exceeded if exceeded > noOfEventsExpected =>
-            fail(s"Consumed more than $noOfEventsExpected events")
-          case _ => poll(deadline, eventsSoFar)
-        }
-      } else throw new Exception("Comm orchestration not started within time limit")
-    }
-    val orchestratedEmails = poll(pollTime.fromNow, Nil)
-    orchestratedEmails.foreach { o =>
+    val orchestrationStartedEvents = pollForEvents[OrchestrationStarted](pollTime,
+                                                                         noOfEventsExpected,
+                                                                         orchestrationStartedConsumer,
+                                                                         orchestrationStartedTopic)
+    orchestrationStartedEvents.foreach { o =>
       if (shouldCheckTraceToken) o.metadata.traceToken shouldBe TestUtil.traceToken
     }
-    orchestratedEmails
+    orchestrationStartedEvents
   }
 
-  def expectOrchestrationEvents(pollTime: FiniteDuration = 25000.millisecond,
-                                noOfEventsExpected: Int,
-                                shouldCheckTraceToken: Boolean = true) = {
-    @tailrec
-    def poll(deadline: Deadline, emails: Seq[OrchestratedEmailV2]): Seq[OrchestratedEmailV2] = {
-      if (deadline.hasTimeLeft) {
-        val orchestratedEmails = emailOrchestratedConsumer
-          .poll(500)
-          .records(emailOrchestratedTopic)
-          .asScala
-          .toList
-          .flatMap(_.value())
-        val emailsSoFar = orchestratedEmails ++ emails
-        emailsSoFar.length match {
-          case n if n == noOfEventsExpected => emailsSoFar
-          case exceeded if exceeded > noOfEventsExpected =>
-            fail(s"Consumed more than $noOfEventsExpected orchestrated email event")
-          case _ => poll(deadline, emailsSoFar)
-        }
-      } else fail("Email was not orchestrated within time limit")
-    }
-    val orchestratedEmails = poll(pollTime.fromNow, Nil)
+  def expectOrchestratedEmailEvents(pollTime: FiniteDuration = 25000.millisecond,
+                                    noOfEventsExpected: Int,
+                                    shouldCheckTraceToken: Boolean = true) = {
+    val orchestratedEmails = pollForEvents[OrchestratedEmailV2](pollTime,
+                                                                noOfEventsExpected,
+                                                                emailOrchestratedConsumer,
+                                                                emailOrchestratedTopic)
     orchestratedEmails.map { orchestratedEmail =>
       orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
-      orchestratedEmail.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
+      orchestratedEmail.customerProfile shouldBe model.CustomerProfile("John", "Wayne")
       orchestratedEmail.templateData shouldBe TestUtil.templateData
       if (shouldCheckTraceToken) orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
       orchestratedEmail

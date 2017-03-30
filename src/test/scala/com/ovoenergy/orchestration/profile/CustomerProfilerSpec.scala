@@ -99,8 +99,8 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
       CustomerProfile(
         name = CustomerProfileName(
           title = Some("Mr"),
-          firstName = "Gary",
-          lastName = "Philpott",
+          firstName = "John",
+          lastName = "Wayne",
           suffix = None
         ),
         emailAddresses = CustomerProfileEmailAddresses(
@@ -108,7 +108,7 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
           secondary = None
         ),
         emailAddress = Some("qatesting@ovoenergy.com"),
-        phoneNumber = None,
+        phoneNumber = Some("+447985631544"),
         communicationPreferences = Seq(
           customer.CommunicationPreference(
             Service,
