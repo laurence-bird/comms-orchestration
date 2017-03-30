@@ -5,7 +5,7 @@ import cats.data.Validated.Valid
 import com.ovoenergy.comms.model.Channel._
 import com.ovoenergy.comms.model.CommType.Service
 import com.ovoenergy.comms.model.ErrorCode.InvalidTemplate
-import com.ovoenergy.comms.model.{CommManifest, SMSStatus, Triggered, TriggeredV2}
+import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
 import com.ovoenergy.comms.templates.model.template.processed.email.EmailTemplate
 import com.ovoenergy.comms.templates.model.template.processed.sms.SMSTemplate
@@ -32,9 +32,10 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
 
   def retrieveTemplate(template: CommTemplate[Id]) = (commManifest: CommManifest) => Valid(template)
 
-  val emailTemplate = generate[EmailTemplate[Id]]
-  val smsTemplate   = generate[SMSTemplate[Id]]
-  val triggeredBase = generate[TriggeredV2]
+  val emailTemplate       = generate[EmailTemplate[Id]]
+  val smsTemplate         = generate[SMSTemplate[Id]]
+  val serviceCommMetadata = generate[Metadata].copy(commManifest = CommManifest(Service, "test-comm", "1.0"))
+  val triggeredBase       = generate[TriggeredV2].copy(metadata = serviceCommMetadata)
 
   val noChannelsTemplate  = CommTemplate(None, None)
   val emailOnlyTemplate   = CommTemplate[Id](Some(emailTemplate), None)
@@ -57,7 +58,7 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
       )
   }
 
-  it should "Return email if there are no trigger channel preferences or customer channel preferences" in {
+  it should "Return the cheapest option if there are no trigger channel preferences or customer channel preferences" in {
     val triggered = triggeredBase.copy(preferredChannels = None)
     val channelResult =
       ChannelSelector.determineChannel(retrieveTemplate(smsAndEmailTemplate))(customerProfileNoPreferences, triggered)
@@ -86,18 +87,39 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
     val customerProfileSMSPreference =
       customerProfileNoPreferences.copy(communicationPreferences = Seq(CommunicationPreference(Service, Seq(SMS))))
     val channelResult =
-      ChannelSelector.determineChannel(retrieveTemplate(smsOnlyTemplate))(customerProfileNoPreferences, triggered)
+      ChannelSelector.determineChannel(retrieveTemplate(smsAndEmailTemplate))(customerProfileSMSPreference, triggered)
+
+    channelResult shouldBe Right(SMS)
+  }
+
+  it should "Adhere to customer preferences over trigger preferences when they don't intersect" in {
+    val triggered = triggeredBase.copy(preferredChannels = Some(List(SMS)))
+    val customerProfileEmailPreference =
+      customerProfileNoPreferences.copy(communicationPreferences = Seq(CommunicationPreference(Service, Seq(Email))))
+    val channelResult =
+      ChannelSelector.determineChannel(retrieveTemplate(smsAndEmailTemplate))(customerProfileEmailPreference,
+                                                                              triggered)
+
+    channelResult shouldBe Right(Email)
+  }
+
+  it should "Disregard preferences for post as currenty not implemented" in {
+    val triggered = triggeredBase.copy(preferredChannels = Some(List(SMS, Email)))
+    val customerProfilePostPreference =
+      customerProfileNoPreferences.copy(communicationPreferences = Seq(CommunicationPreference(Service, Seq(Post))))
+    val channelResult =
+      ChannelSelector.determineChannel(retrieveTemplate(smsAndEmailTemplate))(customerProfilePostPreference, triggered)
 
     channelResult shouldBe Right(SMS)
   }
 
   it should "Adhere to trigger preferences priority if customer profile preferences contains all the channels available" in {
     val triggered = triggeredBase.copy(preferredChannels = Some(List(Email, SMS)))
-    val customerProfileSMSPreference =
+    val customerProfileAllPreferences =
       customerProfileNoPreferences.copy(
         communicationPreferences = Seq(CommunicationPreference(Service, Seq(SMS, Email))))
     val channelResult =
-      ChannelSelector.determineChannel(retrieveTemplate(smsAndEmailTemplate))(customerProfileNoPreferences, triggered)
+      ChannelSelector.determineChannel(retrieveTemplate(smsAndEmailTemplate))(customerProfileAllPreferences, triggered)
 
     channelResult shouldBe Right(Email)
   }

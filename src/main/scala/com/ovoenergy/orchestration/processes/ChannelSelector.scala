@@ -9,7 +9,7 @@ import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, InvalidTemplate, Orc
 import com.ovoenergy.comms.model.{Channel, CommManifest, ErrorCode, TriggeredV2}
 import com.ovoenergy.comms.templates.ErrorsOr
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
-import com.ovoenergy.orchestration.domain.customer.CustomerProfile
+import com.ovoenergy.orchestration.domain.customer.{CommunicationPreference, CustomerProfile}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 
@@ -28,6 +28,16 @@ object ChannelSelector extends LoggingWithMDC {
       customerProfile: CustomerProfile,
       triggered: TriggeredV2): Either[ErrorDetails, Channel] = {
 
+    val customerPrefs: Option[NonEmptyList[Channel]] = {
+      val prefsForCommType = customerProfile.communicationPreferences.collectFirst({
+        case CommunicationPreference(commType, prefs) if commType == triggered.metadata.commManifest.commType => prefs
+      })
+      prefsForCommType.flatMap { prefs =>
+        val prefsForSupportedChannels = prefs.toList.filter(channel => channelCostMap.contains(channel))
+        NonEmptyList.fromList(prefsForSupportedChannels)
+      }
+    }
+
     def findAvailableChannels(
         channelsWithTemplates: NonEmptyList[Channel],
         channelsWithContactDetails: NonEmptyList[Channel]): Either[ErrorDetails, NonEmptyList[Channel]] = {
@@ -35,9 +45,20 @@ object ChannelSelector extends LoggingWithMDC {
       nonEmptyListFrom(avChans, "No available channels to deliver comm", OrchestrationError)
     }
 
+    def filterByCustomerPreferences(
+        availableChannels: NonEmptyList[Channel],
+        customerPreferences: Option[NonEmptyList[Channel]]): Either[ErrorDetails, NonEmptyList[Channel]] = {
+      customerPreferences match {
+        case Some(nel) =>
+          val filteredChannels = availableChannels.toList.intersect(nel.toList)
+          nonEmptyListFrom(filteredChannels, "No available channels that the customer accepts", OrchestrationError)
+        case None => Right(availableChannels)
+      }
+    }
+
     def sortChannels(availableChannels: NonEmptyList[Channel]): List[Channel] = {
-      val triggerPrerencesMap = triggered.preferredChannels.getOrElse(Nil).zipWithIndex.toMap
-      val triggerPriority     = priority(triggerPrerencesMap) _
+      val triggerPreferencesMap = triggered.preferredChannels.getOrElse(Nil).zipWithIndex.toMap
+      val triggerPriority       = priority(triggerPreferencesMap) _
 
       availableChannels.toList
         .sortBy(costPriority)
@@ -48,7 +69,8 @@ object ChannelSelector extends LoggingWithMDC {
       channelsWithContactDetails <- findChannelsWithContactDetails(customerProfile)
       channelsWithTemplates      <- findChannelsWithTemplates(retrieveTemplate, triggered)
       availableChannels          <- findAvailableChannels(channelsWithTemplates, channelsWithContactDetails)
-    } yield sortChannels(availableChannels).head
+      acceptableChannels         <- filterByCustomerPreferences(availableChannels, customerPrefs)
+    } yield sortChannels(acceptableChannels).head
 
   }
 
@@ -90,5 +112,4 @@ object ChannelSelector extends LoggingWithMDC {
 
     nonEmptyListFrom(channels, "No contact details found on customer profile", InvalidProfile)
   }
-
 }
