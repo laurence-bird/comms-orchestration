@@ -43,9 +43,9 @@ object ProfileValidation extends LoggingWithMDC {
     }
 
     profileOrErrors match {
-      case Valid(profile) => log.info(s"GOT VALID PROFILE $profile"); Right(profile)
+      case Valid(profile) => Right(profile)
       case Invalid(errors) =>
-        log.info(s"GOT INVALID PROFILE  $errors"); Left(ErrorDetails(errors.errorsString, InvalidProfile))
+        Left(ErrorDetails(errors.errorsString, InvalidProfile))
     }
   }
 }
