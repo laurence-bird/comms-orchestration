@@ -5,6 +5,7 @@ import java.time.Instant
 import com.amazonaws.services.dynamodbv2.model.{AttributeValue, PutItemRequest, PutItemResult}
 import com.gu.scanamo.{Scanamo, Table}
 import com.ovoenergy.comms.model
+import com.ovoenergy.comms.model.Channel.SMS
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.scheduling.{Schedule, ScheduleStatus}
 import com.ovoenergy.orchestration.serviceTest.util.{
@@ -60,36 +61,32 @@ class SchedulingServiceTestIT
 
   behavior of "Comm Scheduling"
 
-//  it should "pick up expired events via polling and orchestrate them" taggedAs DockerComposeTag in {
-//    createOKCustomerProfileResponse(mockServerClient)
-//    val schedulesTable = Table[Schedule](tableName)
-//    val triggered      = TestUtil.triggered
-//
-//    val deliverAt = Instant.now().minusSeconds(600)
-//    val expireAt  = Instant.now().minusSeconds(60)
-//
-//    val result: PutItemResult = Scanamo.exec(dynamoClient)(
-//      schedulesTable.put(
-//        Schedule(
-//          "testSchedule",
-//          triggered,
-//          deliverAt,
-//          ScheduleStatus.Orchestrating,
-//          Nil,
-//          expireAt,
-//          triggered.metadata.customerId,
-//          triggered.metadata.commManifest.name
-//        )
-//      ))
-//
-//    println(result.getSdkHttpMetadata.getHttpStatusCode)
-//    println(result.getSdkHttpMetadata.getHttpHeaders)
-//    println(result.getSdkResponseMetadata.toString)
-//    println(result.getSdkResponseMetadata.getRequestId)
-//    result.getSdkHttpMetadata.getHttpStatusCode shouldBe 200
-//    expectOrchestrationStartedEvents(noOfEventsExpected = 1, pollTime = 25000.millisecond)
-//    expectOrchestrationEvents(noOfEventsExpected = 1, pollTime = 25000.millisecond)
-//  }
+  it should "pick up expired events via polling and orchestrate them" taggedAs DockerComposeTag in {
+    createOKCustomerProfileResponse(mockServerClient)
+    val schedulesTable = Table[Schedule](tableName)
+    val triggered      = TestUtil.triggered
+
+    val deliverAt = Instant.now().minusSeconds(600)
+    val expireAt  = Instant.now().minusSeconds(60)
+
+    val result: PutItemResult = Scanamo.exec(dynamoClient)(
+      schedulesTable.put(
+        Schedule(
+          "testSchedule",
+          triggered,
+          deliverAt,
+          ScheduleStatus.Orchestrating,
+          Nil,
+          expireAt,
+          triggered.metadata.customerId,
+          triggered.metadata.commManifest.name
+        )
+      ))
+
+    result.getSdkHttpMetadata.getHttpStatusCode shouldBe 200
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1, pollTime = 25000.millisecond)
+    expectOrchestratedEmailEvents(noOfEventsExpected = 1, pollTime = 25000.millisecond)
+  }
 
   it should "deschedule comms and generate cancelled events" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse(mockServerClient)
@@ -113,6 +110,7 @@ class SchedulingServiceTestIT
     val triggeredFuture = Future.sequence(
       triggeredEvents.map(tr => triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, tr))))
     Thread.sleep(100)
+
     val cancelledFuture = triggeredFuture.flatMap(
       t =>
         cancelationRequestedProducer.send(
@@ -130,52 +128,52 @@ class SchedulingServiceTestIT
     }
   }
 
-//  it should "generate a cancellationFailed event if unable to deschedule a comm" taggedAs DockerComposeTag in {
-//    val triggered  = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(15).toString))
-//    val commName   = triggered.metadata.commManifest.name
-//    val customerId = triggered.metadata.customerId
-//
-//    // Create an invalid schedule record
-//    dynamoClient.putItem(
-//      new PutItemRequest(
-//        tableName,
-//        Map[String, AttributeValue](
-//          "scheduleId" -> new AttributeValue("scheduleId123"),
-//          "customerId" -> new AttributeValue(customerId),
-//          "status"     -> new AttributeValue("Pending"),
-//          "commName"   -> new AttributeValue(commName)
-//        ).asJava
-//      )
-//    )
-//    val genericMetadata = GenericMetadata(triggered.metadata.createdAt,
-//                                          triggered.metadata.eventId,
-//                                          triggered.metadata.traceToken,
-//                                          triggered.metadata.source,
-//                                          false)
-//
-//    val cancellationRequested = CancellationRequested(genericMetadata, commName, customerId)
-//
-//    for {
-//      _ <- triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggered))
-//      _ <- cancelationRequestedProducer.send(
-//        new ProducerRecord[String, CancellationRequested](cancellationRequestTopic, cancellationRequested))
-//    } yield checkCancellations()
-//
-//    def checkCancellations() = {
-//      val failedCancellations = failedCancellationConsumer.poll(20000).records(failedCancellationTopic).asScala.toList
-//      failedCancellations.length shouldBe 1
-//      failedCancellations.map(_.value().get) should contain(
-//        FailedCancellation(
-//          GenericMetadata.fromSourceGenericMetadata("orchestrated", cancellationRequested.metadata),
-//          cancellationRequested,
-//          "Cancellation of scheduled comm failed: Failed to deserialise pending schedule"
-//        ))
-//      val cancelledComs = cancelledConsumer.poll(20000).records(cancelledTopic).asScala.toList
-//      cancelledComs.length shouldBe 1
-//      val orchestratedComms = emailOrchestratedConsumer.poll(20000).records(emailOrchestratedTopic).asScala.toList
-//      orchestratedComms.length shouldBe 0
-//    }
-//  }
+  it should "generate a cancellationFailed event if unable to deschedule a comm" taggedAs DockerComposeTag in {
+    val triggered  = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(15).toString))
+    val commName   = triggered.metadata.commManifest.name
+    val customerId = triggered.metadata.customerId
+
+    // Create an invalid schedule record
+    dynamoClient.putItem(
+      new PutItemRequest(
+        tableName,
+        Map[String, AttributeValue](
+          "scheduleId" -> new AttributeValue("scheduleId123"),
+          "customerId" -> new AttributeValue(customerId),
+          "status"     -> new AttributeValue("Pending"),
+          "commName"   -> new AttributeValue(commName)
+        ).asJava
+      )
+    )
+    val genericMetadata = GenericMetadata(triggered.metadata.createdAt,
+                                          triggered.metadata.eventId,
+                                          triggered.metadata.traceToken,
+                                          triggered.metadata.source,
+                                          false)
+
+    val cancellationRequested = CancellationRequested(genericMetadata, commName, customerId)
+
+    for {
+      _ <- triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggered))
+      _ <- cancelationRequestedProducer.send(
+        new ProducerRecord[String, CancellationRequested](cancellationRequestTopic, cancellationRequested))
+    } yield checkCancellations()
+
+    def checkCancellations() = {
+      val failedCancellations = failedCancellationConsumer.poll(20000).records(failedCancellationTopic).asScala.toList
+      failedCancellations.length shouldBe 1
+      failedCancellations.map(_.value().get) should contain(
+        FailedCancellation(
+          GenericMetadata.fromSourceGenericMetadata("orchestrated", cancellationRequested.metadata),
+          cancellationRequested,
+          "Cancellation of scheduled comm failed: Failed to deserialise pending schedule"
+        ))
+      val cancelledComs = cancelledConsumer.poll(20000).records(cancelledTopic).asScala.toList
+      cancelledComs.length shouldBe 1
+      val orchestratedComms = emailOrchestratedConsumer.poll(20000).records(emailOrchestratedTopic).asScala.toList
+      orchestratedComms.length shouldBe 0
+    }
+  }
 
   it should "orchestrate emails requested to be sent in the future" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse(mockServerClient)
@@ -185,7 +183,29 @@ class SchedulingServiceTestIT
       val orchestratedEmails = emailOrchestratedConsumer.poll(1000).records(emailOrchestratedTopic).asScala.toList
       orchestratedEmails shouldBe empty
       expectOrchestrationStartedEvents(noOfEventsExpected = 1)
-      expectOrchestrationEvents(noOfEventsExpected = 1)
+      expectOrchestratedEmailEvents(noOfEventsExpected = 1)
+    }
+  }
+
+  it should "orchestrate sms requested to be sent in the future" taggedAs DockerComposeTag in {
+    createOKCustomerProfileResponse(mockServerClient)
+    val triggered = TestUtil.triggered.copy(
+      deliverAt = Some(Instant.now().plusSeconds(5).toString),
+      preferredChannels = Some(List(SMS))
+    )
+
+    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggered))
+    whenReady(future) { _ =>
+      val orchestratedSMS = smsOrchestratedConsumer.poll(1000).records(smsOrchestratedTopic).asScala.toList
+      orchestratedSMS shouldBe empty
+      expectOrchestrationStartedEvents(noOfEventsExpected = 1)
+      val orchestratedSMSEvents = pollForOrchestratedSMSEvents(noOfEventsExpected = 1)
+
+      orchestratedSMSEvents.foreach { ev =>
+        ev.recipientPhoneNumber shouldBe "+447834774651"
+        ev.customerProfile shouldBe model.CustomerProfile("Gary", "Philpott")
+        ev.templateData shouldBe triggered.templateData
+      }
     }
   }
 
@@ -217,9 +237,9 @@ class SchedulingServiceTestIT
     orchestratedEmails
   }
 
-  def expectOrchestrationEvents(pollTime: FiniteDuration = 20000.millisecond,
-                                noOfEventsExpected: Int,
-                                shouldCheckTraceToken: Boolean = true) = {
+  def expectOrchestratedEmailEvents(pollTime: FiniteDuration = 20000.millisecond,
+                                    noOfEventsExpected: Int,
+                                    shouldCheckTraceToken: Boolean = true) = {
     @tailrec
     def poll(deadline: Deadline, emails: Seq[OrchestratedEmailV2]): Seq[OrchestratedEmailV2] = {
       if (deadline.hasTimeLeft) {

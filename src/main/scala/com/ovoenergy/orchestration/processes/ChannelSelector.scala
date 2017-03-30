@@ -4,7 +4,7 @@ import cats.Id
 import cats.data.NonEmptyList
 import cats.data.Validated.Valid
 import com.ovoenergy.comms.model.Channel.{Email, SMS}
-import com.ovoenergy.comms.model.ErrorCode.InvalidProfile
+import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, InvalidTemplate, OrchestrationError}
 import com.ovoenergy.comms.model.{Channel, CommManifest, ErrorCode, TriggeredV2}
 import com.ovoenergy.comms.templates.ErrorsOr
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
@@ -22,18 +22,26 @@ object ChannelSelector extends LoggingWithMDC {
     /*
      Channels with delivery details in the customer profile, and available templates
      */
-    val channelsAvailableForCustomer = for {
+    val channelsAvailableForCustomer: Either[ErrorDetails, NonEmptyList[Channel]] = for {
       channelsWithContactDetails <- findChannelsWithContactDetails(customerProfile).right
       channelsWithTemplates      <- findChannelsWithTemplates(retrieveTemplate, triggered).right
-    } yield channelsWithTemplates.filter(channel => channelsWithContactDetails.exists(_ == channel))
+      availableChannels  <- {
+        val avChans = channelsWithTemplates.filter(channel => channelsWithContactDetails.exists(_ == channel))
+        nonEmptyListFrom(avChans, "No available channels to deliver comm", OrchestrationError).right
+      }
+    } yield availableChannels
+
 
     /*
       Channels available, in priority order according to trigger preferences
      */
     val priorityOrderedChannelsAvailable = triggered.preferredChannels
       .map { triggerPreferences =>
-        channelsAvailableForCustomer.right.map { avChannels =>
-          triggerPreferences.filter((t: Channel) => avChannels.contains(t))
+        channelsAvailableForCustomer.right.flatMap {
+          availableChannels =>
+            val otherChannels = triggerPreferences
+              .filter(preferredChannel=> availableChannels.exists(_ == preferredChannel))
+            nonEmptyListFrom(otherChannels, "No preferred channels available", OrchestrationError)
         }
       }
       .getOrElse(channelsAvailableForCustomer)
@@ -54,12 +62,17 @@ object ChannelSelector extends LoggingWithMDC {
       else
         findPreferredChannel(availableChannels, customerPreferences)
     }
-    logInfo(triggered.metadata.traceToken, s"Channel retrieved result yo :$result")
     result
   }
 
+  private def nonEmptyListFrom[A](list: List[A], errorMessage: String, errorCode: ErrorCode): Either[ErrorDetails, NonEmptyList[A]] = {
+    NonEmptyList.fromList(list)
+        .toRight(ErrorDetails(errorMessage, errorCode))
+  }
+
   @tailrec
-  private def findPreferredChannel(availableChannels: List[Channel], preferredChannels: List[Channel]): Channel = {
+  private def findPreferredChannel(availableChannels: NonEmptyList[Channel],
+                                   preferredChannels: List[Channel]): Channel = {
     val availableChannel = availableChannels.head
     if (preferredChannels.contains(availableChannel))
       availableChannel
@@ -69,10 +82,10 @@ object ChannelSelector extends LoggingWithMDC {
       determineCheapestChannel(availableChannels)
   }
 
-  private def determineCheapestChannel(availableChannels: List[Channel]) = {
-    if (availableChannels.contains(Channel.Email))
+  private def determineCheapestChannel(availableChannels: NonEmptyList[Channel]) = {
+    if (availableChannels.find(_ == Channel.Email).isDefined)
       Email
-    else if (availableChannels.contains(Channel.SMS))
+    else if (availableChannels.find(_ == Channel.SMS).isDefined)
       SMS
     else
       availableChannels.head
@@ -82,16 +95,9 @@ object ChannelSelector extends LoggingWithMDC {
                                         triggeredV2: TriggeredV2): Either[ErrorDetails, NonEmptyList[Channel]] = {
     retrieveTemplate(triggeredV2.metadata.commManifest) match {
       case Valid(template) =>
-        val channelsAvailable: List[Channel] = List(template.email.map(_ => Email), template.sms.map(_ => SMS)).flatten
+        val channelsWithTemplates = List(template.email.map(_ => Email), template.sms.map(_ => SMS)).flatten
 
-        NonEmptyList
-          .fromList[Channel](channelsAvailable)
-          .toRight(
-            ErrorDetails(
-              s"No Channel found for comm: ${triggeredV2.metadata.commManifest.name} version ${triggeredV2.metadata.commManifest.version}",
-              ErrorCode.InvalidTemplate
-            )
-          )
+        nonEmptyListFrom(channelsWithTemplates, s"No valid template found for comm: ${triggeredV2.metadata.commManifest.name} version ${triggeredV2.metadata.commManifest.version}", InvalidTemplate)
       case _ =>
         Left(
           ErrorDetails(
@@ -103,13 +109,12 @@ object ChannelSelector extends LoggingWithMDC {
 
   private def findChannelsWithContactDetails(
       customerProfile: CustomerProfile): Either[ErrorDetails, NonEmptyList[Channel]] = {
+
     val channels = List(
       customerProfile.phoneNumber.map(_ => SMS),
       customerProfile.emailAddress.map(_ => Email)
     ).flatten
 
-    NonEmptyList
-      .fromList(channels)
-      .toRight(Orchestrator.ErrorDetails(s"No contact details found on customer profile", InvalidProfile))
+    nonEmptyListFrom(channels, "No contact details found on customer profile", InvalidProfile)
   }
 }
