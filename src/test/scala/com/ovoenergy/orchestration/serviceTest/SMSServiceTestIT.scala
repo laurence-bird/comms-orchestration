@@ -45,8 +45,10 @@ class SMSServiceTestIT
 
   override def beforeAll() = {
     createTable()
-    setupTopics()
+    setupTopics() // Move to respective traits TODO
   }
+
+  override def afterAll() = {}
 
   behavior of "SMS Orchestration"
 

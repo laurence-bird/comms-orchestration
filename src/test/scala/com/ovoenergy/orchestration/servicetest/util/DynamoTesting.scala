@@ -16,11 +16,8 @@ trait DynamoTesting {
       SecondaryIndexData("customerId-commName-index", Seq('customerId    -> S, 'commName            -> S)),
       SecondaryIndexData("status-orchestrationExpiry-index", Seq('status -> S, 'orchestrationExpiry -> N))
     )
-    try {
-      LocalDynamoDB.createTableWithSecondaryIndex(dynamoClient, tableName)(Seq('scheduleId -> S))(secondaryIndices)
-    } catch {
-      case e: Throwable => println("Table already exists, moving on")
-    }
+
+    LocalDynamoDB.createTableWithSecondaryIndex(dynamoClient, tableName)(Seq('scheduleId -> S))(secondaryIndices)
     waitUntilTableMade(50)
 
     def waitUntilTableMade(noAttemptsLeft: Int): String = {
