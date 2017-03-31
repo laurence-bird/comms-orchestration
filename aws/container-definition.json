@@ -9,6 +9,13 @@
         "name": "ENV",
         "value": "@@ENV"
       }
+    ],
+    "ulimits": [
+      {
+        "name": "nofile",
+        "softLimit": 16384,
+        "hardLimit": 16384
+      }
     ]
   }
 ]
