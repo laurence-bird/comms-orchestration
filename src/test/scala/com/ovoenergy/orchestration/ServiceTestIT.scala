@@ -401,7 +401,7 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
 
     mockServerClient.reset()
 
-    // Fail 3 times, then always succeed after that
+    // Fail twice, then always succeed after that
 
     mockServerClient
       .when(
@@ -409,7 +409,7 @@ class ServiceTestIT extends FlatSpec with Matchers with ScalaFutures with Before
           .withMethod("GET")
           .withPath(s"/api/customers/GT-CUS-994332344")
           .withQueryStringParameter("apikey", "someApiKey"),
-        Times.exactly(3)
+        Times.exactly(2)
       )
       .respond(
         response("Some error")

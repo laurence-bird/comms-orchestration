@@ -79,8 +79,11 @@ object Main extends App with LoggingWithMDC {
 
   val profileCustomer = {
     val retryConfig = Retry.RetryConfig(
-      attempts = config.getInt("profile.service.http.attempts"),
-      backoff = Retry.Backoff.constantDelay(config.getDuration("profile.service.http.interval").toFiniteDuration)
+      attempts = config.getInt("profile.http.retry.attempts"),
+      backoff = Retry.Backoff.exponential(
+        config.getDuration("profile.http.retry.initialInterval").toFiniteDuration,
+        config.getDouble("profile.http.retry.exponent")
+      )
     )
     CustomerProfiler(
       httpClient = HttpClient.apply,
