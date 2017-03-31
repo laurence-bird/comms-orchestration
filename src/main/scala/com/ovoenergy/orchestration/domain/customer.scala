@@ -13,10 +13,10 @@ package object customer {
 
   case class CustomerProfile(name: CustomerProfileName,
                              emailAddress: Option[String],
-                             mobileNumber: Option[String],
+                             phoneNumber: Option[String],
                              communicationPreferences: Seq[CommunicationPreference])
 
   // DeliverTo is either phone number or email address
   case class CustomerDeliveryDetails(name: CustomerProfileName, deliverTo: String)
-  
+
 }

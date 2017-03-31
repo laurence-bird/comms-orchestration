@@ -33,25 +33,25 @@ object Orchestrator extends LoggingWithMDC {
                                channel: Channel): Either[ErrorDetails, CustomerDeliveryDetails] = {
       channel match {
         case SMS => {
-          customerProfile.mobileNumber
+          customerProfile.phoneNumber
             .map(p => CustomerDeliveryDetails(customerProfile.name, p))
-            .toRight{
-              logWarn(triggered.metadata.traceToken , "Phone number missing from customer profile")
+            .toRight {
+              logWarn(triggered.metadata.traceToken, "Phone number missing from customer profile")
               ErrorDetails("Phone number missing from customer profile", InvalidProfile)
             }
         }
         case Email =>
           customerProfile.emailAddress
             .map(e => CustomerDeliveryDetails(customerProfile.name, e))
-            .toRight{
+            .toRight {
               val errorDetails = "Phone number missing from customer profile"
-              logWarn(triggered.metadata.traceToken , errorDetails)
+              logWarn(triggered.metadata.traceToken, errorDetails)
               ErrorDetails(errorDetails, InvalidProfile)
             }
 
-        case otherChannel =>{
+        case otherChannel => {
           val errorDetails = s"Channel ${otherChannel.toString} unavailable"
-          logWarn(triggered.metadata.traceToken , errorDetails)
+          logWarn(triggered.metadata.traceToken, errorDetails)
           Left(ErrorDetails(errorDetails, ErrorCode.OrchestrationError))
         }
       }

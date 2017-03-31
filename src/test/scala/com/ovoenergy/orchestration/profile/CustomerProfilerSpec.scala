@@ -100,7 +100,7 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
           suffix = None
         ),
         emailAddress = Some("qatesting@ovoenergy.com"),
-        mobileNumber = Some("+447985631544"),
+        phoneNumber = Some("+447985631544"),
         communicationPreferences = Seq(
           customer.CommunicationPreference(
             Service,

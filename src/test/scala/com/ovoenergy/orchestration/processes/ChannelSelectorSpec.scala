@@ -130,13 +130,13 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
     val channelResult =
       ChannelSelector.determineChannel(retrieveTemplate(emailOnlyTemplate))(customerProfileAllPreferences, triggered)
 
-    channelResult shouldBe Right(ErrorDetails("No available channels that the customer accepts", OrchestrationError))
+    channelResult shouldBe Left(ErrorDetails("No available channels that the customer accepts", OrchestrationError))
   }
 
   it should "Use the lower priority channel if the customer is missing contact details for the high priority channel" in {
     val triggered = triggeredBase.copy(preferredChannels = Some(List(SMS, Email)))
     val customerProfileAllPreferences =
-      customerProfileNoPreferences.copy(mobileNumber = None)
+      customerProfileNoPreferences.copy(phoneNumber = None)
     val channelResult =
       ChannelSelector.determineChannel(retrieveTemplate(emailOnlyTemplate))(customerProfileAllPreferences, triggered)
 

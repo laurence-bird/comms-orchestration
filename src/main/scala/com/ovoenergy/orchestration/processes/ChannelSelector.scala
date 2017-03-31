@@ -107,7 +107,7 @@ object ChannelSelector extends LoggingWithMDC {
       customerProfile: CustomerProfile): Either[ErrorDetails, NonEmptyList[Channel]] = {
 
     val channels = List(
-      customerProfile.mobileNumber.map(_ => SMS),
+      customerProfile.phoneNumber.map(_ => SMS),
       customerProfile.emailAddress.map(_ => Email)
     ).flatten
 

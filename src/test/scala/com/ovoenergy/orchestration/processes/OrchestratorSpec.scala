@@ -120,7 +120,7 @@ class OrchestratorSpec
   }
 
   it should "handle SMS channel" in {
-    val profileWithPhoneNumber = customerProfile.copy(mobileNumber = Some("12345678"))
+    val profileWithPhoneNumber = customerProfile.copy(phoneNumber = Some("12345678"))
     def selectEmailChannel     = (customerProfile: CustomerProfile, triggeredV2: TriggeredV2) => Right(SMS)
     val orchestrator =
       Orchestrator(customerProfiler(profileWithPhoneNumber),
@@ -131,7 +131,7 @@ class OrchestratorSpec
     whenReady(orchestrator.right.value) { resultMetadata =>
       resultMetadata shouldBe SMSOrchestratedMetadata
       passedCustomerProfile shouldBe Some(
-        CustomerDeliveryDetails(profileWithPhoneNumber.name, profileWithPhoneNumber.mobileNumber.get))
+        CustomerDeliveryDetails(profileWithPhoneNumber.name, profileWithPhoneNumber.phoneNumber.get))
       passedTriggered shouldBe Some(triggered)
     }
   }

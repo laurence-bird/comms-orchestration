@@ -17,8 +17,8 @@ import com.ovoenergy.comms.templates.{ErrorsOr, TemplatesContext, TemplatesRepo}
 import com.ovoenergy.orchestration.aws.AwsProvider
 import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
-import com.ovoenergy.orchestration.kafka.consumers.{CancellationRequestConsumer, TriggeredConsumer}
 import com.ovoenergy.orchestration.domain.HasIds._
+import com.ovoenergy.orchestration.kafka.consumers.{CancellationRequestConsumer, TriggeredConsumer}
 import com.ovoenergy.orchestration.domain.customer.CustomerDeliveryDetails
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
