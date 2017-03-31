@@ -111,17 +111,17 @@ class KafkaTesting(config: Config) {
   def pollForEvents[E](pollTime: FiniteDuration = 20000.millisecond,
                        noOfEventsExpected: Int,
                        consumer: ApacheKafkaConsumer[String, Option[E]],
-                       topic: String) = {
+                       topic: String): Seq[E] = {
     @tailrec
     def poll(deadline: Deadline, events: Seq[E]): Seq[E] = {
       if (deadline.hasTimeLeft) {
-        val polledEvents = consumer
+        val polledEvents: Seq[E] = consumer
           .poll(100)
-          .records(smsOrchestratedTopic)
+          .records(topic)
           .asScala
           .toList
           .flatMap(_.value())
-        val eventsSoFar = events ++ polledEvents
+        val eventsSoFar: Seq[E] = events ++ polledEvents
         eventsSoFar.length match {
           case n if n == noOfEventsExpected => eventsSoFar
           case exceeded if exceeded > noOfEventsExpected =>
