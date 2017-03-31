@@ -56,13 +56,14 @@ object ChannelSelector extends LoggingWithMDC {
       }
     }
 
-    def sortChannels(availableChannels: NonEmptyList[Channel]): List[Channel] = {
+    def determineChannel(availableChannels: NonEmptyList[Channel]): Channel = {
       val triggerPreferencesMap = triggered.preferredChannels.getOrElse(Nil).zipWithIndex.toMap
       val triggerPriority       = priority(triggerPreferencesMap) _
 
       availableChannels.toList
         .sortBy(costPriority)
         .sortBy(triggerPriority)
+        .head
     }
 
     for {
@@ -70,7 +71,7 @@ object ChannelSelector extends LoggingWithMDC {
       channelsWithTemplates      <- findChannelsWithTemplates(retrieveTemplate, triggered)
       availableChannels          <- findAvailableChannels(channelsWithTemplates, channelsWithContactDetails)
       acceptableChannels         <- filterByCustomerPreferences(availableChannels, customerPrefs)
-    } yield sortChannels(acceptableChannels).head
+    } yield determineChannel(acceptableChannels)
 
   }
 
@@ -106,7 +107,7 @@ object ChannelSelector extends LoggingWithMDC {
       customerProfile: CustomerProfile): Either[ErrorDetails, NonEmptyList[Channel]] = {
 
     val channels = List(
-      customerProfile.phoneNumber.map(_ => SMS),
+      customerProfile.mobileNumber.map(_ => SMS),
       customerProfile.emailAddress.map(_ => Email)
     ).flatten
 

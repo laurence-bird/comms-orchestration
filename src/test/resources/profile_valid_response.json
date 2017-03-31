@@ -4,9 +4,6 @@
     "lastName": "Wayne",
     "firstName": "John"
   },
-  "emailAddresses": {
-    "primary": "qatesting@ovoenergy.com"
-  },
   "emailAddress": "qatesting@ovoenergy.com",
   "phoneNumber": "+447985631544",
   "communicationPreferences": [

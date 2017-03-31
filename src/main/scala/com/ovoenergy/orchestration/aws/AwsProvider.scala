@@ -30,7 +30,7 @@ object AwsProvider {
 
   def templatesContext(isRunningInCompose: Boolean, region: Regions) = {
     val awsCreds = getCreds(isRunningInCompose, region)
-    TemplatesContext.nonCachingContext(awsCreds)
+    TemplatesContext.cachingContext(awsCreds)
   }
 
   private def getCreds(isRunningInCompose: Boolean, region: Regions): AWSCredentialsProvider = {

@@ -12,16 +12,13 @@ import org.apache.kafka.clients.consumer.{KafkaConsumer => ApacheKafkaConsumer}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
 import org.apache.kafka.clients.producer.ProducerRecord
-
 import scala.concurrent.duration._
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.{Deadline, FiniteDuration}
 import scala.util.Random
 import scala.util.control.NonFatal
-
 class KafkaTesting(config: Config) {
-
   val kafkaHosts     = "localhost:29092"
   val zookeeperHosts = "localhost:32181"
 
@@ -38,7 +35,7 @@ class KafkaTesting(config: Config) {
     KafkaConsumerConf(new StringDeserializer, avroDeserializer[Cancelled], kafkaHosts, consumerGroup))
   val commFailedConsumer = KafkaConsumer(
     KafkaConsumerConf(new StringDeserializer, avroDeserializer[Failed], kafkaHosts, consumerGroup))
-  val emailOrchestratedConsumer = KafkaConsumer(
+  val orchestratedEmailConsumer = KafkaConsumer(
     KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestratedEmailV2], kafkaHosts, consumerGroup))
   val smsOrchestratedConsumer = KafkaConsumer(
     KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestratedSMS], kafkaHosts, consumerGroup))
@@ -97,8 +94,8 @@ class KafkaTesting(config: Config) {
     orchestrationStartedConsumer.poll(5000).records(orchestrationStartedTopic).asScala.toList
     commFailedConsumer.assign(Seq(new TopicPartition(failedTopic, 0)).asJava)
     commFailedConsumer.poll(5000).records(failedTopic).asScala.toList
-    emailOrchestratedConsumer.assign(Seq(new TopicPartition(emailOrchestratedTopic, 0)).asJava)
-    emailOrchestratedConsumer.poll(5000).records(emailOrchestratedTopic).asScala.toList
+    orchestratedEmailConsumer.assign(Seq(new TopicPartition(emailOrchestratedTopic, 0)).asJava)
+    orchestratedEmailConsumer.poll(5000).records(emailOrchestratedTopic).asScala.toList
     smsOrchestratedConsumer.assign(Seq(new TopicPartition(smsOrchestratedTopic, 0)).asJava)
     smsOrchestratedConsumer.poll(5000).records(smsOrchestratedTopic)
     cancelationRequestedConsumer.assign(Seq(new TopicPartition(cancellationRequestTopic, 0)).asJava)

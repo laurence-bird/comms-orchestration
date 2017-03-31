@@ -8,11 +8,7 @@ import com.ovoenergy.comms.model.CommType.Service
 import com.ovoenergy.orchestration.domain.customer.CommunicationPreference._
 import com.ovoenergy.comms.model.ErrorCode.ProfileRetrievalFailed
 import com.ovoenergy.orchestration.domain.customer
-import com.ovoenergy.orchestration.domain.customer.{
-  CustomerProfile,
-  CustomerProfileEmailAddresses,
-  CustomerProfileName
-}
+import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileName}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.retry.Retry
 import okhttp3._
@@ -103,12 +99,8 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
           lastName = "Wayne",
           suffix = None
         ),
-        emailAddresses = CustomerProfileEmailAddresses(
-          primary = Some("qatesting@ovoenergy.com"),
-          secondary = None
-        ),
         emailAddress = Some("qatesting@ovoenergy.com"),
-        phoneNumber = Some("+447985631544"),
+        mobileNumber = Some("+447985631544"),
         communicationPreferences = Seq(
           customer.CommunicationPreference(
             Service,

@@ -4,8 +4,19 @@ import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType._
 import com.ovoenergy.orchestration.util.LocalDynamoDB
 import com.ovoenergy.orchestration.util.LocalDynamoDB.SecondaryIndexData
+import org.scalatest.{BeforeAndAfterAll, Suite}
 
-trait DynamoTesting {
+trait DynamoTesting extends BeforeAndAfterAll { this: Suite =>
+
+  override abstract def beforeAll() = {
+    super.beforeAll()
+    createTable()
+  }
+
+  override def afterAll() = {
+    super.afterAll()
+    removeTable()
+  }
 
   val dynamoUrl    = "http://localhost:8000"
   val dynamoClient = LocalDynamoDB.client(dynamoUrl)
@@ -33,6 +44,10 @@ trait DynamoTesting {
           waitUntilTableMade(noAttemptsLeft - 1)
       }
     }
+  }
+
+  def removeTable() = {
+    dynamoClient.deleteTable(tableName)
   }
 
 }

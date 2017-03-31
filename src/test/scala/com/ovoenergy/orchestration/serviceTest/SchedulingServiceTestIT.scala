@@ -8,6 +8,7 @@ import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model.Channel.SMS
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.scheduling.{Schedule, ScheduleStatus}
+import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence._
 import com.ovoenergy.orchestration.serviceTest.util.{
   DynamoTesting,
   FakeS3Configuration,
@@ -15,15 +16,12 @@ import com.ovoenergy.orchestration.serviceTest.util.{
   MockProfileResponses
 }
 import com.ovoenergy.orchestration.util.TestUtil
-import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence._
 import com.typesafe.config.{Config, ConfigFactory, ConfigParseOptions, ConfigResolveOptions}
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.mockserver.client.server.MockServerClient
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, Tag}
-
 import scala.collection.JavaConverters._
-import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -47,16 +45,12 @@ class SchedulingServiceTestIT
   val region           = config.getString("aws.region")
   val s3Endpoint       = "http://localhost:4569"
 
-  val uploadTemplate: (CommManifest) => Unit = uploadTemplateToS3(region, s3Endpoint)
+  val uploadTemplate: (CommManifest) => Unit = uploadTemplateToFakeS3(region, s3Endpoint)
 
   override def beforeAll() = {
+    super.beforeAll()
     uploadTemplate(TestUtil.triggered.metadata.commManifest)
-    createTable()
     kafkaTesting.setupTopics()
-  }
-
-  override def afterAll() = {
-    dynamoClient.deleteTable(tableName)
   }
 
   behavior of "Comm Scheduling"
@@ -117,7 +111,7 @@ class SchedulingServiceTestIT
           new ProducerRecord[String, CancellationRequested](cancellationRequestTopic, cancellationRequested)))
     whenReady(cancelledFuture) { _ =>
       orchestrationStartedConsumer.poll(15000).records(orchestrationStartedTopic).asScala.toList shouldBe empty
-      emailOrchestratedConsumer.poll(2000).records(emailOrchestratedTopic).asScala.toList shouldBe empty
+      orchestratedEmailConsumer.poll(2000).records(emailOrchestratedTopic).asScala.toList shouldBe empty
 
       val cancelledComs = cancelledConsumer.poll(20000).records(cancelledTopic).asScala.toList
       cancelledComs.length shouldBe 2
@@ -170,7 +164,7 @@ class SchedulingServiceTestIT
         ))
       val cancelledComs = cancelledConsumer.poll(20000).records(cancelledTopic).asScala.toList
       cancelledComs.length shouldBe 1
-      val orchestratedComms = emailOrchestratedConsumer.poll(20000).records(emailOrchestratedTopic).asScala.toList
+      val orchestratedComms = orchestratedEmailConsumer.poll(20000).records(emailOrchestratedTopic).asScala.toList
       orchestratedComms.length shouldBe 0
     }
   }
@@ -180,7 +174,7 @@ class SchedulingServiceTestIT
     val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(5).toString))
     val future    = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggered))
     whenReady(future) { _ =>
-      val orchestratedEmails = emailOrchestratedConsumer.poll(1000).records(emailOrchestratedTopic).asScala.toList
+      val orchestratedEmails = orchestratedEmailConsumer.poll(1000).records(emailOrchestratedTopic).asScala.toList
       orchestratedEmails shouldBe empty
       expectOrchestrationStartedEvents(noOfEventsExpected = 1)
       expectOrchestratedEmailEvents(noOfEventsExpected = 1)
@@ -229,7 +223,7 @@ class SchedulingServiceTestIT
                                     shouldCheckTraceToken: Boolean = true) = {
     val orchestratedEmails = pollForEvents[OrchestratedEmailV2](pollTime,
                                                                 noOfEventsExpected,
-                                                                emailOrchestratedConsumer,
+                                                                orchestratedEmailConsumer,
                                                                 emailOrchestratedTopic)
     orchestratedEmails.map { orchestratedEmail =>
       orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"

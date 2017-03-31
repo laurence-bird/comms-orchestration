@@ -12,14 +12,11 @@ package object customer {
   implicit val channelDecoder  = deriveEnumerationDecoder[Channel]
 
   case class CustomerProfile(name: CustomerProfileName,
-                             emailAddresses: CustomerProfileEmailAddresses,
                              emailAddress: Option[String],
-                             phoneNumber: Option[String],
+                             mobileNumber: Option[String],
                              communicationPreferences: Seq[CommunicationPreference])
 
   // DeliverTo is either phone number or email address
   case class CustomerDeliveryDetails(name: CustomerProfileName, deliverTo: String)
-
-  case class CommDeliveryDetails(channel: Channel, customerDeliveryDetails: CustomerDeliveryDetails)
-
+  
 }

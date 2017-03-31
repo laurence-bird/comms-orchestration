@@ -111,8 +111,8 @@ object Main extends App with LoggingWithMDC {
   val orchestrateComm: (TriggeredV2, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]] = Orchestrator(
     profileCustomer = profileCustomer,
     determineChannel = determineChannel,
-    orchestrateEmail = orchestrateEmail,
-    orchestrateSMS = orchestrateSMS,
+    sendOrchestratedEmailEvent = orchestrateEmail,
+    sendOrchestratedSMSEvent = orchestrateSMS,
     validateProfile = ProfileValidation.apply
   )
 

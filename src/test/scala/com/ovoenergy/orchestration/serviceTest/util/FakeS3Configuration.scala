@@ -7,7 +7,7 @@ import com.ovoenergy.comms.model.CommManifest
 
 trait FakeS3Configuration {
 
-  def uploadTemplateToS3(region: String, s3Endpoint: String)(commManifest: CommManifest): Unit = {
+  def uploadTemplateToFakeS3(region: String, s3Endpoint: String)(commManifest: CommManifest): Unit = {
     // disable chunked encoding to work around https://github.com/jubos/fake-s3/issues/164
     val s3clientOptions = S3ClientOptions.builder().setPathStyleAccess(true).disableChunkedEncoding().build()
 

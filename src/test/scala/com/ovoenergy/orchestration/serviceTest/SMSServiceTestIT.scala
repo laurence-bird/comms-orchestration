@@ -44,17 +44,16 @@ class SMSServiceTestIT
   object DockerComposeTag extends Tag("DockerComposeTag")
 
   override def beforeAll() = {
-    createTable()
-    setupTopics() // Move to respective traits TODO
+    super.beforeAll()
+    setupTopics()
+    kafkaTesting.setupTopics()
   }
-
-  override def afterAll() = {}
 
   behavior of "SMS Orchestration"
 
   it should "orchestrate SMS request to send immediately" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse(mockServerClient)
-    uploadTemplateToS3(region, s3Endpoint)(TestUtil.triggered.metadata.commManifest)
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.triggered.metadata.commManifest)
     val triggerSMS = TestUtil.triggered.copy(preferredChannels = Some(List(SMS)))
     val future     = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggerSMS))
     whenReady(future) { _ =>

@@ -1,14 +1,8 @@
 package com.ovoenergy.orchestration.serviceTest
 
-import java.time.Instant
-
-import com.amazonaws.services.dynamodbv2.model.{AttributeValue, PutItemRequest}
-import com.gu.scanamo.{Scanamo, Table}
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, ProfileRetrievalFailed}
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.scheduling.{Schedule, ScheduleStatus}
-import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence._
 import com.ovoenergy.orchestration.serviceTest.util.{
   DynamoTesting,
   FakeS3Configuration,
@@ -21,8 +15,6 @@ import org.apache.kafka.clients.producer.ProducerRecord
 import org.mockserver.client.server.MockServerClient
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, Tag}
-
-import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -47,13 +39,9 @@ class EmailServiceTestIT
   import kafkaTesting._
 
   override def beforeAll() = {
-    createTable()
+    super.beforeAll()
     kafkaTesting.setupTopics()
-    uploadTemplateToS3(region, s3Endpoint)(TestUtil.triggered.metadata.commManifest)
-  }
-
-  override def afterAll() = {
-    dynamoClient.deleteTable(tableName)
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.triggered.metadata.commManifest)
   }
 
   val mockServerClient = new MockServerClient("localhost", 1080)
@@ -104,7 +92,7 @@ class EmailServiceTestIT
   }
 
   it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
-    uploadTemplateToS3(region, s3Endpoint)(TestUtil.metadata.commManifest)
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.metadata.commManifest)
     createInvalidCustomerProfileResponse(mockServerClient)
     val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
@@ -112,7 +100,7 @@ class EmailServiceTestIT
       val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
       failures.size shouldBe 1
       failures.foreach(record => {
-        val failure = record.value().getOrElse(fail("No record for ${record.key()}"))
+        val failure = record.value().getOrElse(fail(s"No record for ${record.key()}"))
         failure.reason should include("No contact details found on customer profile")
         failure.errorCode shouldBe InvalidProfile
         failure.metadata.traceToken shouldBe TestUtil.traceToken
@@ -163,7 +151,7 @@ class EmailServiceTestIT
                                     shouldCheckTraceToken: Boolean = true) = {
     val orchestratedEmails = pollForEvents[OrchestratedEmailV2](pollTime,
                                                                 noOfEventsExpected,
-                                                                emailOrchestratedConsumer,
+                                                                orchestratedEmailConsumer,
                                                                 emailOrchestratedTopic)
     orchestratedEmails.map { orchestratedEmail =>
       orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"

@@ -25,7 +25,7 @@ trait ArbGenerator {
 
   def generate[A: Arbitrary] =
     implicitly[Arbitrary[A]].arbitrary
-      .apply(Gen.Parameters.default.withSize(Random.nextInt(5)), Seed.random())
+      .apply(Gen.Parameters.default.withSize(Random.nextInt(2)), Seed.random())
       .get
 
 }
