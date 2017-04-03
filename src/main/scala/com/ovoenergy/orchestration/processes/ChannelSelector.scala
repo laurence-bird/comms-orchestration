@@ -3,7 +3,7 @@ package com.ovoenergy.orchestration.processes
 import cats.Id
 import cats.data.NonEmptyList
 import cats.syntax.either._
-import cats.data.Validated.Valid
+import cats.data.Validated.{Invalid, Valid}
 import com.ovoenergy.comms.model.Channel.{Email, SMS}
 import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, InvalidTemplate, OrchestrationError}
 import com.ovoenergy.comms.model.{Channel, CommManifest, ErrorCode, TriggeredV2}
@@ -94,12 +94,14 @@ object ChannelSelector extends LoggingWithMDC {
           s"No valid template found for comm: ${triggeredV2.metadata.commManifest.name} version ${triggeredV2.metadata.commManifest.version}",
           InvalidTemplate
         )
-      case _ =>
+      case Invalid(errors) =>{
+        logInfo(triggeredV2.metadata.traceToken, s"Invalid template retrieved: ${errors.toList.mkString(", " )}")
         Left(
           ErrorDetails(
-            s"No Templates found for comm: ${triggeredV2.metadata.commManifest.name} version ${triggeredV2.metadata.commManifest.version}",
+            s"Invalid template: ${errors.toList.mkString(", ")}",
             ErrorCode.InvalidTemplate
           ))
+      }
     }
   }
 

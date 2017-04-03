@@ -20,10 +20,7 @@ object AwsProvider {
       dynamoClient.setEndpoint(sys.env("LOCAL_DYNAMO"))
       dynamoClient
     } else {
-      val awsCreds = new AWSCredentialsProviderChain(
-        new ContainerCredentialsProvider(),
-        new ProfileCredentialsProvider("comms")
-      )
+      val awsCreds = getCreds(isRunningInCompose, region)
       new AmazonDynamoDBClient(awsCreds).withRegion(region)
     }
   }
@@ -39,7 +36,7 @@ object AwsProvider {
     else
       new AWSCredentialsProviderChain(
         new ContainerCredentialsProvider(),
-        new ProfileCredentialsProvider("comms")
+        new ProfileCredentialsProvider()
       )
   }
 }
