@@ -62,12 +62,13 @@ services:
       - "-jar"
       - "DynamoDBLocal.jar"
       - "-sharedDb"
-    mem_limit: 256m
+    mem_limit: 128m
 
   fakes3:
     image: lphoward/fake-s3
     ports:
       - "4569:4569"
+    mem_limit: 128m
 
   fakes3ssl:
     image: cbachich/ssl-proxy
@@ -80,3 +81,4 @@ services:
     environment:
       - PORT=443
       - TARGET_PORT=4569
+    mem_limit: 128m
