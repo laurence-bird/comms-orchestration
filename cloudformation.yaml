@@ -34,6 +34,17 @@ Resources:
                 - 'dynamodb:DescribeTable'
               Resource:
                 - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SchedulingTable}*"
+        -
+          PolicyName: read-templates-bucket
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+                - 's3:Get*'
+                - 's3:List*'
+              Resource:
+                - 'arn:aws:s3:::ovo-comms-templates'
+                - 'arn:aws:s3:::ovo-comms-templates/*'
 
   SchedulingTable:
     Type: AWS::DynamoDB::Table
