@@ -15,8 +15,11 @@ object HasIds {
 
   implicit val failedCancellationHasIds = HasIds
     .instance[FailedCancellation](_.cancellationRequested.metadata.traceToken, _.cancellationRequested.customerId)
-  implicit val failedHasIds       = HasIds.instance[Failed](_.metadata.traceToken, _.metadata.customerId)
-  implicit val orchStartedHasIds  = HasIds.instance[OrchestrationStarted](_.metadata.traceToken, _.metadata.customerId)
-  implicit val cancelledHasIds    = HasIds.instance[Cancelled](_.metadata.traceToken, _.metadata.customerId)
-  implicit val OrchestratedHasIds = HasIds.instance[OrchestratedEmailV2](_.metadata.traceToken, _.metadata.customerId)
+  implicit val failedHasIds      = HasIds.instance[Failed](_.metadata.traceToken, _.metadata.customerId)
+  implicit val orchStartedHasIds = HasIds.instance[OrchestrationStarted](_.metadata.traceToken, _.metadata.customerId)
+  implicit val cancelledHasIds   = HasIds.instance[Cancelled](_.metadata.traceToken, _.metadata.customerId)
+  implicit val OrchestratedEmailHasIds =
+    HasIds.instance[OrchestratedEmailV2](_.metadata.traceToken, _.metadata.customerId)
+  implicit val OrchestratedSMSHasIds =
+    HasIds.instance[OrchestratedSMS](_.metadata.traceToken, _.metadata.customerId)
 }

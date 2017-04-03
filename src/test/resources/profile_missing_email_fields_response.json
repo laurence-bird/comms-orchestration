@@ -1,0 +1,22 @@
+{
+  "name": {
+    "title": "Mr",
+    "firstName": "John",
+    "lastName": "Wayne",
+    "suffix": null
+  },
+  "communicationPreferences": [
+    {
+      "commType": "Service",
+      "channels": [
+        "SMS",
+        "Email",
+        "Post"
+      ]
+    },
+    {
+      "commType": "Marketing",
+      "channels": []
+    }
+  ]
+}

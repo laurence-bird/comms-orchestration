@@ -5,7 +5,7 @@ import java.time.{Clock, Instant, ZoneId}
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType._
 import com.ovoenergy.orchestration.scheduling.Persistence.{AlreadyBeingOrchestrated, Successful}
 import com.ovoenergy.orchestration.scheduling._
-import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence.Context
+import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence.{Context}
 import com.ovoenergy.orchestration.util.{ArbGenerator, LocalDynamoDB}
 import com.ovoenergy.orchestration.util.LocalDynamoDB.SecondaryIndexData
 import org.scalatest.{FlatSpec, Matchers}

@@ -10,11 +10,10 @@ import com.ovoenergy.orchestration.scheduling.Persistence.{
   Failed => FailedPersistence,
   Successful
 }
+import scala.concurrent.ExecutionContext.Implicits.global
 import org.apache.kafka.clients.producer.RecordMetadata
-import cats.syntax.either._
-
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{Await, Future}
 import scala.util.control.NonFatal
 
 object TaskExecutor extends LoggingWithMDC {
@@ -22,8 +21,7 @@ object TaskExecutor extends LoggingWithMDC {
               orchestrateTrigger: (TriggeredV2, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]],
               sendOrchestrationStartedEvent: OrchestrationStarted => Future[RecordMetadata],
               generateTraceToken: () => String,
-              sendFailedEvent: Failed => Future[RecordMetadata])(scheduleId: ScheduleId)(
-      implicit ec: ExecutionContext): Unit = {
+              sendFailedEvent: Failed => Future[RecordMetadata])(scheduleId: ScheduleId): Unit = {
 
     def failed(reason: String,
                triggered: TriggeredV2,

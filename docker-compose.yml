@@ -10,6 +10,7 @@ services:
     links:
       - kafka
       - profile.service
+      - fakes3ssl:ovo-comms-templates.s3-eu-west-1.amazonaws.com
     environment:
       ENV: LOCAL
       KAFKA_HOSTS: kafka:29092
@@ -50,15 +51,34 @@ services:
     mem_limit: 128m
 
   dynamodb:
-      image: forty8bit/dynamodb-local
-      ports:
-        - "8000:8000"
-      entrypoint:
-        - "java"
-        - "-Xmx256M"
-        - "-Xms128M"
-        - "-Djava.library.path=./DynamoDBLocal_lib"
-        - "-jar"
-        - "DynamoDBLocal.jar"
-        - "-sharedDb"
-      mem_limit: 256m
+    image: forty8bit/dynamodb-local
+    ports:
+      - "8000:8000"
+    entrypoint:
+      - "java"
+      - "-Xmx256M"
+      - "-Xms128M"
+      - "-Djava.library.path=./DynamoDBLocal_lib"
+      - "-jar"
+      - "DynamoDBLocal.jar"
+      - "-sharedDb"
+    mem_limit: 128m
+
+  fakes3:
+    image: lphoward/fake-s3
+    ports:
+      - "4569:4569"
+    mem_limit: 128m
+
+  fakes3ssl:
+    image: cbachich/ssl-proxy
+    depends_on:
+      - fakes3
+    ports:
+      - "443:443"
+    links:
+      - fakes3:proxyapp
+    environment:
+      - PORT=443
+      - TARGET_PORT=4569
+    mem_limit: 128m

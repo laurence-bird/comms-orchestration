@@ -8,6 +8,7 @@ import io.circe.generic.auto._
 object Serialisation {
 
   val orchestratedEmailV2Serializer     = avroSerializer[OrchestratedEmailV2]
+  val orchestratedSMSV2Serializer       = avroSerializer[OrchestratedSMS]
   val triggeredV2Deserializer           = avroDeserializer[TriggeredV2]
   val failedSerializer                  = avroSerializer[Failed]
   val cancelledSerializer               = avroSerializer[Cancelled]
