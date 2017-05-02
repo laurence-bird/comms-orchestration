@@ -20,6 +20,9 @@ services:
       DOCKER_COMPOSE : "true"
       POLL_FOR_EXPIRED_INTERVAL: "5 seconds"
     mem_limit: 380m
+    volumes:
+      # share AWS creds so that credstash works
+      - $HOME/.aws:/sbin/.aws
 
   zookeeper:
     image: confluentinc/cp-zookeeper:3.1.1
