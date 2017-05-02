@@ -45,6 +45,21 @@ Resources:
               Resource:
                 - 'arn:aws:s3:::ovo-comms-templates'
                 - 'arn:aws:s3:::ovo-comms-templates/*'
+        -
+          PolicyName: read-credstash
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+                - 'kms:Decrypt'
+              Resource:
+                - !Sub "arn:aws:kms:eu-west-1:${AWS::AccountId}:key/*"
+            - Effect: Allow
+              Action:
+                - 'dynamodb:GetItem'
+                - 'dynamodb:Query'
+              Resource:
+                - !Sub "arn:aws:dynamodb:eu-west-1:${AWS::AccountId}:table/credential-store"
 
   SchedulingTable:
     Type: AWS::DynamoDB::Table
