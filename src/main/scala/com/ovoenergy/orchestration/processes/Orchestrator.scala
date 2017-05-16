@@ -5,19 +5,22 @@ import com.ovoenergy.orchestration.domain.customer.{CustomerDeliveryDetails, Cus
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import org.apache.kafka.clients.producer.RecordMetadata
 import cats.syntax.either._
+import com.ovoenergy.comms.model._
+import com.ovoenergy.orchestration.processes.Scheduler.CustomerId
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 object Orchestrator extends LoggingWithMDC {
   case class ErrorDetails(reason: String, errorCode: ErrorCode)
-  type SendEvent = (CustomerDeliveryDetails, TriggeredV2, InternalMetadata) => Future[RecordMetadata]
+  type SendEvent = (CustomerDeliveryDetails, TriggeredV3, InternalMetadata) => Future[RecordMetadata]
 
   def apply(profileCustomer: (String, Boolean, String) => Either[ErrorDetails, CustomerProfile],
-            determineChannel: (CustomerProfile, TriggeredV2) => Either[ErrorDetails, Channel],
+            determineChannel: (CustomerProfile, TriggeredV3) => Either[ErrorDetails, Channel],
             validateProfile: (CustomerProfile) => Either[ErrorDetails, CustomerProfile],
             sendOrchestratedEmailEvent: SendEvent,
             sendOrchestratedSMSEvent: SendEvent)(
-      triggered: TriggeredV2,
+      triggered: TriggeredV3,
       internalMetadata: InternalMetadata): Either[ErrorDetails, Future[RecordMetadata]] = {
 
     def selectEventSender(channel: Channel): Either[ErrorDetails, SendEvent] =
@@ -53,17 +56,21 @@ object Orchestrator extends LoggingWithMDC {
           Left(ErrorDetails(errorDetails, OrchestrationError))
         }
       }
-
     }
 
-    for {
-      customerProfile <- profileCustomer(triggered.metadata.customerId,
-                                         triggered.metadata.canary,
-                                         triggered.metadata.traceToken)
-      validatedProfile        <- validateProfile(customerProfile)
-      channel                 <- determineChannel(validatedProfile, triggered)
-      eventSender             <- selectEventSender(channel)
-      customerDeliveryDetails <- buildProfileForChannel(validatedProfile, channel)
-    } yield eventSender(customerDeliveryDetails, triggered, internalMetadata)
+    def orchestrateForCustomer(triggeredV3: TriggeredV3, customerId: String) = {
+      for {
+        customerProfile         <- profileCustomer(customerId, triggered.metadata.canary, triggered.metadata.traceToken)
+        validatedProfile        <- validateProfile(customerProfile)
+        channel                 <- determineChannel(validatedProfile, triggered)
+        eventSender             <- selectEventSender(channel)
+        customerDeliveryDetails <- buildProfileForChannel(validatedProfile, channel)
+      } yield eventSender(customerDeliveryDetails, triggered, internalMetadata)
+    }
+
+    triggered.metadata.deliverTo match {
+      case Customer(customerId)               => orchestrateForCustomer(triggered, customerId)
+      case ContactDetails(emailAddr, phoneNo) => Left(ErrorDetails("Not implemented", InvalidProfile))
+    }
   }
 }

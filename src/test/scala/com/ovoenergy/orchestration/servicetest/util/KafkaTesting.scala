@@ -54,7 +54,6 @@ class KafkaTesting(config: Config) {
   val cancelationRequestedProducer = KafkaProducer(
     KafkaProducerConf(new StringSerializer, avroSerializer[CancellationRequestedV2], kafkaHosts))
 
-
   val failedTopic               = config.getString("kafka.topics.failed.v2")
   val triggeredTopic            = config.getString("kafka.topics.triggered.v3")
   val cancellationRequestTopic  = config.getString("kafka.topics.scheduling.cancellationRequest.v2")
@@ -64,7 +63,7 @@ class KafkaTesting(config: Config) {
   val smsOrchestratedTopic      = config.getString("kafka.topics.orchestrated.sms.v2")
   val orchestrationStartedTopic = config.getString("kafka.topics.orchestration.started.v2")
 
-  val legacyTriggeredTopic            = config.getString("kafka.topics.triggered.v2")
+  val legacyTriggeredTopic = config.getString("kafka.topics.triggered.v2")
 
   val topics = Seq(
     failedTopic,

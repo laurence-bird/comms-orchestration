@@ -2,7 +2,12 @@ package com.ovoenergy.orchestration.scheduling
 
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.scheduling.Persistence.{AlreadyBeingOrchestrated, SetAsOrchestratingResult, Successful, Failed => FailedPersistence}
+import com.ovoenergy.orchestration.scheduling.Persistence.{
+  AlreadyBeingOrchestrated,
+  SetAsOrchestratingResult,
+  Successful,
+  Failed => FailedPersistence
+}
 import com.ovoenergy.orchestration.util.{ArbGenerator, TestUtil}
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
@@ -27,8 +32,10 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
     override def setScheduleAsComplete(scheduleId: ScheduleId): Unit               = fail("Incorrectly invoked")
   }
   val scheduleId = "1234567890A"
-  val scheduleWithTriggeredV3   = generate[Schedule].copy(scheduleId = scheduleId, triggered = None, triggeredV3 = Some(TestUtil.triggered))
-  val scheduleWithTriggeredV2   = generate[Schedule].copy(scheduleId = scheduleId, triggered = Some(TestUtil.legacyTriggered), triggeredV3 = None)
+  val scheduleWithTriggeredV3 =
+    generate[Schedule].copy(scheduleId = scheduleId, triggered = None, triggeredV3 = Some(TestUtil.triggered))
+  val scheduleWithTriggeredV2 =
+    generate[Schedule].copy(scheduleId = scheduleId, triggered = Some(TestUtil.legacyTriggered), triggeredV3 = None)
 
   val recordMetadata      = new RecordMetadata(new TopicPartition("test", 1), 1, 1, Record.NO_TIMESTAMP, -1, -1, -1)
   var triggerOrchestrated = Option.empty[(TriggeredV3, InternalMetadata)]
@@ -115,7 +122,10 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
     //side effects
     triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV3.get, InternalMetadata(traceToken))
     failedEventSent shouldBe Some(
-      FailedV2(scheduleWithTriggeredV3.triggeredV3.get.metadata, InternalMetadata(traceToken), "Some error", OrchestrationError))
+      FailedV2(scheduleWithTriggeredV3.triggeredV3.get.metadata,
+               InternalMetadata(traceToken),
+               "Some error",
+               OrchestrationError))
     scheduleFailedPersist shouldBe Some(scheduleId, "Some error")
   }
 
@@ -144,9 +154,9 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
     eventually {
       failedEventSent shouldBe Some(
         FailedV2(scheduleWithTriggeredV3.triggeredV3.get.metadata,
-               InternalMetadata(traceToken),
-               "Orchestrating comm timed out",
-               OrchestrationError))
+                 InternalMetadata(traceToken),
+                 "Orchestrating comm timed out",
+                 OrchestrationError))
       scheduleAsFailed shouldBe Some(scheduleId, "Orchestrating comm timed out")
     }(PatienceConfig(Span(11, Seconds)))
   }
@@ -271,21 +281,23 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
     }
 
     TaskExecutor.execute(Orchestrating,
-      orchestrateTrigger,
-      sendOrchestrationStartedEvent,
-      generateTraceToken,
-      sendFailedEvent)(scheduleId)
+                         orchestrateTrigger,
+                         sendOrchestrationStartedEvent,
+                         generateTraceToken,
+                         sendFailedEvent)(scheduleId)
 
     eventually {
       //side effects
-      triggerOrchestrated shouldBe Some(Schedule.triggeredAsV3(scheduleWithTriggeredV2).get, InternalMetadata(traceToken))
+      triggerOrchestrated shouldBe Some(Schedule.triggeredAsV3(scheduleWithTriggeredV2).get,
+                                        InternalMetadata(traceToken))
       failedEventSent shouldBe None
       scheduleAsComplete shouldBe Some(scheduleId)
     }(PatienceConfig(Span(3, Seconds)))
   }
 
   it should "fail orchestration if schedule has no triggered events" in {
-    val scheduleWithoutTriggered = generate[Schedule].copy(scheduleId = scheduleId, triggered = None, triggeredV3 = None)
+    val scheduleWithoutTriggered =
+      generate[Schedule].copy(scheduleId = scheduleId, triggered = None, triggeredV3 = None)
     var scheduleFailedPersist = Option.empty[(ScheduleId, String)]
     object Orchestrating extends StubPersistence {
       override def attemptSetScheduleAsOrchestrating(sId: ScheduleId): SetAsOrchestratingResult = {
@@ -298,16 +310,16 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
     }
 
     TaskExecutor.execute(Orchestrating,
-      orchestrateTrigger,
-      sendOrchestrationStartedEvent,
-      generateTraceToken,
-      sendFailedEvent)(scheduleId)
+                         orchestrateTrigger,
+                         sendOrchestrationStartedEvent,
+                         generateTraceToken,
+                         sendFailedEvent)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe None
     failedEventSent shouldBe None
     scheduleFailedPersist.get._1 shouldBe scheduleId
-    scheduleFailedPersist.get._2 should include ("Unable to orchestrate as no Triggered event in Schedule:")
+    scheduleFailedPersist.get._2 should include("Unable to orchestrate as no Triggered event in Schedule:")
   }
 
 }

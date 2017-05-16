@@ -2,7 +2,12 @@ package com.ovoenergy.orchestration.serviceTest
 
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.model.sms.OrchestratedSMSV2
-import com.ovoenergy.orchestration.serviceTest.util.{DynamoTesting, FakeS3Configuration, KafkaTesting, MockProfileResponses}
+import com.ovoenergy.orchestration.serviceTest.util.{
+  DynamoTesting,
+  FakeS3Configuration,
+  KafkaTesting,
+  MockProfileResponses
+}
 import com.ovoenergy.orchestration.util.TestUtil
 import com.typesafe.config.{Config, ConfigFactory, ConfigParseOptions, ConfigResolveOptions}
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -80,9 +85,9 @@ class SMSServiceTestIT
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true) = {
     val orchestrationStartedEvents = pollForEvents[OrchestrationStartedV2](pollTime,
-                                                                         noOfEventsExpected,
-                                                                         orchestrationStartedConsumer,
-                                                                         orchestrationStartedTopic)
+                                                                           noOfEventsExpected,
+                                                                           orchestrationStartedConsumer,
+                                                                           orchestrationStartedTopic)
     orchestrationStartedEvents.foreach { o =>
       if (shouldCheckTraceToken) o.metadata.traceToken shouldBe TestUtil.traceToken
     }

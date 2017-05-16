@@ -24,7 +24,7 @@ object ChannelSelector extends LoggingWithMDC {
 
   def determineChannel(retrieveTemplate: CommManifest => ErrorsOr[CommTemplate[Id]])(
       customerProfile: CustomerProfile,
-      triggered: TriggeredV2): Either[ErrorDetails, Channel] = {
+      triggered: TriggeredV3): Either[ErrorDetails, Channel] = {
 
     val customerPrefs: Option[NonEmptyList[Channel]] = {
       val prefsForCommType = customerProfile.communicationPreferences.collectFirst({
@@ -82,18 +82,18 @@ object ChannelSelector extends LoggingWithMDC {
   }
 
   private def findChannelsWithTemplates(retrieveTemplate: CommManifest => ErrorsOr[CommTemplate[Id]],
-                                        triggeredV2: TriggeredV2): Either[ErrorDetails, NonEmptyList[Channel]] = {
-    retrieveTemplate(triggeredV2.metadata.commManifest) match {
+                                        triggeredV3: TriggeredV3): Either[ErrorDetails, NonEmptyList[Channel]] = {
+    retrieveTemplate(triggeredV3.metadata.commManifest) match {
       case Valid(template) =>
         val channelsWithTemplates = List(template.email.map(_ => Email), template.sms.map(_ => SMS)).flatten
 
         nonEmptyListFrom(
           channelsWithTemplates,
-          s"No valid template found for comm: ${triggeredV2.metadata.commManifest.name} version ${triggeredV2.metadata.commManifest.version}",
+          s"No valid template found for comm: ${triggeredV3.metadata.commManifest.name} version ${triggeredV3.metadata.commManifest.version}",
           InvalidTemplate
         )
       case Invalid(errors) => {
-        logInfo(triggeredV2.metadata.traceToken, s"Invalid template retrieved: ${errors.toList.mkString(", ")}")
+        logInfo(triggeredV3.metadata.traceToken, s"Invalid template retrieved: ${errors.toList.mkString(", ")}")
         Left(
           ErrorDetails(
             s"Invalid template: ${errors.toList.mkString(", ")}",

@@ -30,8 +30,8 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
 
   val emailTemplate       = generate[EmailTemplate[Id]]
   val smsTemplate         = generate[SMSTemplate[Id]]
-  val serviceCommMetadata = generate[Metadata].copy(commManifest = CommManifest(Service, "test-comm", "1.0"))
-  val triggeredBase       = generate[TriggeredV2].copy(metadata = serviceCommMetadata)
+  val serviceCommMetadata = generate[MetadataV2].copy(commManifest = CommManifest(Service, "test-comm", "1.0"))
+  val triggeredBase       = generate[TriggeredV3].copy(metadata = serviceCommMetadata)
 
   val noChannelsTemplate  = CommTemplate(None, None)
   val emailOnlyTemplate   = CommTemplate[Id](Some(emailTemplate), None)

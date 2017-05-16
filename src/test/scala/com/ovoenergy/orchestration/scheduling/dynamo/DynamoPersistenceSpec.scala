@@ -16,15 +16,15 @@ import org.scalacheck.Shapeless._
 import scala.collection.mutable
 
 case class LegacySchedule(
-                           scheduleId: ScheduleId,
-                           triggered: TriggeredV2,
-                           deliverAt: Instant,
-                           status: ScheduleStatus,
-                           history: Seq[Change],
-                           orchestrationExpiry: Instant,
-                           customerId: Option[String],
-                           commName: String
-                         )
+    scheduleId: ScheduleId,
+    triggered: TriggeredV2,
+    deliverAt: Instant,
+    status: ScheduleStatus,
+    history: Seq[Change],
+    orchestrationExpiry: Instant,
+    customerId: Option[String],
+    commName: String
+)
 
 class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
 
@@ -36,7 +36,7 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
     SecondaryIndexData("customerId-commName-index", Seq('customerId    -> S, 'commName            -> S)),
     SecondaryIndexData("status-orchestrationExpiry-index", Seq('status -> S, 'orchestrationExpiry -> N))
   )
-  val context = Context(client, tableName)
+  val context     = Context(client, tableName)
   val persistence = new DynamoPersistence(5, context, clock)
 
   behavior of "Persistence"
@@ -161,7 +161,7 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
     }
   }
 
- /* //Probably not worth running all the time as pretty slow (2 minutes)
+  /* //Probably not worth running all the time as pretty slow (2 minutes)
   ignore should "handle paging when retrieving schedules to cancel" in {
     LocalDynamoDB.withTableWithSecondaryIndex(client, tableName)(Seq('scheduleId -> S))(secondaryIndices) {
       val commName   = "some-comm"
@@ -218,6 +218,5 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
       pending.head.triggered shouldBe Some(legacySchedule.triggered)
     }
   }
-
 
 }

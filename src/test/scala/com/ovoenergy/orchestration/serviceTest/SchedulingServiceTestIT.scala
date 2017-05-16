@@ -10,7 +10,12 @@ import com.ovoenergy.comms.model.email._
 import com.ovoenergy.comms.model.sms._
 import com.ovoenergy.orchestration.scheduling.{Schedule, ScheduleStatus}
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence._
-import com.ovoenergy.orchestration.serviceTest.util.{DynamoTesting, FakeS3Configuration, KafkaTesting, MockProfileResponses}
+import com.ovoenergy.orchestration.serviceTest.util.{
+  DynamoTesting,
+  FakeS3Configuration,
+  KafkaTesting,
+  MockProfileResponses
+}
 import com.ovoenergy.orchestration.util.TestUtil
 import com.typesafe.config.{Config, ConfigFactory, ConfigParseOptions, ConfigResolveOptions}
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -92,10 +97,10 @@ class SchedulingServiceTestIT
       triggered2
     )
     val genericMetadata = GenericMetadataV2(triggeredEvents.head.metadata.createdAt,
-                                          triggered1.metadata.eventId,
-                                          triggered1.metadata.traceToken,
-                                          triggered1.metadata.source,
-                                          false)
+                                            triggered1.metadata.eventId,
+                                            triggered1.metadata.traceToken,
+                                            triggered1.metadata.source,
+                                            false)
     val cancellationRequested: CancellationRequestedV2 =
       CancellationRequestedV2(genericMetadata, triggered1.metadata.commManifest.name, TestUtil.customerId)
 
@@ -121,8 +126,8 @@ class SchedulingServiceTestIT
   }
 
   it should "generate a cancellationFailed event if unable to deschedule a comm" taggedAs DockerComposeTag in {
-    val triggered  = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(15)))
-    val commName   = triggered.metadata.commManifest.name
+    val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(15)))
+    val commName  = triggered.metadata.commManifest.name
 
     // Create an invalid schedule record
     dynamoClient.putItem(
@@ -137,10 +142,10 @@ class SchedulingServiceTestIT
       )
     )
     val genericMetadata = GenericMetadataV2(triggered.metadata.createdAt,
-                                          triggered.metadata.eventId,
-                                          triggered.metadata.traceToken,
-                                          triggered.metadata.source,
-                                          false)
+                                            triggered.metadata.eventId,
+                                            triggered.metadata.traceToken,
+                                            triggered.metadata.source,
+                                            false)
 
     val cancellationRequested = CancellationRequestedV2(genericMetadata, commName, TestUtil.customerId)
 
@@ -191,8 +196,8 @@ class SchedulingServiceTestIT
       orchestratedSMS shouldBe empty
       expectOrchestrationStartedEvents(noOfEventsExpected = 1)
       val orchestratedSMSEvents = pollForEvents[OrchestratedSMSV2](noOfEventsExpected = 1,
-                                                                 consumer = smsOrchestratedConsumer,
-                                                                 topic = smsOrchestratedTopic)
+                                                                   consumer = smsOrchestratedConsumer,
+                                                                   topic = smsOrchestratedTopic)
 
       orchestratedSMSEvents.foreach { ev =>
         ev.recipientPhoneNumber shouldBe "+447985631544"
@@ -206,9 +211,9 @@ class SchedulingServiceTestIT
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true) = {
     val orchestrationStartedEvents = pollForEvents[OrchestrationStartedV2](pollTime,
-                                                                         noOfEventsExpected,
-                                                                         orchestrationStartedConsumer,
-                                                                         orchestrationStartedTopic)
+                                                                           noOfEventsExpected,
+                                                                           orchestrationStartedConsumer,
+                                                                           orchestrationStartedTopic)
     orchestrationStartedEvents.foreach { o =>
       if (shouldCheckTraceToken) o.metadata.traceToken shouldBe TestUtil.traceToken
     }
