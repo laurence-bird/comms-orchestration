@@ -9,8 +9,7 @@ import com.gu.scanamo._
 import com.gu.scanamo.error.{ConditionNotMet, DynamoReadError, TypeCoercionError}
 import com.gu.scanamo.query.{AndCondition, Condition}
 import com.gu.scanamo.syntax._
-import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
-import com.ovoenergy.comms.model.{CommType, TemplateData}
+import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.scheduling.Persistence.{
   AlreadyBeingOrchestrated,
@@ -55,13 +54,13 @@ object DynamoPersistence {
   }
 
   implicit val commTypeDynamoFormat = DynamoFormat.coercedXmap[CommType, String, MatchError] {
-    case "Service"    => CommType.Service
-    case "Regulatory" => CommType.Regulatory
-    case "Marketing"  => CommType.Marketing
+    case "Service"    => Service
+    case "Regulatory" => Regulatory
+    case "Marketing"  => Marketing
   } {
-    case CommType.Service    => "Service"
-    case CommType.Regulatory => "Regulatory"
-    case CommType.Marketing  => "Marketing"
+    case Service    => "Service"
+    case Regulatory => "Regulatory"
+    case Marketing  => "Marketing"
   }
 
   import io.circe.shapes._

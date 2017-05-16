@@ -2,9 +2,6 @@ package com.ovoenergy.orchestration.processes
 
 import cats.Id
 import cats.data.Validated.Valid
-import com.ovoenergy.comms.model.Channel._
-import com.ovoenergy.comms.model.CommType.Service
-import com.ovoenergy.comms.model.ErrorCode.{InvalidTemplate, OrchestrationError}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
 import com.ovoenergy.comms.templates.model.template.processed.email.EmailTemplate

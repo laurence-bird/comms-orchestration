@@ -17,7 +17,6 @@ import com.ovoenergy.comms.templates.{ErrorsOr, TemplatesContext, TemplatesRepo}
 import com.ovoenergy.orchestration.aws.AwsProvider
 import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
-import com.ovoenergy.orchestration.domain.HasIds._
 import com.ovoenergy.orchestration.kafka.consumers.{CancellationRequestConsumer, TriggeredConsumer}
 import com.ovoenergy.orchestration.domain.customer.CustomerDeliveryDetails
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
@@ -34,6 +33,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.concurrent.duration._
+
+import com.ovoenergy.comms.serialisation.Codecs._
 
 object Main extends App with LoggingWithMDC {
 
@@ -73,21 +74,20 @@ object Main extends App with LoggingWithMDC {
     )
   )
 
-  val orchestrateEmail: (CustomerDeliveryDetails, TriggeredV2, InternalMetadata) => Future[RecordMetadata] =
-    OrchestratedEmailEvent.send(
-      Producer(
-        hosts = kafkaHosts,
-        topic = config.getString("kafka.topics.orchestrated.email.v2"),
-        serialiser = Serialisation.orchestratedEmailV2Serializer,
-        retryConfig = kafkaProducerRetryConfig
-      )
+  val orchestrateEmail = OrchestratedEmailEvent.send(
+    Producer(
+      hosts = kafkaHosts,
+      topic = config.getString("kafka.topics.orchestrated.email.v2"),
+      serialiser = Serialisation.orchestratedEmailSerializer,
+      retryConfig = kafkaProducerRetryConfig
     )
+  )
 
   val orchestrateSMS = OrchestratedSMSEvent.send(
     Producer(
       hosts = kafkaHosts,
       topic = config.getString("kafka.topics.orchestrated.sms"),
-      serialiser = Serialisation.orchestratedSMSV2Serializer,
+      serialiser = Serialisation.orchestratedSMSSerializer,
       retryConfig = kafkaProducerRetryConfig
     )
   )
@@ -108,31 +108,31 @@ object Main extends App with LoggingWithMDC {
     ) _
   }
 
-  val orchestrateComm: (TriggeredV2, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]] = Orchestrator(
-    profileCustomer = profileCustomer,
-    determineChannel = determineChannel,
-    sendOrchestratedEmailEvent = orchestrateEmail,
-    sendOrchestratedSMSEvent = orchestrateSMS,
-    validateProfile = ProfileValidation.apply
-  )
+  val orchestrateComm: (TriggeredV3, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]] = ??? //Orchestrator(
+//    profileCustomer = profileCustomer,
+//    determineChannel = determineChannel,
+//    sendOrchestratedEmailEvent = orchestrateEmail,
+//    sendOrchestratedSMSEvent = orchestrateSMS,
+//    validateProfile = ProfileValidation.apply
+//  )
 
-  val sendFailedTriggerEvent: Failed => Future[RecordMetadata] = {
+  val sendFailedTriggerEvent: FailedV2 => Future[RecordMetadata] = {
     Producer(
       hosts = kafkaHosts,
-      topic = config.getString("kafka.topics.failed"),
-      serialiser = Serialisation.failedSerializer,
+      topic = config.getString("kafka.topics.failed.v2"),
+      serialiser = Serialisation.failedV2Serializer,
       retryConfig = kafkaProducerRetryConfig
     )
   }
 
-  val sendCancelledEvent: (Cancelled) => Future[RecordMetadata] = Producer(
+  val sendCancelledEvent: (CancelledV2) => Future[RecordMetadata] = Producer(
     hosts = kafkaHosts,
-    topic = config.getString("kafka.topics.scheduling.cancelled"),
+    topic = config.getString("kafka.topics.scheduling.cancelled.v2"),
     serialiser = Serialisation.cancelledSerializer,
     retryConfig = kafkaProducerRetryConfig
   )
 
-  val sendFailedCancellationEvent: (FailedCancellation) => Future[RecordMetadata] =
+  val sendFailedCancellationEvent: (FailedCancellationV2) => Future[RecordMetadata] =
     Producer(
       hosts = kafkaHosts,
       topic = config.getString("kafka.topics.scheduling.failedCancellation"),
@@ -140,11 +140,11 @@ object Main extends App with LoggingWithMDC {
       retryConfig = kafkaProducerRetryConfig
     )
 
-  val sendOrchestrationStartedEvent: OrchestrationStarted => Future[RecordMetadata] =
+  val sendOrchestrationStartedEvent: OrchestrationStartedV2 => Future[RecordMetadata] =
     Producer(
       hosts = kafkaHosts,
-      topic = config.getString("kafka.topics.orchestration.started"),
-      serialiser = Serialisation.orchestrationStartedSerializer,
+      topic = config.getString("kafka.topics.orchestration.started.v2"),
+      serialiser = Serialisation.orchestrationStartedV2Serializer,
       retryConfig = kafkaProducerRetryConfig
     )
 
@@ -159,9 +159,9 @@ object Main extends App with LoggingWithMDC {
   val descheduleComm = Scheduler.descheduleComm(schedulingPersistence.cancelSchedules, removeSchedule) _
 
   val schedulingGraph = TriggeredConsumer(
-    consumerDeserializer = Serialisation.triggeredV2Deserializer,
+    consumerDeserializer = Serialisation.triggeredDeserializer,
     scheduleTask = scheduleTask,
-    sendFailedEvent = sendFailedTriggerEvent,
+    sendFailedEvent = ???,
     config = KafkaConfig(
       hosts = kafkaHosts,
       groupId = config.getString("kafka.group.id"),

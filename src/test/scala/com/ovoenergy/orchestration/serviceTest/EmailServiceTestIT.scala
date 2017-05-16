@@ -1,20 +1,15 @@
 package com.ovoenergy.orchestration.serviceTest
 
-import com.ovoenergy.comms.model
-import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, ProfileRetrievalFailed}
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.serviceTest.util.{
-  DynamoTesting,
-  FakeS3Configuration,
-  KafkaTesting,
-  MockProfileResponses
-}
+import com.ovoenergy.comms.model.email.OrchestratedEmailV3
+import com.ovoenergy.orchestration.serviceTest.util.{DynamoTesting, FakeS3Configuration, KafkaTesting, MockProfileResponses}
 import com.ovoenergy.orchestration.util.TestUtil
 import com.typesafe.config.{Config, ConfigFactory, ConfigParseOptions, ConfigResolveOptions}
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.mockserver.client.server.MockServerClient
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, Tag}
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -54,7 +49,7 @@ class EmailServiceTestIT
 
   it should "orchestrate emails request to send immediately" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse(mockServerClient)
-    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
+    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.triggered))
     whenReady(future) { _ =>
       expectOrchestrationStartedEvents(10000.millisecond, 1)
       expectOrchestratedEmailEvents(10000.millisecond, 1)
@@ -63,8 +58,8 @@ class EmailServiceTestIT
 
   it should "generate unique internalTraceTokens" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse(mockServerClient)
-    triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
-    triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
+    triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.triggered))
+    triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.triggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 2)
     val events = expectOrchestratedEmailEvents(noOfEventsExpected = 2)
     events match {
@@ -77,8 +72,8 @@ class EmailServiceTestIT
 
     var futures = new mutable.ListBuffer[Future[_]]
     (1 to 10).foreach(counter => {
-      val triggered = TestUtil.triggered.copy(metadata = TestUtil.metadata.copy(traceToken = counter.toString))
-      futures += triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggered))
+      val triggered = TestUtil.triggered.copy(metadata = TestUtil.metadataV2.copy(traceToken = counter.toString))
+      futures += triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
     })
     futures.foreach(future => Await.ready(future, 1.seconds))
 
@@ -94,7 +89,7 @@ class EmailServiceTestIT
   it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.metadata.commManifest)
     createInvalidCustomerProfileResponse(mockServerClient)
-    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
+    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.triggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
     whenReady(future) { _ =>
       val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
@@ -111,7 +106,7 @@ class EmailServiceTestIT
   it should "raise failure when customer profiler fails" taggedAs DockerComposeTag in {
     createBadCustomerProfileResponse(mockServerClient)
 
-    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
+    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.triggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
     whenReady(future) { _ =>
       val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
@@ -128,7 +123,7 @@ class EmailServiceTestIT
   it should "retry if the profile service returns an error response" taggedAs DockerComposeTag in {
     createFlakyCustomerProfileResponse(mockServerClient)
 
-    triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, TestUtil.triggered))
+    triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.triggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
     expectOrchestratedEmailEvents(noOfEventsExpected = 1)
   }
@@ -136,7 +131,7 @@ class EmailServiceTestIT
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25000.millisecond,
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true) = {
-    val orchestrationStartedEvents = pollForEvents[OrchestrationStarted](pollTime,
+    val orchestrationStartedEvents = pollForEvents[OrchestrationStartedV2](pollTime,
                                                                          noOfEventsExpected,
                                                                          orchestrationStartedConsumer,
                                                                          orchestrationStartedTopic)
@@ -149,13 +144,13 @@ class EmailServiceTestIT
   def expectOrchestratedEmailEvents(pollTime: FiniteDuration = 25000.millisecond,
                                     noOfEventsExpected: Int,
                                     shouldCheckTraceToken: Boolean = true) = {
-    val orchestratedEmails = pollForEvents[OrchestratedEmailV2](pollTime,
+    val orchestratedEmails = pollForEvents[OrchestratedEmailV3](pollTime,
                                                                 noOfEventsExpected,
                                                                 orchestratedEmailConsumer,
                                                                 emailOrchestratedTopic)
     orchestratedEmails.map { orchestratedEmail =>
       orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
-      orchestratedEmail.customerProfile shouldBe model.CustomerProfile("John", "Wayne")
+      orchestratedEmail.customerProfile shouldBe Some(CustomerProfile("John", "Wayne"))
       orchestratedEmail.templateData shouldBe TestUtil.templateData
       if (shouldCheckTraceToken) orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
       orchestratedEmail

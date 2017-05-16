@@ -3,10 +3,8 @@ package com.ovoenergy.orchestration.profile
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
-import com.ovoenergy.comms.model.Channel.{Email, SMS}
-import com.ovoenergy.comms.model.CommType.Service
+import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.customer.CommunicationPreference._
-import com.ovoenergy.comms.model.ErrorCode.ProfileRetrievalFailed
 import com.ovoenergy.orchestration.domain.customer
 import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileName}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails

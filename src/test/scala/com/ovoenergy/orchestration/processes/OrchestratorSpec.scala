@@ -1,7 +1,5 @@
 package com.ovoenergy.orchestration.processes
 
-import com.ovoenergy.comms.model.Channel.{Email, Post, SMS}
-import com.ovoenergy.comms.model.ErrorCode.{OrchestrationError, ProfileRetrievalFailed}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.customer.{CustomerDeliveryDetails, CustomerProfile}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
@@ -57,7 +55,7 @@ class OrchestratorSpec
 
   val validProfile = (customerProfile: CustomerProfile) => Right(customerProfile)
   val invalidProfile = (customerProfile: CustomerProfile) =>
-    Left(ErrorDetails("Name missing from profile", ErrorCode.InvalidProfile))
+    Left(ErrorDetails("Name missing from profile", InvalidProfile))
 
   override def beforeEach(): Unit = {
     passedCustomerProfile = None

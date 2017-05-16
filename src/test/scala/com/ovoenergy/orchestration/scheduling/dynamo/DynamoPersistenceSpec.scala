@@ -105,17 +105,17 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
       val commName   = "some-comm"
       val customerId = "23141141241"
       val completedSchedule =
-        generate[Schedule].copy(customerId = customerId, commName = commName, status = ScheduleStatus.Complete)
+        generate[Schedule].copy(customerId = Some(customerId), commName = commName, status = ScheduleStatus.Complete)
       val pendingSchedule = generate[Schedule].copy(history = List(),
-                                                    customerId = customerId,
+                                                    customerId = Some(customerId),
                                                     commName = commName,
                                                     status = ScheduleStatus.Pending)
       val expiredOrchestratingSchedule = generate[Schedule].copy(history = List(),
-                                                                 customerId = customerId,
+                                                                 customerId = Some(customerId),
                                                                  commName = commName,
                                                                  status = ScheduleStatus.Orchestrating,
                                                                  orchestrationExpiry = now.minusSeconds(60 * 30))
-      val inProgressOrchestratingSchedule = generate[Schedule].copy(customerId = customerId,
+      val inProgressOrchestratingSchedule = generate[Schedule].copy(customerId = Some(customerId),
                                                                     commName = commName,
                                                                     status = ScheduleStatus.Orchestrating,
                                                                     orchestrationExpiry = now.plusSeconds(60 * 10))
@@ -158,7 +158,7 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
         val id = DynamoPersistence.generateScheduleId()
         ids += id
         val pendingSchedule = generate[Schedule].copy(scheduleId = id,
-                                                      customerId = customerId,
+                                                      customerId = Some(customerId),
                                                       commName = commName,
                                                       status = ScheduleStatus.Pending)
         persistence.storeSchedule(pendingSchedule)

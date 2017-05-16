@@ -1,6 +1,6 @@
 package com.ovoenergy.orchestration.profile
 
-import com.ovoenergy.comms.model.ErrorCode
+import com.ovoenergy.comms.model.InvalidProfile
 import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileName}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.scalatest.{EitherValues, FlatSpec, Matchers}
@@ -29,7 +29,7 @@ class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues {
     )
     ProfileValidation(badCustomerProfile).left.value shouldBe ErrorDetails(
       "Customer has no first name, Customer has no last name",
-      ErrorCode.InvalidProfile)
+      InvalidProfile)
 
   }
 

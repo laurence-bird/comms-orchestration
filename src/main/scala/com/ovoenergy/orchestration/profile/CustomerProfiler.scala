@@ -8,7 +8,7 @@ import com.ovoenergy.orchestration.retry.Retry.{Failed, RetryConfig}
 import com.ovoenergy.orchestration.domain.customer._
 import io.circe.generic.auto._
 import cats.syntax.either._
-import com.ovoenergy.comms.model.ErrorCode.ProfileRetrievalFailed
+import com.ovoenergy.comms.model.ProfileRetrievalFailed
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.retry.Retry
 

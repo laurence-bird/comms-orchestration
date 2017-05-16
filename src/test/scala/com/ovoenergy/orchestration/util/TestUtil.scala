@@ -1,8 +1,8 @@
 package com.ovoenergy.orchestration.util
 
+import java.time.Instant
 import java.util.UUID
 
-import com.ovoenergy.comms.model.Channel.Email
 import com.ovoenergy.comms.model._
 import shapeless.Coproduct
 
@@ -12,7 +12,7 @@ object TestUtil {
   val createdAt           = "2019-01-01T12:34:44.222Z"
   val customerId          = "GT-CUS-994332344"
   val friendlyDescription = "The customer did something cool and wants to know"
-  val commManifest        = CommManifest(CommType.Service, "test-comm", "1.0")
+  val commManifest        = CommManifest(Service, "test-comm", "1.0")
   val templateDataV1      = Map("someKey" -> "someValue")
   val templateData        = Map("someKey" -> TemplateData(Coproduct[TemplateData.TD]("someValue")))
 
@@ -29,13 +29,34 @@ object TestUtil {
     triggerSource = "test-trigger"
   )
 
+  val metadataV2 = MetadataV2(
+    createdAt = Instant.parse(createdAt),
+    eventId = UUID.randomUUID().toString,
+    deliverTo = Customer(customerId),
+    traceToken = traceToken,
+    friendlyDescription = friendlyDescription,
+    source = "tests",
+    sourceMetadata = None,
+    commManifest = commManifest,
+    canary = false,
+    triggerSource = "test-trigger"
+  )
+
   val triggeredV1 = Triggered(
     metadata = metadata,
     templateData = templateDataV1
   )
 
-  val triggered = TriggeredV2(
+  val legacyTriggered = TriggeredV2(
     metadata = metadata,
+    templateData = templateData,
+    deliverAt = None,
+    expireAt = None,
+    Some(List(Email))
+  )
+
+  val triggered = TriggeredV3(
+    metadata = metadataV2,
     templateData = templateData,
     deliverAt = None,
     expireAt = None,

@@ -1,8 +1,6 @@
 package com.ovoenergy.orchestration.processes
 
-import com.ovoenergy.comms.model.Channel.{Email, SMS}
-import com.ovoenergy.comms.model.ErrorCode.{InvalidProfile, OrchestrationError}
-import com.ovoenergy.comms.model.{InternalMetadata, _}
+import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.customer.{CustomerDeliveryDetails, CustomerProfile}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import org.apache.kafka.clients.producer.RecordMetadata
@@ -52,7 +50,7 @@ object Orchestrator extends LoggingWithMDC {
         case otherChannel => {
           val errorDetails = s"Channel ${otherChannel.toString} unavailable"
           logWarn(triggered.metadata.traceToken, errorDetails)
-          Left(ErrorDetails(errorDetails, ErrorCode.OrchestrationError))
+          Left(ErrorDetails(errorDetails, OrchestrationError))
         }
       }
 

@@ -1,7 +1,7 @@
 package com.ovoenergy.orchestration.kafka
 
-import com.ovoenergy.comms.model
-import com.ovoenergy.comms.model.{InternalMetadata, Metadata, OrchestratedSMS, TriggeredV2}
+import com.ovoenergy.comms.model.sms.{OrchestratedSMS, OrchestratedSMSV2}
+import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.customer.CustomerDeliveryDetails
 import org.apache.kafka.clients.producer.RecordMetadata
 
@@ -9,16 +9,14 @@ import scala.concurrent.Future
 
 object OrchestratedSMSEvent {
 
-  def send(sendEvent: OrchestratedSMS => Future[RecordMetadata]) = {
+  def send(sendEvent: OrchestratedSMSV2 => Future[RecordMetadata]) = {
 
-    (customerProfile: CustomerDeliveryDetails, triggered: TriggeredV2, internalMetadata: InternalMetadata) =>
-      val orchestratedSMSEvent = OrchestratedSMS(
-        metadata = Metadata.fromSourceMetadata(
-          source = "orchestration",
-          sourceMetadata = triggered.metadata
-        ),
+    //TODO - Handle ContactDetails
+    (customerProfile: CustomerDeliveryDetails, triggered: TriggeredV3, internalMetadata: InternalMetadata) =>
+      val orchestratedSMSEvent = OrchestratedSMSV2(
+        metadata = MetadataV2.fromSourceMetadata("orchestration", triggered.metadata),
         customerProfile =
-          model.CustomerProfile(firstName = customerProfile.name.firstName, lastName = customerProfile.name.lastName),
+          Some(CustomerProfile(firstName = customerProfile.name.firstName, lastName = customerProfile.name.lastName)),
         templateData = triggered.templateData,
         internalMetadata = internalMetadata,
         expireAt = triggered.expireAt,

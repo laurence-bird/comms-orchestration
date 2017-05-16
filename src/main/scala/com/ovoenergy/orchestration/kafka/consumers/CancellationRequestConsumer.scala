@@ -22,9 +22,9 @@ object CancellationRequestConsumer extends LoggingWithMDC {
 
   val deserializer = Serialisation.cancellationRequestedDeserializer
 
-  def apply(sendFailedCancellationEvent: (FailedCancellation) => Future[RecordMetadata],
-            sendSuccessfulCancellationEvent: (Cancelled => Future[RecordMetadata]),
-            descheduleComm: CancellationRequested => Seq[Either[ErrorDetails, Metadata]],
+  def apply(sendFailedCancellationEvent: (FailedCancellationV2) => Future[RecordMetadata],
+            sendSuccessfulCancellationEvent: (CancelledV2 => Future[RecordMetadata]),
+            descheduleComm: CancellationRequestedV2 => Seq[Either[ErrorDetails, MetadataV2]],
             config: KafkaConfig,
             generateTraceToken: () => String)(implicit actorSystem: ActorSystem,
                                               materializer: Materializer): RunnableGraph[Control] = {
@@ -52,14 +52,14 @@ object CancellationRequestConsumer extends LoggingWithMDC {
             val futures = descheduleComm(cancellationRequest).map {
               case Left(err) =>
                 sendFailedCancellationEvent(
-                  FailedCancellation(
-                    GenericMetadata.fromSourceGenericMetadata("orchestration", cancellationRequest.metadata),
+                  FailedCancellationV2(
+                    GenericMetadataV2.fromSourceGenericMetadata("orchestration", cancellationRequest.metadata),
                     cancellationRequest,
                     s"Cancellation of scheduled comm failed: ${err.reason}"
                   ))
               case Right(metadata) =>
                 sendSuccessfulCancellationEvent(
-                  Cancelled(Metadata.fromSourceMetadata("orchestration", metadata), cancellationRequest))
+                  CancelledV2(MetadataV2.fromSourceMetadata("orchestration", metadata), cancellationRequest))
             }
             Future.sequence(futures)
           case None =>

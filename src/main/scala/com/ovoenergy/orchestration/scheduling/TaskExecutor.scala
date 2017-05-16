@@ -18,17 +18,17 @@ import scala.util.control.NonFatal
 
 object TaskExecutor extends LoggingWithMDC {
   def execute(persistence: Persistence.Orchestration,
-              orchestrateTrigger: (TriggeredV2, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]],
-              sendOrchestrationStartedEvent: OrchestrationStarted => Future[RecordMetadata],
+              orchestrateTrigger: (TriggeredV3, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]],
+              sendOrchestrationStartedEvent: OrchestrationStartedV2 => Future[RecordMetadata],
               generateTraceToken: () => String,
-              sendFailedEvent: Failed => Future[RecordMetadata])(scheduleId: ScheduleId): Unit = {
+              sendFailedEvent: FailedV2 => Future[RecordMetadata])(scheduleId: ScheduleId): Unit = {
 
     def failed(reason: String,
-               triggered: TriggeredV2,
+               triggered: TriggeredV3,
                errorCode: ErrorCode,
                internalMetadata: InternalMetadata): Unit = {
       persistence.setScheduleAsFailed(scheduleId, reason)
-      val future = sendFailedEvent(Failed(triggered.metadata, internalMetadata, reason, errorCode))
+      val future = sendFailedEvent(FailedV2(triggered.metadata, internalMetadata, reason, errorCode))
       try {
         Await.result(future, 5.seconds)
       } catch {
@@ -36,7 +36,7 @@ object TaskExecutor extends LoggingWithMDC {
       }
     }
 
-    def awaitOrchestrationFuture(triggered: TriggeredV2,
+    def awaitOrchestrationFuture(triggered: TriggeredV3,
                                  internalMetadata: InternalMetadata,
                                  f: Future[RecordMetadata]): Unit = {
       try {
@@ -47,10 +47,10 @@ object TaskExecutor extends LoggingWithMDC {
           logWarn(triggered.metadata.traceToken,
                   "Orchestrating comm timed out, the comm may still get orchestrated, raising failed event",
                   e)
-          failed("Orchestrating comm timed out", triggered, ErrorCode.OrchestrationError, internalMetadata)
+          failed("Orchestrating comm timed out", triggered, OrchestrationError, internalMetadata)
         case NonFatal(e) =>
           logWarn(triggered.metadata.traceToken, "Unable to orchestrate comm, raising failed event", e)
-          failed(e.getMessage, triggered, ErrorCode.OrchestrationError, internalMetadata)
+          failed(e.getMessage, triggered, OrchestrationError, internalMetadata)
       }
     }
 
@@ -62,10 +62,17 @@ object TaskExecutor extends LoggingWithMDC {
         log.warn(
           s"Unable to orchestrate scheduleId: $scheduleId, failed to mark as orchestrating in persistence. Unable to raise a failed event.")
       case Successful(schedule) =>
-        sendOrchestrationStartedEvent(OrchestrationStarted(schedule.triggered.metadata, internalMetadata))
-        orchestrateTrigger(schedule.triggered, internalMetadata) match {
-          case Right(f) => awaitOrchestrationFuture(schedule.triggered, internalMetadata, f)
-          case Left(e)  => failed(e.reason, schedule.triggered, e.errorCode, internalMetadata)
+        Schedule.triggeredAsV3(schedule) match {
+          case Some(triggered) =>
+            sendOrchestrationStartedEvent(OrchestrationStartedV2(triggered.metadata, internalMetadata))
+            orchestrateTrigger(triggered, internalMetadata) match {
+              case Right(f) => awaitOrchestrationFuture(triggered, internalMetadata, f)
+              case Left(e)  => failed(e.reason, triggered, e.errorCode, internalMetadata)
+            }
+          case None =>
+            val failureReason = s"Unable to orchestrate as no Triggered event in Schedule: $schedule"
+            log.warn(failureReason)
+            persistence.setScheduleAsFailed(scheduleId, failureReason)
         }
     }
   }

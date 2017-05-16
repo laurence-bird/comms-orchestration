@@ -2,8 +2,7 @@ package com.ovoenergy.orchestration.processes
 
 import java.time.{Clock, Instant, ZoneId}
 
-import com.ovoenergy.comms.model.{CancellationRequested, ErrorCode, Metadata}
-import com.ovoenergy.comms.model.ErrorCode.OrchestrationError
+import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.processes.Scheduler.{CommName, CustomerId}
 import com.ovoenergy.orchestration.scheduling.ScheduleStatus.Pending
@@ -37,7 +36,7 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
     //Side effects
     storedSchedule.get.triggered shouldBe triggered
     storedSchedule.get.commName shouldBe triggered.metadata.commManifest.name
-    storedSchedule.get.customerId shouldBe triggered.metadata.customerId
+    storedSchedule.get.customerId shouldBe None
     storedSchedule.get.deliverAt shouldBe now
     storedSchedule.get.status shouldBe Pending
     scheduledId.isDefined shouldBe true
@@ -45,13 +44,13 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
   }
 
   it should "persist and schedule a future comm" in {
-    val triggered = TestUtil.triggered.copy(deliverAt = Some("2036-01-01T12:34:44.000Z"))
+    val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.parse("2036-01-01T12:34:44.000Z")))
     Scheduler.scheduleComm(storeSchedule, registerTask, clock)(triggered) shouldBe Right(true)
 
     //Side effects
     storedSchedule.get.triggered shouldBe triggered
     storedSchedule.get.commName shouldBe triggered.metadata.commManifest.name
-    storedSchedule.get.customerId shouldBe triggered.metadata.customerId
+    storedSchedule.get.customerId shouldBe None
     storedSchedule.get.deliverAt shouldBe Instant.ofEpochMilli(2082803684000l)
     storedSchedule.get.status shouldBe Pending
     scheduledId.isDefined shouldBe true
@@ -71,17 +70,17 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
   }
 
   it should "return successful result if a cancellationRequest is successful" in {
-    val cancellationRequested = generate[CancellationRequested]
+    val cancellationRequested = generate[CancellationRequestedV2]
     val schedules             = Seq(Right(generate[Schedule]), Right(generate[Schedule]))
     val removeFromPersistence = (customerId: CustomerId, commName: CommName) => schedules
     val removeSchedule        = (scheduledId: ScheduleId) => true
     Scheduler.descheduleComm(removeFromPersistence, removeSchedule)(cancellationRequested) shouldBe
-      schedules.map(_.right.map(_.triggered.metadata))
+      schedules.map(_.right.map(_.triggeredV3.get.metadata))
   }
 
   it should "capture an appropriate error if removing the schedule from pesistent storage fails" in {
-    val cancellationRequested = generate[CancellationRequested]
-    val expectedError         = List(Left(ErrorDetails("Failed to remove from persistence", ErrorCode.OrchestrationError)))
+    val cancellationRequested = generate[CancellationRequestedV2]
+    val expectedError         = List(Left(ErrorDetails("Failed to remove from persistence", OrchestrationError)))
 
     val removeFromPersistence = (customerId: CustomerId, commName: CommName) => expectedError
     val removeSchedule        = (scheduledId: ScheduleId) => true
@@ -89,7 +88,7 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
   }
 
   it should "capture an appropriate error if removing the schedule from memory fails for a single record" in {
-    val cancellationRequested = generate[CancellationRequested]
+    val cancellationRequested = generate[CancellationRequestedV2]
     val successfulSchedule    = generate[Schedule]
     val failedSchedule        = generate[Schedule]
     val schedules             = Seq(Right(successfulSchedule), Right(failedSchedule))
@@ -103,6 +102,6 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
     val expectedError =
       Left(ErrorDetails(s"Failed to remove ${failedSchedule.scheduleId} schedule(s) from memory", OrchestrationError))
     val result = Scheduler.descheduleComm(removeFromPersistence, removeSchedule)(cancellationRequested)
-    result should contain theSameElementsAs List(Right(successfulSchedule.triggered.metadata), expectedError)
+    result should contain theSameElementsAs List(Right(successfulSchedule.triggeredV3.get.metadata), expectedError)
   }
 }

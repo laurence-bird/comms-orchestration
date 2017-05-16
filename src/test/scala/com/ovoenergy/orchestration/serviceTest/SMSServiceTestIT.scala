@@ -1,14 +1,8 @@
 package com.ovoenergy.orchestration.serviceTest
 
-import com.ovoenergy.comms.model
-import com.ovoenergy.comms.model.Channel.SMS
-import com.ovoenergy.comms.model.{OrchestratedEmailV2, OrchestratedSMS, OrchestrationStarted, TriggeredV2}
-import com.ovoenergy.orchestration.serviceTest.util.{
-  DynamoTesting,
-  FakeS3Configuration,
-  KafkaTesting,
-  MockProfileResponses
-}
+import com.ovoenergy.comms.model._
+import com.ovoenergy.comms.model.sms.OrchestratedSMSV2
+import com.ovoenergy.orchestration.serviceTest.util.{DynamoTesting, FakeS3Configuration, KafkaTesting, MockProfileResponses}
 import com.ovoenergy.orchestration.util.TestUtil
 import com.typesafe.config.{Config, ConfigFactory, ConfigParseOptions, ConfigResolveOptions}
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -55,7 +49,7 @@ class SMSServiceTestIT
     createOKCustomerProfileResponse(mockServerClient)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.triggered.metadata.commManifest)
     val triggerSMS = TestUtil.triggered.copy(preferredChannels = Some(List(SMS)))
-    val future     = triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggerSMS))
+    val future     = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggerSMS))
     whenReady(future) { _ =>
       expectOrchestrationStartedEvents(10000.millisecond, 1)
       expectSMSOrchestrationEvents(10000.millisecond, 1)
@@ -67,9 +61,9 @@ class SMSServiceTestIT
 
     var futures = new mutable.ListBuffer[Future[_]]
     (1 to 10).foreach(counter => {
-      val triggered = TestUtil.triggered.copy(metadata = TestUtil.metadata.copy(traceToken = counter.toString),
+      val triggered = TestUtil.triggered.copy(metadata = TestUtil.metadataV2.copy(traceToken = counter.toString),
                                               preferredChannels = Some(List(SMS)))
-      futures += triggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredTopic, triggered))
+      futures += triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
     })
     futures.foreach(future => Await.ready(future, 1.seconds))
 
@@ -85,7 +79,7 @@ class SMSServiceTestIT
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25000.millisecond,
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true) = {
-    val orchestrationStartedEvents = pollForEvents[OrchestrationStarted](pollTime,
+    val orchestrationStartedEvents = pollForEvents[OrchestrationStartedV2](pollTime,
                                                                          noOfEventsExpected,
                                                                          orchestrationStartedConsumer,
                                                                          orchestrationStartedTopic)
@@ -99,9 +93,9 @@ class SMSServiceTestIT
                                    noOfEventsExpected: Int,
                                    shouldCheckTraceToken: Boolean = true) = {
     val orchestratedSMS =
-      pollForEvents[OrchestratedSMS](pollTime, noOfEventsExpected, smsOrchestratedConsumer, smsOrchestratedTopic)
+      pollForEvents[OrchestratedSMSV2](pollTime, noOfEventsExpected, smsOrchestratedConsumer, smsOrchestratedTopic)
     orchestratedSMS.map { orchestratedSMS =>
-      orchestratedSMS.customerProfile shouldBe model.CustomerProfile("John", "Wayne")
+      orchestratedSMS.customerProfile shouldBe Some(CustomerProfile("John", "Wayne"))
       orchestratedSMS.templateData shouldBe TestUtil.templateData
       if (shouldCheckTraceToken) orchestratedSMS.metadata.traceToken shouldBe TestUtil.traceToken
       orchestratedSMS
