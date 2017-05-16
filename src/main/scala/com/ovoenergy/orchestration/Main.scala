@@ -7,7 +7,9 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
+import akka.kafka.scaladsl.Consumer
 import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.RunnableGraph
 import cats.Id
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
@@ -17,7 +19,12 @@ import com.ovoenergy.comms.templates.{ErrorsOr, TemplatesContext, TemplatesRepo}
 import com.ovoenergy.orchestration.aws.AwsProvider
 import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
-import com.ovoenergy.orchestration.kafka.consumers.{CancellationRequestConsumer, TriggeredConsumer}
+import com.ovoenergy.orchestration.kafka.consumers.{
+  CancellationRequestConsumer,
+  LegacyCancellationRequestConsumer,
+  LegacyTriggeredConsumer,
+  TriggeredConsumer
+}
 import com.ovoenergy.orchestration.domain.customer.CustomerDeliveryDetails
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
@@ -33,7 +40,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.concurrent.duration._
-
 import com.ovoenergy.comms.serialisation.Codecs._
 
 object Main extends App with LoggingWithMDC {
@@ -159,13 +165,23 @@ object Main extends App with LoggingWithMDC {
   val descheduleComm = Scheduler.descheduleComm(schedulingPersistence.cancelSchedules, removeSchedule) _
 
   val schedulingGraph = TriggeredConsumer(
-    consumerDeserializer = Serialisation.triggeredDeserializer,
     scheduleTask = scheduleTask,
     sendFailedEvent = sendFailedTriggerEvent,
     config = KafkaConfig(
       hosts = kafkaHosts,
       groupId = config.getString("kafka.group.id"),
       topic = config.getString("kafka.topics.triggered.v3")
+    ),
+    generateTraceToken = () => UUID.randomUUID().toString
+  )
+
+  val legacySchedulingGraph = LegacyTriggeredConsumer(
+    scheduleTask = scheduleTask,
+    sendFailedEvent = sendFailedTriggerEvent,
+    config = KafkaConfig(
+      hosts = kafkaHosts,
+      groupId = config.getString("kafka.group.id"),
+      topic = config.getString("kafka.topics.triggered.v2")
     ),
     generateTraceToken = () => UUID.randomUUID().toString
   )
@@ -182,6 +198,17 @@ object Main extends App with LoggingWithMDC {
     )
   )
 
+  val legacyCancellationRequestGraph = LegacyCancellationRequestConsumer(
+    sendFailedCancellationEvent = sendFailedCancellationEvent,
+    sendSuccessfulCancellationEvent = sendCancelledEvent,
+    generateTraceToken = () => UUID.randomUUID().toString,
+    descheduleComm = descheduleComm,
+    config = KafkaConfig(
+      hosts = kafkaHosts,
+      groupId = config.getString("kafka.group.id"),
+      topic = config.getString("kafka.topics.scheduling.cancellationRequest.v1")
+    )
+  )
   QuartzScheduling.init()
 
   /*
@@ -212,18 +239,17 @@ object Main extends App with LoggingWithMDC {
     }
   }
 
-  val schedulingControl   = schedulingGraph.run()
-  val cancellationControl = cancellationRequestGraph.run()
-
-  cancellationControl.isShutdown.foreach { _ =>
-    log.error("ARGH! The Kafka cancellation event source has shut down. Killing the JVM and nuking from orbit.")
-    System.exit(1)
+  def runGraph(graphName: String, graph: RunnableGraph[Consumer.Control]) = {
+    val control = graph.run()
+    control.isShutdown.foreach { _ =>
+      log.error(s"ARGH! The Kafka $graphName event source has shut down. Killing the JVM and nuking from orbit.")
+      System.exit(1)
+    }
   }
 
-  schedulingControl.isShutdown.foreach { _ =>
-    log.error("ARGH! The Kafka triggered event source has shut down. Killing the JVM and nuking from orbit.")
-    System.exit(1)
-  }
-
+  runGraph("scheduling", schedulingGraph)
+  runGraph("legacy scheduling", legacySchedulingGraph)
+  runGraph("cancellation", cancellationRequestGraph)
+  runGraph("legacy cancellation", legacyCancellationRequestGraph)
   log.info("Orchestration started")
 }

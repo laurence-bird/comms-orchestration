@@ -11,6 +11,7 @@ import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.kafka.{KafkaConfig, Serialisation}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.orchestration.scheduling.Schedule._
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.serialization.{Deserializer, StringDeserializer}
 
@@ -18,8 +19,9 @@ import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.util.control.NonFatal
 
-object TriggeredConsumer extends LoggingWithMDC {
-  val consumerDeserializer = Serialisation.triggeredDeserializer
+object LegacyTriggeredConsumer extends LoggingWithMDC {
+
+  val consumerDeserializer = Serialisation.legacyTriggeredDeserializer
 
   def apply(scheduleTask: (TriggeredV3) => Either[ErrorDetails, Boolean],
             sendFailedEvent: FailedV2 => Future[RecordMetadata],
@@ -45,14 +47,15 @@ object TriggeredConsumer extends LoggingWithMDC {
       .throttle(5, 1.second, 10, Shaping)
       .mapAsync(1)(msg => {
         val result: Future[_] = msg.record.value match {
-          case Some(triggered) =>
-            scheduleTask(triggered) match {
+          case Some(triggered: TriggeredV2) =>
+            val triggeredV3 = triggeredV2ToV3(triggered)
+            scheduleTask(triggeredV3) match {
               case Left(err) =>
                 sendFailedEvent(
-                  FailedV2(triggered.metadata,
-                           InternalMetadata(generateTraceToken()),
-                           s"Scheduling of comm failed: ${err.reason}",
-                           err.errorCode))
+                  FailedV2(triggeredV3.metadata,
+                    InternalMetadata(generateTraceToken()),
+                    s"Scheduling of comm failed: ${err.reason}",
+                    err.errorCode))
               case Right(_) => Future.successful(())
             }
           case None =>

@@ -51,6 +51,7 @@ class KafkaTesting(config: Config) {
 
   val triggeredProducer = KafkaProducer(
     KafkaProducerConf(new StringSerializer, avroSerializer[TriggeredV3], kafkaHosts))
+
   val cancelationRequestedProducer = KafkaProducer(
     KafkaProducerConf(new StringSerializer, avroSerializer[CancellationRequestedV2], kafkaHosts))
 

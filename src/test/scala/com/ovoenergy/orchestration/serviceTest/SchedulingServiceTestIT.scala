@@ -1,6 +1,6 @@
 package com.ovoenergy.orchestration.serviceTest
 
-import java.time.Instant
+import java.time.{Instant, OffsetDateTime}
 
 import com.amazonaws.services.dynamodbv2.model.{AttributeValue, PutItemRequest, PutItemResult}
 import com.gu.scanamo.{Scanamo, Table}
@@ -175,6 +175,18 @@ class SchedulingServiceTestIT
     createOKCustomerProfileResponse(mockServerClient)
     val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(5)))
     val future    = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
+    whenReady(future) { _ =>
+      val orchestratedEmails = orchestratedEmailConsumer.poll(1000).records(emailOrchestratedTopic).asScala.toList
+      orchestratedEmails shouldBe empty
+      expectOrchestrationStartedEvents(noOfEventsExpected = 1)
+      expectOrchestratedEmailEvents(noOfEventsExpected = 1)
+    }
+  }
+
+  it should "orchestrate legacy emails requested to be sent in the future" taggedAs DockerComposeTag in {
+    createOKCustomerProfileResponse(mockServerClient)
+    val triggered = TestUtil.legacyTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(5).toString))
+    val future    = legacyTriggeredProducer.send(new ProducerRecord[String, TriggeredV2](legacyTriggeredTopic, triggered))
     whenReady(future) { _ =>
       val orchestratedEmails = orchestratedEmailConsumer.poll(1000).records(emailOrchestratedTopic).asScala.toList
       orchestratedEmails shouldBe empty

@@ -61,6 +61,16 @@ class EmailServiceTestIT
     }
   }
 
+  it should "orchestrate legacy emails request to send immediately" taggedAs DockerComposeTag in {
+    createOKCustomerProfileResponse(mockServerClient)
+    val future = legacyTriggeredProducer.send(
+      new ProducerRecord[String, TriggeredV2](legacyTriggeredTopic, TestUtil.legacyTriggered))
+    whenReady(future) { _ =>
+      expectOrchestrationStartedEvents(10000.millisecond, 1)
+      expectOrchestratedEmailEvents(10000.millisecond, 1)
+    }
+  }
+
   it should "generate unique internalTraceTokens" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse(mockServerClient)
     triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.triggered))

@@ -39,35 +39,33 @@ package object scheduling {
       )
     }
 
-    //TODO - Remove once migrated to V3 and no more schedules in DB
-    def triggeredAsV3(schedule: Schedule): Option[TriggeredV3] = {
-
-      def triggeredV2ToV3(triggeredV2: TriggeredV2): TriggeredV3 = {
-
-        def metadataToV2(metadata: Metadata): MetadataV2 = {
-          MetadataV2(
-            createdAt = OffsetDateTime.parse(metadata.createdAt).toInstant,
-            eventId = metadata.eventId,
-            traceToken = metadata.traceToken,
-            commManifest = metadata.commManifest,
-            deliverTo = Customer(metadata.customerId),
-            friendlyDescription = metadata.friendlyDescription,
-            source = metadata.source,
-            canary = metadata.canary,
-            sourceMetadata = metadata.sourceMetadata.map(metadataToV2),
-            triggerSource = metadata.triggerSource
-          )
-        }
-
-        TriggeredV3(
-          metadata = metadataToV2(triggeredV2.metadata),
-          templateData = triggeredV2.templateData,
-          deliverAt = triggeredV2.deliverAt.map(OffsetDateTime.parse(_).toInstant),
-          expireAt = triggeredV2.expireAt.map(OffsetDateTime.parse(_).toInstant),
-          preferredChannels = triggeredV2.preferredChannels
+    def triggeredV2ToV3(triggeredV2: TriggeredV2): TriggeredV3 = {
+      def metadataToV2(metadata: Metadata): MetadataV2 = {
+        MetadataV2(
+          createdAt = OffsetDateTime.parse(metadata.createdAt).toInstant,
+          eventId = metadata.eventId,
+          traceToken = metadata.traceToken,
+          commManifest = metadata.commManifest,
+          deliverTo = Customer(metadata.customerId),
+          friendlyDescription = metadata.friendlyDescription,
+          source = metadata.source,
+          canary = metadata.canary,
+          sourceMetadata = metadata.sourceMetadata.map(metadataToV2),
+          triggerSource = metadata.triggerSource
         )
       }
 
+      TriggeredV3(
+        metadata = metadataToV2(triggeredV2.metadata),
+        templateData = triggeredV2.templateData,
+        deliverAt = triggeredV2.deliverAt.map(OffsetDateTime.parse(_).toInstant),
+        expireAt = triggeredV2.expireAt.map(OffsetDateTime.parse(_).toInstant),
+        preferredChannels = triggeredV2.preferredChannels
+      )
+    }
+
+    //TODO - Remove once migrated to V3 and no more schedules in DB
+    def triggeredAsV3(schedule: Schedule): Option[TriggeredV3] = {
       (schedule.triggered, schedule.triggeredV3) match {
         case (_, Some(v3)) => Some(v3)
         case (Some(v2), _) => Some(triggeredV2ToV3(v2))
