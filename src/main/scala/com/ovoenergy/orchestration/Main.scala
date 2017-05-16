@@ -161,7 +161,7 @@ object Main extends App with LoggingWithMDC {
   val schedulingGraph = TriggeredConsumer(
     consumerDeserializer = Serialisation.triggeredDeserializer,
     scheduleTask = scheduleTask,
-    sendFailedEvent = ???,
+    sendFailedEvent = sendFailedTriggerEvent,
     config = KafkaConfig(
       hosts = kafkaHosts,
       groupId = config.getString("kafka.group.id"),

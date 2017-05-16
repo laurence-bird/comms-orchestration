@@ -3,15 +3,28 @@ package com.ovoenergy.orchestration.scheduling.dynamo
 import java.time.{Clock, Instant, ZoneId}
 
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType._
+import com.gu.scanamo.{Scanamo, Table}
+import com.ovoenergy.comms.model.{TriggeredV2, TriggeredV3}
 import com.ovoenergy.orchestration.scheduling.Persistence.{AlreadyBeingOrchestrated, Successful}
 import com.ovoenergy.orchestration.scheduling._
-import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence.{Context}
+import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence.Context
 import com.ovoenergy.orchestration.util.{ArbGenerator, LocalDynamoDB}
 import com.ovoenergy.orchestration.util.LocalDynamoDB.SecondaryIndexData
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalacheck.Shapeless._
 
 import scala.collection.mutable
+
+case class LegacySchedule(
+                           scheduleId: ScheduleId,
+                           triggered: TriggeredV2,
+                           deliverAt: Instant,
+                           status: ScheduleStatus,
+                           history: Seq[Change],
+                           orchestrationExpiry: Instant,
+                           customerId: Option[String],
+                           commName: String
+                         )
 
 class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
 
@@ -23,7 +36,8 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
     SecondaryIndexData("customerId-commName-index", Seq('customerId    -> S, 'commName            -> S)),
     SecondaryIndexData("status-orchestrationExpiry-index", Seq('status -> S, 'orchestrationExpiry -> N))
   )
-  val persistence = new DynamoPersistence(5, Context(client, tableName), clock)
+  val context = Context(client, tableName)
+  val persistence = new DynamoPersistence(5, context, clock)
 
   behavior of "Persistence"
 
@@ -147,7 +161,7 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
     }
   }
 
-  //Probably not worth running all the time as pretty slow (2 minutes)
+ /* //Probably not worth running all the time as pretty slow (2 minutes)
   ignore should "handle paging when retrieving schedules to cancel" in {
     LocalDynamoDB.withTableWithSecondaryIndex(client, tableName)(Seq('scheduleId -> S))(secondaryIndices) {
       val commName   = "some-comm"
@@ -167,7 +181,7 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
       returned.size shouldBe howMany
       returned.map(_.right.get.scheduleId).sorted shouldBe ids.toList.sorted
     }
-  }
+  }*/
 
   it should "mark schedules as failed" in {
     LocalDynamoDB.withTableWithSecondaryIndex(client, tableName)(Seq('scheduleId -> S))(secondaryIndices) {
@@ -192,4 +206,18 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
       result.history should contain(Change(now, "Orchestration complete"))
     }
   }
+
+  it should "retrieve legacy schedules into new object" in {
+
+    import DynamoPersistence._
+    import io.circe.shapes._
+    LocalDynamoDB.withTableWithSecondaryIndex(client, tableName)(Seq('scheduleId -> S))(secondaryIndices) {
+      val legacySchedule = generate[LegacySchedule].copy(status = ScheduleStatus.Pending)
+      Scanamo.exec(context.db)(Table[LegacySchedule](tableName).put(legacySchedule))
+      val pending = persistence.listPendingSchedules()
+      pending.head.triggered shouldBe Some(legacySchedule.triggered)
+    }
+  }
+
+
 }

@@ -4,58 +4,71 @@ import cakesolutions.kafka.KafkaConsumer.{Conf => KafkaConsumerConf}
 import cakesolutions.kafka.KafkaProducer.{Conf => KafkaProducerConf}
 import cakesolutions.kafka.{KafkaConsumer, KafkaProducer}
 import com.ovoenergy.comms.model._
-import com.ovoenergy.comms.serialisation.Decoders._
+import com.ovoenergy.comms.model.email._
+import com.ovoenergy.comms.model.sms._
 import com.ovoenergy.comms.serialisation.Serialisation._
 import com.typesafe.config.Config
-import io.circe.generic.auto._
 import org.apache.kafka.clients.consumer.{KafkaConsumer => ApacheKafkaConsumer}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
 import org.apache.kafka.clients.producer.ProducerRecord
+
 import scala.concurrent.duration._
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.{Deadline, FiniteDuration}
 import scala.util.Random
 import scala.util.control.NonFatal
+
+import io.circe.generic.auto._
+import com.ovoenergy.comms.serialisation.Codecs._
+
 class KafkaTesting(config: Config) {
   val kafkaHosts     = "localhost:29092"
   val zookeeperHosts = "localhost:32181"
 
   val consumerGroup = Random.nextString(10)
 
-  val triggeredProducer = KafkaProducer(
+  val legacyTriggeredProducer = KafkaProducer(
     KafkaProducerConf(new StringSerializer, avroSerializer[TriggeredV2], kafkaHosts))
-  val cancelationRequestedProducer = KafkaProducer(
+  val legacyCancelationRequestedProducer = KafkaProducer(
     KafkaProducerConf(new StringSerializer, avroSerializer[CancellationRequested], kafkaHosts))
 
   val cancelationRequestedConsumer = KafkaConsumer(
-    KafkaConsumerConf(new StringDeserializer, avroDeserializer[CancellationRequested], kafkaHosts, consumerGroup))
+    KafkaConsumerConf(new StringDeserializer, avroDeserializer[CancellationRequestedV2], kafkaHosts, consumerGroup))
   val cancelledConsumer = KafkaConsumer(
-    KafkaConsumerConf(new StringDeserializer, avroDeserializer[Cancelled], kafkaHosts, consumerGroup))
+    KafkaConsumerConf(new StringDeserializer, avroDeserializer[CancelledV2], kafkaHosts, consumerGroup))
   val commFailedConsumer = KafkaConsumer(
-    KafkaConsumerConf(new StringDeserializer, avroDeserializer[Failed], kafkaHosts, consumerGroup))
+    KafkaConsumerConf(new StringDeserializer, avroDeserializer[FailedV2], kafkaHosts, consumerGroup))
   val orchestratedEmailConsumer = KafkaConsumer(
-    KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestratedEmailV2], kafkaHosts, consumerGroup))
+    KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestratedEmailV3], kafkaHosts, consumerGroup))
   val smsOrchestratedConsumer = KafkaConsumer(
-    KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestratedSMS], kafkaHosts, consumerGroup))
+    KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestratedSMSV2], kafkaHosts, consumerGroup))
   val orchestrationStartedConsumer = KafkaConsumer(
-    KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestrationStarted], kafkaHosts, consumerGroup))
+    KafkaConsumerConf(new StringDeserializer, avroDeserializer[OrchestrationStartedV2], kafkaHosts, consumerGroup))
   val failedCancellationConsumer = KafkaConsumer(
-    KafkaConsumerConf(new StringDeserializer, avroDeserializer[FailedCancellation], kafkaHosts, consumerGroup))
+    KafkaConsumerConf(new StringDeserializer, avroDeserializer[FailedCancellationV2], kafkaHosts, consumerGroup))
 
-  val failedTopic               = config.getString("kafka.topics.failed")
-  val triggeredTopic            = config.getString("kafka.topics.triggered.v2")
-  val cancellationRequestTopic  = config.getString("kafka.topics.scheduling.cancellationRequest")
-  val cancelledTopic            = config.getString("kafka.topics.scheduling.cancelled")
-  val failedCancellationTopic   = config.getString("kafka.topics.scheduling.failedCancellation")
-  val emailOrchestratedTopic    = config.getString("kafka.topics.orchestrated.email.v2")
-  val smsOrchestratedTopic      = config.getString("kafka.topics.orchestrated.sms")
-  val orchestrationStartedTopic = config.getString("kafka.topics.orchestration.started")
+  val triggeredProducer = KafkaProducer(
+    KafkaProducerConf(new StringSerializer, avroSerializer[TriggeredV3], kafkaHosts))
+  val cancelationRequestedProducer = KafkaProducer(
+    KafkaProducerConf(new StringSerializer, avroSerializer[CancellationRequestedV2], kafkaHosts))
+
+
+  val failedTopic               = config.getString("kafka.topics.failed.v2")
+  val triggeredTopic            = config.getString("kafka.topics.triggered.v3")
+  val cancellationRequestTopic  = config.getString("kafka.topics.scheduling.cancellationRequest.v2")
+  val cancelledTopic            = config.getString("kafka.topics.scheduling.cancelled.v2")
+  val failedCancellationTopic   = config.getString("kafka.topics.scheduling.failedCancellation.v2")
+  val emailOrchestratedTopic    = config.getString("kafka.topics.orchestrated.email.v3")
+  val smsOrchestratedTopic      = config.getString("kafka.topics.orchestrated.sms.v2")
+  val orchestrationStartedTopic = config.getString("kafka.topics.orchestration.started.v2")
+
+  val legacyTriggeredTopic            = config.getString("kafka.topics.triggered.v2")
 
   val topics = Seq(
     failedTopic,
-    triggeredTopic,
+    legacyTriggeredTopic,
     cancellationRequestTopic,
     cancelledTopic,
     failedCancellationTopic,
@@ -77,7 +90,7 @@ class KafkaTesting(config: Config) {
     var notStarted = true
     while (timeout.hasTimeLeft && notStarted) {
       try {
-        notStarted = !AdminUtils.topicExists(zkUtils, triggeredTopic)
+        notStarted = !AdminUtils.topicExists(zkUtils, legacyTriggeredTopic)
       } catch {
         case NonFatal(ex) => Thread.sleep(100)
       }
