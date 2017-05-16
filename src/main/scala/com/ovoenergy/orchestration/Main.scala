@@ -77,7 +77,7 @@ object Main extends App with LoggingWithMDC {
   val orchestrateEmail = OrchestratedEmailEvent.send(
     Producer(
       hosts = kafkaHosts,
-      topic = config.getString("kafka.topics.orchestrated.email.v2"),
+      topic = config.getString("kafka.topics.orchestrated.email.v3"),
       serialiser = Serialisation.orchestratedEmailSerializer,
       retryConfig = kafkaProducerRetryConfig
     )
@@ -86,7 +86,7 @@ object Main extends App with LoggingWithMDC {
   val orchestrateSMS = OrchestratedSMSEvent.send(
     Producer(
       hosts = kafkaHosts,
-      topic = config.getString("kafka.topics.orchestrated.sms"),
+      topic = config.getString("kafka.topics.orchestrated.sms.v2"),
       serialiser = Serialisation.orchestratedSMSSerializer,
       retryConfig = kafkaProducerRetryConfig
     )
@@ -108,13 +108,13 @@ object Main extends App with LoggingWithMDC {
     ) _
   }
 
-  val orchestrateComm: (TriggeredV3, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]] = ??? //Orchestrator(
-//    profileCustomer = profileCustomer,
-//    determineChannel = determineChannel,
-//    sendOrchestratedEmailEvent = orchestrateEmail,
-//    sendOrchestratedSMSEvent = orchestrateSMS,
-//    validateProfile = ProfileValidation.apply
-//  )
+  val orchestrateComm: (TriggeredV3, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]] = Orchestrator(
+    profileCustomer = profileCustomer,
+    determineChannel = determineChannel,
+    sendOrchestratedEmailEvent = orchestrateEmail,
+    sendOrchestratedSMSEvent = orchestrateSMS,
+    validateProfile = ProfileValidation.apply
+  )
 
   val sendFailedTriggerEvent: FailedV2 => Future[RecordMetadata] = {
     Producer(
@@ -135,7 +135,7 @@ object Main extends App with LoggingWithMDC {
   val sendFailedCancellationEvent: (FailedCancellationV2) => Future[RecordMetadata] =
     Producer(
       hosts = kafkaHosts,
-      topic = config.getString("kafka.topics.scheduling.failedCancellation"),
+      topic = config.getString("kafka.topics.scheduling.failedCancellation.v2"),
       serialiser = Serialisation.failedCancellationSerializer,
       retryConfig = kafkaProducerRetryConfig
     )
@@ -165,7 +165,7 @@ object Main extends App with LoggingWithMDC {
     config = KafkaConfig(
       hosts = kafkaHosts,
       groupId = config.getString("kafka.group.id"),
-      topic = config.getString("kafka.topics.triggered.v2")
+      topic = config.getString("kafka.topics.triggered.v3")
     ),
     generateTraceToken = () => UUID.randomUUID().toString
   )
@@ -178,7 +178,7 @@ object Main extends App with LoggingWithMDC {
     config = KafkaConfig(
       hosts = kafkaHosts,
       groupId = config.getString("kafka.group.id"),
-      topic = config.getString("kafka.topics.scheduling.cancellationRequest")
+      topic = config.getString("kafka.topics.scheduling.cancellationRequest.v2")
     )
   )
 

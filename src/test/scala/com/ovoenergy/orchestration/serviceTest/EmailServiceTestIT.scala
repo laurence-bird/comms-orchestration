@@ -72,6 +72,7 @@ class EmailServiceTestIT
         head.internalMetadata.internalTraceToken should not equal tail.head.internalMetadata.internalTraceToken
     }
   }
+
   it should "orchestrate multiple emails" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse(mockServerClient)
 

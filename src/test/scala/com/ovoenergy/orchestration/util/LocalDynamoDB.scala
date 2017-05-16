@@ -14,6 +14,11 @@ object LocalDynamoDB {
     c.setEndpoint(endPoint)
     c
   }
+
+  def doesTableExist(client: AmazonDynamoDB, tableName: String) = {
+    client.listTables().getTableNames.asScala.contains(tableName)
+  }
+
   def createTable(client: AmazonDynamoDB)(tableName: String)(attributes: (Symbol, ScalarAttributeType)*) = {
     client.createTable(
       attributeDefinitions(attributes),
