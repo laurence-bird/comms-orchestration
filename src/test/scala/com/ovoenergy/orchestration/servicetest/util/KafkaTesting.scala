@@ -67,7 +67,7 @@ class KafkaTesting(config: Config) {
 
   val topics = Seq(
     failedTopic,
-    legacyTriggeredTopic,
+    triggeredTopic,
     cancellationRequestTopic,
     cancelledTopic,
     failedCancellationTopic,
@@ -85,11 +85,11 @@ class KafkaTesting(config: Config) {
     val zkUtils = ZkUtils(zookeeperHosts, 30000, 5000, isZkSecurityEnabled = false)
 
     //Wait until kafka calls are not erroring and the service has created the triggeredTopic
-    val timeout    = 10.seconds.fromNow
+    val timeout    = 30.seconds.fromNow
     var notStarted = true
     while (timeout.hasTimeLeft && notStarted) {
       try {
-        notStarted = !AdminUtils.topicExists(zkUtils, legacyTriggeredTopic)
+        notStarted = !AdminUtils.topicExists(zkUtils, triggeredTopic)
       } catch {
         case NonFatal(ex) => Thread.sleep(100)
       }

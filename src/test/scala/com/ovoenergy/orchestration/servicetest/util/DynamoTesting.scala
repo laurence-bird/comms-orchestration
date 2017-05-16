@@ -28,8 +28,10 @@ trait DynamoTesting extends BeforeAndAfterAll { this: Suite =>
       SecondaryIndexData("status-orchestrationExpiry-index", Seq('status -> S, 'orchestrationExpiry -> N))
     )
 
-    LocalDynamoDB.createTableWithSecondaryIndex(dynamoClient, tableName)(Seq('scheduleId -> S))(secondaryIndices)
-    waitUntilTableMade(50)
+    if (!LocalDynamoDB.doesTableExist(dynamoClient, tableName)) {
+      LocalDynamoDB.createTableWithSecondaryIndex(dynamoClient, tableName)(Seq('scheduleId -> S))(secondaryIndices)
+      waitUntilTableMade(50)
+    }
 
     def waitUntilTableMade(noAttemptsLeft: Int): String = {
       try {
