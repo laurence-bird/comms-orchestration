@@ -64,7 +64,7 @@ class OrchestratorSpec
 
   behavior of "Orchestrator"
 
-  it should "handle unsupported channels" in {
+  it should "handle customer delivery - unsupported channels" in {
     def selectNonSupportedChannel = (customerProfile: CustomerProfile, triggered: TriggeredV3) => Right(Post)
     val orchestrator = //(CustomerProfile, TriggeredV2, InternalMetadata)
     Orchestrator(customerProfiler(customerProfile),
@@ -75,7 +75,7 @@ class OrchestratorSpec
     orchestrator.left.value shouldBe ErrorDetails("Unsupported channel selected Post", OrchestrationError)
   }
 
-  it should "handle failed channel selection" in {
+  it should "handle customer delivery - failed channel selection" in {
     def failedChannelSelection =
       (customerProfile: CustomerProfile, triggered: TriggeredV3) => Left(ErrorDetails("whatever", OrchestrationError))
     val orchestrator: Either[ErrorDetails, Future[RecordMetadata]] =
@@ -87,7 +87,7 @@ class OrchestratorSpec
     orchestrator.left.value shouldBe ErrorDetails("whatever", OrchestrationError)
   }
 
-  it should "handle failed customer profiler" in {
+  it should "handle customer delivery - failed customer profiler" in {
     def selectEmailChannel = (customerProfile: CustomerProfile, triggered: TriggeredV3) => Right(Email)
     def badCustomerProfiler: (String, Boolean, String) => Either[ErrorDetails, CustomerProfile] =
       (customerId: String, canary: Boolean, traceToken: String) =>
@@ -99,7 +99,7 @@ class OrchestratorSpec
     orchestrator.left.value shouldBe ErrorDetails("whatever", ProfileRetrievalFailed)
   }
 
-  it should "handle email channel" in {
+  it should "handle customer delivery - email channel" in {
     val profileWithEmailAddress = customerProfile.copy(emailAddress = Some("mrtest@testing.com"))
     def selectEmailChannel      = (customerProfile: CustomerProfile, triggered: TriggeredV3) => Right(Email)
     val orchestrationResult =
@@ -116,7 +116,7 @@ class OrchestratorSpec
     }
   }
 
-  it should "handle SMS channel" in {
+  it should "handle customer delivery - SMS channel" in {
     val profileWithPhoneNumber = customerProfile.copy(phoneNumber = Some("12345678"))
     def selectEmailChannel     = (customerProfile: CustomerProfile, triggered: TriggeredV3) => Right(SMS)
     val orchestrator =

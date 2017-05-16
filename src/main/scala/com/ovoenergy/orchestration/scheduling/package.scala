@@ -69,9 +69,9 @@ package object scheduling {
       }
 
       (schedule.triggered, schedule.triggeredV3) match {
-        case (Some(v2), _)    => Some(triggeredV2ToV3(v2))
-        case (None, Some(v3)) => Some(v3)
-        case (None, None)     => None
+        case (_, Some(v3)) => Some(v3)
+        case (Some(v2), _) => Some(triggeredV2ToV3(v2))
+        case (None, None)  => None
       }
     }
   }

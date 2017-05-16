@@ -34,9 +34,9 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
     Scheduler.scheduleComm(storeSchedule, registerTask, clock)(triggered) shouldBe Right(true)
 
     //Side effects
-    storedSchedule.get.triggered shouldBe triggered
+    storedSchedule.get.triggeredV3.get shouldBe triggered
     storedSchedule.get.commName shouldBe triggered.metadata.commManifest.name
-    storedSchedule.get.customerId shouldBe None
+    storedSchedule.get.customerId shouldBe Some(TestUtil.customerId)
     storedSchedule.get.deliverAt shouldBe now
     storedSchedule.get.status shouldBe Pending
     scheduledId.isDefined shouldBe true
@@ -48,9 +48,9 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
     Scheduler.scheduleComm(storeSchedule, registerTask, clock)(triggered) shouldBe Right(true)
 
     //Side effects
-    storedSchedule.get.triggered shouldBe triggered
+    storedSchedule.get.triggeredV3.get shouldBe triggered
     storedSchedule.get.commName shouldBe triggered.metadata.commManifest.name
-    storedSchedule.get.customerId shouldBe None
+    storedSchedule.get.customerId shouldBe Some(TestUtil.customerId)
     storedSchedule.get.deliverAt shouldBe Instant.ofEpochMilli(2082803684000l)
     storedSchedule.get.status shouldBe Pending
     scheduledId.isDefined shouldBe true
@@ -71,7 +71,8 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
 
   it should "return successful result if a cancellationRequest is successful" in {
     val cancellationRequested = generate[CancellationRequestedV2]
-    val schedules             = Seq(Right(generate[Schedule]), Right(generate[Schedule]))
+    val schedules = Seq(Right(generate[Schedule].copy(triggeredV3 = Some(TestUtil.triggered))),
+                        Right(generate[Schedule].copy(triggeredV3 = Some(TestUtil.triggered))))
     val removeFromPersistence = (customerId: CustomerId, commName: CommName) => schedules
     val removeSchedule        = (scheduledId: ScheduleId) => true
     Scheduler.descheduleComm(removeFromPersistence, removeSchedule)(cancellationRequested) shouldBe
@@ -89,8 +90,8 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
 
   it should "capture an appropriate error if removing the schedule from memory fails for a single record" in {
     val cancellationRequested = generate[CancellationRequestedV2]
-    val successfulSchedule    = generate[Schedule]
-    val failedSchedule        = generate[Schedule]
+    val successfulSchedule    = generate[Schedule].copy(triggeredV3 = Some(TestUtil.triggered), triggered = None)
+    val failedSchedule        = generate[Schedule].copy(triggeredV3 = Some(TestUtil.triggered), triggered = None)
     val schedules             = Seq(Right(successfulSchedule), Right(failedSchedule))
 
     val removeFromPersistence = (customerId: CustomerId, commName: CommName) => schedules
