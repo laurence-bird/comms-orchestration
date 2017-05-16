@@ -201,7 +201,7 @@ class SchedulingServiceTestIT
 
       orchestratedSMSEvents.foreach { ev =>
         ev.recipientPhoneNumber shouldBe "+447985631544"
-        ev.customerProfile shouldBe model.CustomerProfile("John", "Wayne")
+        ev.customerProfile shouldBe Some(model.CustomerProfile("John", "Wayne"))
         ev.templateData shouldBe triggered.templateData
       }
     }
@@ -229,7 +229,7 @@ class SchedulingServiceTestIT
                                                                 emailOrchestratedTopic)
     orchestratedEmails.map { orchestratedEmail =>
       orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
-      orchestratedEmail.customerProfile shouldBe model.CustomerProfile("John", "Wayne")
+      orchestratedEmail.customerProfile shouldBe Some(model.CustomerProfile("John", "Wayne"))
       orchestratedEmail.templateData shouldBe TestUtil.templateData
       if (shouldCheckTraceToken) orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
       orchestratedEmail

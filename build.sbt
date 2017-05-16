@@ -31,6 +31,8 @@ lazy val ipAddress: String = {
   addr
 }
 
+commsPackagingMaxMetaspaceSize := 128
+
 val testWithDynamo = taskKey[Unit]("start dynamo, run the tests, shut down dynamo")
 testWithDynamo := Def.sequential(
   startDynamoDBLocal,

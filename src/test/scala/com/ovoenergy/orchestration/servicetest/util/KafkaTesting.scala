@@ -19,9 +19,9 @@ import scala.collection.JavaConverters._
 import scala.concurrent.duration.{Deadline, FiniteDuration}
 import scala.util.Random
 import scala.util.control.NonFatal
-
 import io.circe.generic.auto._
 import com.ovoenergy.comms.serialisation.Codecs._
+import kafka.utils.ZkUtils
 
 class KafkaTesting(config: Config) {
   val kafkaHosts     = "localhost:29092"
@@ -76,6 +76,27 @@ class KafkaTesting(config: Config) {
     orchestrationStartedTopic
   )
 
+  def createTopic(topicName: String, zkUtils: ZkUtils) {
+    import _root_.kafka.admin.AdminUtils
+    import _root_.kafka.utils.ZkUtils
+
+    import scala.concurrent.duration._
+    if (!AdminUtils.topicExists(zkUtils, topicName)) {
+      AdminUtils.createTopic(zkUtils, topicName, 1, 1)
+    }
+    //Wait until kafka calls are not erroring and the service has created the composedEmailTopic
+    val timeout    = 10.seconds.fromNow
+    var notStarted = true
+    while (timeout.hasTimeLeft && notStarted) {
+      try {
+        notStarted = !AdminUtils.topicExists(zkUtils, topicName)
+      } catch {
+        case NonFatal(ex) => Thread.sleep(100)
+      }
+    }
+    if (notStarted) throw new Exception("Kafka services did not start within 10 seconds")
+  }
+
   def setupTopics() {
     import _root_.kafka.admin.AdminUtils
     import _root_.kafka.utils.ZkUtils
@@ -84,20 +105,8 @@ class KafkaTesting(config: Config) {
 
     val zkUtils = ZkUtils(zookeeperHosts, 30000, 5000, isZkSecurityEnabled = false)
 
-    //Wait until kafka calls are not erroring and the service has created the triggeredTopic
-    val timeout    = 30.seconds.fromNow
-    var notStarted = true
-    while (timeout.hasTimeLeft && notStarted) {
-      try {
-        notStarted = !AdminUtils.topicExists(zkUtils, triggeredTopic)
-      } catch {
-        case NonFatal(ex) => Thread.sleep(100)
-      }
-    }
-    if (notStarted) throw new Exception("Services did not start within 10 seconds")
-
     topics.foreach { topic =>
-      if (!AdminUtils.topicExists(zkUtils, failedTopic)) AdminUtils.createTopic(zkUtils, topic, 1, 1)
+      createTopic(topic, zkUtils)
     }
 
     failedCancellationConsumer.assign(Seq(new TopicPartition(failedCancellationTopic, 0)).asJava)

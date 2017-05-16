@@ -19,7 +19,7 @@ services:
       LOCAL_DYNAMO: "http://dynamodb:8000"
       DOCKER_COMPOSE : "true"
       POLL_FOR_EXPIRED_INTERVAL: "5 seconds"
-    mem_limit: 380m
+    mem_limit: 720m
     volumes:
       # share AWS creds so that credstash works
       - $HOME/.aws:/sbin/.aws
@@ -65,13 +65,13 @@ services:
       - "-jar"
       - "DynamoDBLocal.jar"
       - "-sharedDb"
-    mem_limit: 128m
+    mem_limit: 256m
 
   fakes3:
     image: lphoward/fake-s3
     ports:
       - "4569:4569"
-    mem_limit: 128m
+    mem_limit: 256m
 
   fakes3ssl:
     image: cbachich/ssl-proxy
