@@ -13,16 +13,19 @@ object OrchestratedSMSEvent {
 
     //TODO - Handle ContactDetails
     (customerProfile: CustomerDeliveryDetails, triggered: TriggeredV3, internalMetadata: InternalMetadata) =>
+      val profile = for {
+        firstName <- customerProfile.name.map(_.firstName)
+        lastName  <- customerProfile.name.map(_.lastName)
+      } yield CustomerProfile(firstName, lastName)
+
       val orchestratedSMSEvent = OrchestratedSMSV2(
         metadata = MetadataV2.fromSourceMetadata("orchestration", triggered.metadata),
-        customerProfile =
-          Some(CustomerProfile(firstName = customerProfile.name.firstName, lastName = customerProfile.name.lastName)),
+        customerProfile = profile,
         templateData = triggered.templateData,
         internalMetadata = internalMetadata,
         expireAt = triggered.expireAt,
         recipientPhoneNumber = customerProfile.deliverTo
       )
-
       sendEvent(orchestratedSMSEvent)
   }
 }

@@ -11,19 +11,21 @@ object OrchestratedEmailEvent {
 
   def send(sendEvent: OrchestratedEmailV3 => Future[RecordMetadata]) = {
     (customerDeliveryDetails: CustomerDeliveryDetails, triggered: TriggeredV3, internalMetadata: InternalMetadata) =>
+      val customerProfile = for {
+        firstName <- customerDeliveryDetails.name.map(_.firstName)
+        lastName  <- customerDeliveryDetails.name.map(_.lastName)
+      } yield CustomerProfile(firstName, lastName)
+
       val orchestratedEmailEvent = OrchestratedEmailV3(
         metadata = MetadataV2.fromSourceMetadata(
           source = "orchestration",
           sourceMetadata = triggered.metadata
         ),
         recipientEmailAddress = customerDeliveryDetails.deliverTo,
-        //TODO - Handle ContactDetails
-        customerProfile = Some(
-          CustomerProfile(firstName = customerDeliveryDetails.name.firstName,
-                          lastName = customerDeliveryDetails.name.lastName)),
         templateData = triggered.templateData,
         internalMetadata = internalMetadata,
-        expireAt = triggered.expireAt
+        expireAt = triggered.expireAt,
+        customerProfile = customerProfile
       )
 
       sendEvent(orchestratedEmailEvent)

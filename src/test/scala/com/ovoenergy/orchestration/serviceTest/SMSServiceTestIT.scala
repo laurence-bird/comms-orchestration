@@ -52,8 +52,8 @@ class SMSServiceTestIT
 
   it should "orchestrate SMS request to send immediately" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse(mockServerClient)
-    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.triggered.metadata.commManifest)
-    val triggerSMS = TestUtil.triggered.copy(preferredChannels = Some(List(SMS)))
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
+    val triggerSMS = TestUtil.customerTriggered.copy(preferredChannels = Some(List(SMS)))
     val future     = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggerSMS))
     whenReady(future) { _ =>
       expectOrchestrationStartedEvents(10000.millisecond, 1)
@@ -66,8 +66,9 @@ class SMSServiceTestIT
 
     var futures = new mutable.ListBuffer[Future[_]]
     (1 to 10).foreach(counter => {
-      val triggered = TestUtil.triggered.copy(metadata = TestUtil.metadataV2.copy(traceToken = counter.toString),
-                                              preferredChannels = Some(List(SMS)))
+      val triggered = TestUtil.customerTriggered.copy(metadata =
+                                                        TestUtil.metadataV2.copy(traceToken = counter.toString),
+                                                      preferredChannels = Some(List(SMS)))
       futures += triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
     })
     futures.foreach(future => Await.ready(future, 1.seconds))

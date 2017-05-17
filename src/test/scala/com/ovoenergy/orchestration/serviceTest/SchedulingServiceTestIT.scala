@@ -51,7 +51,7 @@ class SchedulingServiceTestIT
 
   override def beforeAll() = {
     super.beforeAll()
-    uploadTemplate(TestUtil.triggered.metadata.commManifest)
+    uploadTemplate(TestUtil.customerTriggered.metadata.commManifest)
     kafkaTesting.setupTopics()
   }
 
@@ -60,7 +60,7 @@ class SchedulingServiceTestIT
   it should "pick up expired events via polling and orchestrate them" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse(mockServerClient)
     val schedulesTable = Table[Schedule](tableName)
-    val triggered      = TestUtil.triggered
+    val triggered      = TestUtil.customerTriggered
 
     val deliverAt = Instant.now().minusSeconds(600)
     val expireAt  = Instant.now().minusSeconds(60)
@@ -87,9 +87,9 @@ class SchedulingServiceTestIT
 
   it should "deschedule comms and generate cancelled events" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse(mockServerClient)
-    val triggered1 = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(20)))
-    val triggered2 = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(21)),
-                                             metadata = triggered1.metadata.copy(traceToken = "testTrace123"))
+    val triggered1 = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(20)))
+    val triggered2 = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(21)),
+                                                     metadata = triggered1.metadata.copy(traceToken = "testTrace123"))
 
     // 2 trigger events for the same customer and comm
     val triggeredEvents = Seq(
@@ -126,7 +126,7 @@ class SchedulingServiceTestIT
   }
 
   it should "generate a cancellationFailed event if unable to deschedule a comm" taggedAs DockerComposeTag in {
-    val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(15)))
+    val triggered = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(15)))
     val commName  = triggered.metadata.commManifest.name
 
     // Create an invalid schedule record
@@ -173,7 +173,7 @@ class SchedulingServiceTestIT
 
   it should "orchestrate emails requested to be sent in the future" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse(mockServerClient)
-    val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.now().plusSeconds(5)))
+    val triggered = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(5)))
     val future    = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
     whenReady(future) { _ =>
       val orchestratedEmails = orchestratedEmailConsumer.poll(1000).records(emailOrchestratedTopic).asScala.toList
@@ -197,7 +197,7 @@ class SchedulingServiceTestIT
 
   it should "orchestrate sms requested to be sent in the future" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse(mockServerClient)
-    val triggered = TestUtil.triggered.copy(
+    val triggered = TestUtil.customerTriggered.copy(
       deliverAt = Some(Instant.now().plusSeconds(5)),
       preferredChannels = Some(List(SMS))
     )

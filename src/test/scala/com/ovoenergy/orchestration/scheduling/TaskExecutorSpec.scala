@@ -33,7 +33,7 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
   }
   val scheduleId = "1234567890A"
   val scheduleWithTriggeredV3 =
-    generate[Schedule].copy(scheduleId = scheduleId, triggered = None, triggeredV3 = Some(TestUtil.triggered))
+    generate[Schedule].copy(scheduleId = scheduleId, triggered = None, triggeredV3 = Some(TestUtil.customerTriggered))
   val scheduleWithTriggeredV2 =
     generate[Schedule].copy(scheduleId = scheduleId, triggered = Some(TestUtil.legacyTriggered), triggeredV3 = None)
 

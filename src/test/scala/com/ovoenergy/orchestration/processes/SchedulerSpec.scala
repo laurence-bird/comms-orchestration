@@ -30,7 +30,7 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
   behavior of "Scheduler"
 
   it should "persist and schedule an immediate comm" in {
-    val triggered = TestUtil.triggered.copy(deliverAt = None)
+    val triggered = TestUtil.customerTriggered.copy(deliverAt = None)
     Scheduler.scheduleComm(storeSchedule, registerTask, clock)(triggered) shouldBe Right(true)
 
     //Side effects
@@ -44,7 +44,7 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
   }
 
   it should "persist and schedule a future comm" in {
-    val triggered = TestUtil.triggered.copy(deliverAt = Some(Instant.parse("2036-01-01T12:34:44.000Z")))
+    val triggered = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.parse("2036-01-01T12:34:44.000Z")))
     Scheduler.scheduleComm(storeSchedule, registerTask, clock)(triggered) shouldBe Right(true)
 
     //Side effects
@@ -59,20 +59,22 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
 
   it should "handle exceptions when persisting scheduled comm" in {
     val storeSchedule = (schedule: Schedule) => throw new RuntimeException("Some error")
-    Scheduler.scheduleComm(storeSchedule, registerTask, clock)(TestUtil.triggered) shouldBe Left(
+    Scheduler.scheduleComm(storeSchedule, registerTask, clock)(TestUtil.customerTriggered) shouldBe Left(
       ErrorDetails("Failed to schedule comm", OrchestrationError))
   }
 
   it should "handle exceptions when scheduling task" in {
     val scheduleTask = (scheduleId: ScheduleId, instant: Instant) => throw new RuntimeException("Some error")
-    Scheduler.scheduleComm(storeSchedule, scheduleTask, clock)(TestUtil.triggered) shouldBe Left(
+    Scheduler.scheduleComm(storeSchedule, scheduleTask, clock)(TestUtil.customerTriggered) shouldBe Left(
       ErrorDetails("Failed to schedule comm", OrchestrationError))
   }
 
   it should "return successful result if a cancellationRequest is successful" in {
     val cancellationRequested = generate[CancellationRequestedV2]
-    val schedules = Seq(Right(generate[Schedule].copy(triggeredV3 = Some(TestUtil.triggered))),
-                        Right(generate[Schedule].copy(triggeredV3 = Some(TestUtil.triggered))))
+    val schedules = Seq(
+      Right(generate[Schedule].copy(triggeredV3 = Some(TestUtil.customerTriggered))),
+      Right(generate[Schedule].copy(triggeredV3 = Some(TestUtil.customerTriggered)))
+    )
     val removeFromPersistence = (customerId: CustomerId, commName: CommName) => schedules
     val removeSchedule        = (scheduledId: ScheduleId) => true
     Scheduler.descheduleComm(removeFromPersistence, removeSchedule)(cancellationRequested) shouldBe
@@ -90,8 +92,8 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
 
   it should "capture an appropriate error if removing the schedule from memory fails for a single record" in {
     val cancellationRequested = generate[CancellationRequestedV2]
-    val successfulSchedule    = generate[Schedule].copy(triggeredV3 = Some(TestUtil.triggered), triggered = None)
-    val failedSchedule        = generate[Schedule].copy(triggeredV3 = Some(TestUtil.triggered), triggered = None)
+    val successfulSchedule    = generate[Schedule].copy(triggeredV3 = Some(TestUtil.customerTriggered), triggered = None)
+    val failedSchedule        = generate[Schedule].copy(triggeredV3 = Some(TestUtil.customerTriggered), triggered = None)
     val schedules             = Seq(Right(successfulSchedule), Right(failedSchedule))
 
     val removeFromPersistence = (customerId: CustomerId, commName: CommName) => schedules

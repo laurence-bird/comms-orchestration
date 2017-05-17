@@ -1,7 +1,12 @@
 package com.ovoenergy.orchestration.processes
 
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.domain.customer.{CustomerDeliveryDetails, CustomerProfile}
+import com.ovoenergy.orchestration.domain.customer.{
+  ContactProfile,
+  CustomerDeliveryDetails,
+  CustomerProfile,
+  CustomerProfileName
+}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import org.apache.kafka.clients.producer.RecordMetadata
 import cats.syntax.either._
@@ -16,7 +21,7 @@ object Orchestrator extends LoggingWithMDC {
   type SendEvent = (CustomerDeliveryDetails, TriggeredV3, InternalMetadata) => Future[RecordMetadata]
 
   def apply(profileCustomer: (String, Boolean, String) => Either[ErrorDetails, CustomerProfile],
-            determineChannel: (CustomerProfile, TriggeredV3) => Either[ErrorDetails, Channel],
+            determineChannel: (ContactProfile, TriggeredV3) => Either[ErrorDetails, Channel],
             validateProfile: (CustomerProfile) => Either[ErrorDetails, CustomerProfile],
             sendOrchestratedEmailEvent: SendEvent,
             sendOrchestratedSMSEvent: SendEvent)(
@@ -30,20 +35,21 @@ object Orchestrator extends LoggingWithMDC {
         case _     => Left(ErrorDetails(s"Unsupported channel selected $channel", OrchestrationError))
       }
 
-    def buildProfileForChannel(customerProfile: CustomerProfile,
+    def buildProfileForChannel(contactProfile: ContactProfile,
+                               customerProfileName: Option[CustomerProfileName],
                                channel: Channel): Either[ErrorDetails, CustomerDeliveryDetails] = {
       channel match {
         case SMS => {
-          customerProfile.phoneNumber
-            .map(p => CustomerDeliveryDetails(customerProfile.name, p))
+          contactProfile.phoneNumber
+            .map(p => CustomerDeliveryDetails(customerProfileName, p))
             .toRight {
               logWarn(triggered.metadata.traceToken, "Phone number missing from customer profile")
               ErrorDetails("Phone number missing from customer profile", InvalidProfile)
             }
         }
         case Email =>
-          customerProfile.emailAddress
-            .map(e => CustomerDeliveryDetails(customerProfile.name, e))
+          contactProfile.emailAddress
+            .map(e => CustomerDeliveryDetails(customerProfileName, e))
             .toRight {
               val errorDetails = "Phone number missing from customer profile"
               logWarn(triggered.metadata.traceToken, errorDetails)
@@ -58,19 +64,39 @@ object Orchestrator extends LoggingWithMDC {
       }
     }
 
-    def orchestrateForCustomer(triggeredV3: TriggeredV3, customerId: String) = {
+    def orchestrate(triggeredV3: TriggeredV3,
+                    contactProfile: ContactProfile,
+                    customerProfileName: Option[CustomerProfileName]) = {
       for {
-        customerProfile         <- profileCustomer(customerId, triggered.metadata.canary, triggered.metadata.traceToken)
-        validatedProfile        <- validateProfile(customerProfile)
-        channel                 <- determineChannel(validatedProfile, triggered)
-        eventSender             <- selectEventSender(channel)
-        customerDeliveryDetails <- buildProfileForChannel(validatedProfile, channel)
-      } yield eventSender(customerDeliveryDetails, triggered, internalMetadata)
+        channel     <- determineChannel(contactProfile, triggeredV3)
+        eventSender <- selectEventSender(channel)
+        customerDeliverydetails: CustomerDeliveryDetails <- buildProfileForChannel(contactProfile,
+                                                                                   customerProfileName,
+                                                                                   channel)
+      } yield eventSender(customerDeliverydetails, triggered, internalMetadata)
+    }
+
+    def retrieveCustomerProfile(customerId: String, triggeredV3: TriggeredV3) = {
+      for {
+        customerProfile: CustomerProfile <- profileCustomer(customerId,
+                                                            triggered.metadata.canary,
+                                                            triggered.metadata.traceToken)
+        validatedProfile <- validateProfile(customerProfile)
+      } yield {
+        validatedProfile
+      }
     }
 
     triggered.metadata.deliverTo match {
-      case Customer(customerId)               => orchestrateForCustomer(triggered, customerId)
-      case ContactDetails(emailAddr, phoneNo) => Left(ErrorDetails("Not implemented", InvalidProfile))
+      case Customer(customerId) => {
+        for {
+          customerProfile <- retrieveCustomerProfile(customerId, triggered)
+          res             <- orchestrate(triggered, customerProfile.contactProfile, Some(customerProfile.name))
+        } yield res
+      }
+      case ContactDetails(emailAddr, phoneNo) =>
+        val contactProfile = ContactProfile(emailAddr, phoneNo, Seq.empty)
+        orchestrate(triggered, contactProfile, None)
     }
   }
 }

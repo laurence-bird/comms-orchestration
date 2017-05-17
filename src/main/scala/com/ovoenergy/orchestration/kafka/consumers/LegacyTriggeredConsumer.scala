@@ -53,9 +53,9 @@ object LegacyTriggeredConsumer extends LoggingWithMDC {
               case Left(err) =>
                 sendFailedEvent(
                   FailedV2(triggeredV3.metadata,
-                    InternalMetadata(generateTraceToken()),
-                    s"Scheduling of comm failed: ${err.reason}",
-                    err.errorCode))
+                           InternalMetadata(generateTraceToken()),
+                           s"Scheduling of comm failed: ${err.reason}",
+                           err.errorCode))
               case Right(_) => Future.successful(())
             }
           case None =>

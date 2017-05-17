@@ -6,7 +6,7 @@ import java.nio.file.{Files, Paths}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.customer.CommunicationPreference._
 import com.ovoenergy.orchestration.domain.customer
-import com.ovoenergy.orchestration.domain.customer.{CustomerProfile, CustomerProfileName}
+import com.ovoenergy.orchestration.domain.customer.{ContactProfile, CustomerProfile, CustomerProfileName}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.retry.Retry
 import okhttp3._
@@ -97,15 +97,18 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
           lastName = "Wayne",
           suffix = None
         ),
-        emailAddress = Some("qatesting@ovoenergy.com"),
-        phoneNumber = Some("+447985631544"),
-        communicationPreferences = Seq(
-          customer.CommunicationPreference(
-            Service,
-            Seq(SMS, Email)
+        ContactProfile(
+          emailAddress = Some("qatesting@ovoenergy.com"),
+          phoneNumber = Some("+447985631544"),
+          communicationPreferences = Seq(
+            customer.CommunicationPreference(
+              Service,
+              Seq(SMS, Email)
+            )
           )
         )
-      ))
+      )
+    )
   }
 
   it should "Ask the profiles service for the canary when requested" in {

@@ -55,7 +55,7 @@ object TestUtil {
     Some(List(Email))
   )
 
-  val triggered = TriggeredV3(
+  val customerTriggered = TriggeredV3(
     metadata = metadataV2,
     templateData = templateData,
     deliverAt = None,

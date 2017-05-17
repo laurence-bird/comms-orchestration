@@ -44,14 +44,14 @@ object CustomerProfiler extends LoggingWithMDC {
       httpClient(request).flatMap { response =>
         val responseBody = response.body.string
         if (response.isSuccessful) {
-          decodeJson[CustomerProfile](responseBody)
+          decodeJson[CustomerProfileResponse](responseBody)
         } else {
           Failure(new Exception(s"Error response (${response.code}) from profile service: $responseBody"))
         }
       }
     }
     result
-      .map(_.result)
+      .map(_.result.toCustomerProfile)
       .leftMap { (err: Failed) =>
         ErrorDetails(s"Failed to retrive customer profile: ${err.finalException.getMessage}", ProfileRetrievalFailed)
       }

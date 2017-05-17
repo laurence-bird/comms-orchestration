@@ -7,7 +7,7 @@ import cats.data.Validated.{Invalid, Valid}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.ErrorsOr
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
-import com.ovoenergy.orchestration.domain.customer.{CommunicationPreference, CustomerProfile}
+import com.ovoenergy.orchestration.domain.customer.{CommunicationPreference, ContactProfile, CustomerProfile}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 
@@ -23,24 +23,17 @@ object ChannelSelector extends LoggingWithMDC {
   private def priority(priorityMap: Map[Channel, Int])(channel: Channel) = priorityMap.getOrElse(channel, Int.MaxValue)
 
   def determineChannel(retrieveTemplate: CommManifest => ErrorsOr[CommTemplate[Id]])(
-      customerProfile: CustomerProfile,
+      contactProfile: ContactProfile,
       triggered: TriggeredV3): Either[ErrorDetails, Channel] = {
 
     val customerPrefs: Option[NonEmptyList[Channel]] = {
-      val prefsForCommType = customerProfile.communicationPreferences.collectFirst({
+      val prefsForCommType = contactProfile.communicationPreferences.collectFirst({
         case CommunicationPreference(commType, prefs) if commType == triggered.metadata.commManifest.commType => prefs
       })
       prefsForCommType.flatMap { prefs =>
         val prefsForSupportedChannels = prefs.toList.filter(channel => channelCostMap.contains(channel))
         NonEmptyList.fromList(prefsForSupportedChannels)
       }
-    }
-
-    def findAvailableChannels(
-        channelsWithTemplates: NonEmptyList[Channel],
-        channelsWithContactDetails: NonEmptyList[Channel]): Either[ErrorDetails, NonEmptyList[Channel]] = {
-      val avChans = channelsWithTemplates.toList.intersect(channelsWithContactDetails.toList)
-      nonEmptyListFrom(avChans, "No available channels to deliver comm", OrchestrationError)
     }
 
     def filterByCustomerPreferences(
@@ -54,23 +47,30 @@ object ChannelSelector extends LoggingWithMDC {
       }
     }
 
-    def determineChannel(availableChannels: NonEmptyList[Channel]): Channel = {
-      val triggerPreferencesMap = triggered.preferredChannels.getOrElse(Nil).zipWithIndex.toMap
-      val triggerPriority       = priority(triggerPreferencesMap) _
-
-      availableChannels.toList
-        .sortBy(costPriority)
-        .sortBy(triggerPriority)
-        .head
-    }
-
     for {
-      channelsWithContactDetails <- findChannelsWithContactDetails(customerProfile)
+      channelsWithContactDetails <- findChannelsWithContactDetails(contactProfile)
       channelsWithTemplates      <- findChannelsWithTemplates(retrieveTemplate, triggered)
       availableChannels          <- findAvailableChannels(channelsWithTemplates, channelsWithContactDetails)
       acceptableChannels         <- filterByCustomerPreferences(availableChannels, customerPrefs)
-    } yield determineChannel(acceptableChannels)
+    } yield determinePrioritisedChannel(acceptableChannels, triggered.preferredChannels)
+  }
 
+  private def findAvailableChannels(
+      channelsWithTemplates: NonEmptyList[Channel],
+      channelsWithContactDetails: NonEmptyList[Channel]): Either[ErrorDetails, NonEmptyList[Channel]] = {
+    val avChans = channelsWithTemplates.toList.intersect(channelsWithContactDetails.toList)
+    nonEmptyListFrom(avChans, "No available channels to deliver comm", OrchestrationError)
+  }
+
+  private def determinePrioritisedChannel(availableChannels: NonEmptyList[Channel],
+                                          preferredChannels: Option[List[Channel]]): Channel = {
+    val triggerPreferencesMap = preferredChannels.getOrElse(Nil).zipWithIndex.toMap
+    val triggerPriority       = priority(triggerPreferencesMap) _
+
+    availableChannels.toList
+      .sortBy(costPriority)
+      .sortBy(triggerPriority)
+      .head
   }
 
   private def nonEmptyListFrom[A](list: List[A],
@@ -104,11 +104,11 @@ object ChannelSelector extends LoggingWithMDC {
   }
 
   private def findChannelsWithContactDetails(
-      customerProfile: CustomerProfile): Either[ErrorDetails, NonEmptyList[Channel]] = {
+      contactProfile: ContactProfile): Either[ErrorDetails, NonEmptyList[Channel]] = {
 
     val channels = List(
-      customerProfile.phoneNumber.map(_ => SMS),
-      customerProfile.emailAddress.map(_ => Email)
+      contactProfile.phoneNumber.map(_ => SMS),
+      contactProfile.emailAddress.map(_ => Email)
     ).flatten
 
     nonEmptyListFrom(channels, "No contact details found on customer profile", InvalidProfile)

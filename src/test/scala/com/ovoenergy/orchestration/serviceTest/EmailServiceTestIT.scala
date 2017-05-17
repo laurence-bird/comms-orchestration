@@ -41,7 +41,7 @@ class EmailServiceTestIT
   override def beforeAll() = {
     super.beforeAll()
     kafkaTesting.setupTopics()
-    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.triggered.metadata.commManifest)
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
   }
 
   val mockServerClient = new MockServerClient("localhost", 1080)
@@ -54,7 +54,8 @@ class EmailServiceTestIT
 
   it should "orchestrate emails request to send immediately" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse(mockServerClient)
-    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.triggered))
+    val future =
+      triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
     whenReady(future) { _ =>
       expectOrchestrationStartedEvents(10000.millisecond, 1)
       expectOrchestratedEmailEvents(10000.millisecond, 1)
@@ -73,8 +74,8 @@ class EmailServiceTestIT
 
   it should "generate unique internalTraceTokens" taggedAs DockerComposeTag in {
     createOKCustomerProfileResponse(mockServerClient)
-    triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.triggered))
-    triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.triggered))
+    triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
+    triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 2)
     val events = expectOrchestratedEmailEvents(noOfEventsExpected = 2)
     events match {
@@ -88,7 +89,8 @@ class EmailServiceTestIT
 
     var futures = new mutable.ListBuffer[Future[_]]
     (1 to 10).foreach(counter => {
-      val triggered = TestUtil.triggered.copy(metadata = TestUtil.metadataV2.copy(traceToken = counter.toString))
+      val triggered =
+        TestUtil.customerTriggered.copy(metadata = TestUtil.metadataV2.copy(traceToken = counter.toString))
       futures += triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
     })
     futures.foreach(future => Await.ready(future, 1.seconds))
@@ -105,7 +107,8 @@ class EmailServiceTestIT
   it should "raise failure for customers with insufficient details to orchestrate emails for" taggedAs DockerComposeTag in {
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.metadata.commManifest)
     createInvalidCustomerProfileResponse(mockServerClient)
-    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.triggered))
+    val future =
+      triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
     whenReady(future) { _ =>
       val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
@@ -122,7 +125,8 @@ class EmailServiceTestIT
   it should "raise failure when customer profiler fails" taggedAs DockerComposeTag in {
     createBadCustomerProfileResponse(mockServerClient)
 
-    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.triggered))
+    val future =
+      triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
     whenReady(future) { _ =>
       val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
@@ -139,7 +143,7 @@ class EmailServiceTestIT
   it should "retry if the profile service returns an error response" taggedAs DockerComposeTag in {
     createFlakyCustomerProfileResponse(mockServerClient)
 
-    triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.triggered))
+    triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
     expectOrchestratedEmailEvents(noOfEventsExpected = 1)
   }
