@@ -64,7 +64,8 @@ class KafkaTesting(config: Config) {
   val smsOrchestratedTopic      = config.getString("kafka.topics.orchestrated.sms.v2")
   val orchestrationStartedTopic = config.getString("kafka.topics.orchestration.started.v2")
 
-  val legacyTriggeredTopic = config.getString("kafka.topics.triggered.v2")
+  val legacyTriggeredTopic           = config.getString("kafka.topics.triggered.v2")
+  val legacyCancellationRequestTopic = config.getString("kafka.topics.scheduling.cancellationRequest.v1")
 
   val topics = Seq(
     failedTopic,
@@ -84,18 +85,19 @@ class KafkaTesting(config: Config) {
     import scala.concurrent.duration._
     if (!AdminUtils.topicExists(zkUtils, topicName)) {
       AdminUtils.createTopic(zkUtils, topicName, 1, 1)
+
+      val timeout    = 10.seconds.fromNow
+      var notStarted = true
+      while (timeout.hasTimeLeft && notStarted) {
+        try {
+          notStarted = !AdminUtils.topicExists(zkUtils, topicName)
+        } catch {
+          case NonFatal(ex) => Thread.sleep(100)
+        }
+      }
+      if (notStarted) throw new Exception("Kafka services did not start within 10 seconds")
     }
     //Wait until kafka calls are not erroring and the service has created the composedEmailTopic
-    val timeout    = 10.seconds.fromNow
-    var notStarted = true
-    while (timeout.hasTimeLeft && notStarted) {
-      try {
-        notStarted = !AdminUtils.topicExists(zkUtils, topicName)
-      } catch {
-        case NonFatal(ex) => Thread.sleep(100)
-      }
-    }
-    if (notStarted) throw new Exception("Kafka services did not start within 10 seconds")
   }
 
   def setupTopics() {

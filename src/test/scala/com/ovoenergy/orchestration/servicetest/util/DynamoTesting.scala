@@ -13,11 +13,6 @@ trait DynamoTesting extends BeforeAndAfterAll { this: Suite =>
     createTable()
   }
 
-  override def afterAll() = {
-    super.afterAll()
-    removeTable()
-  }
-
   val dynamoUrl    = "http://localhost:8000"
   val dynamoClient = LocalDynamoDB.client(dynamoUrl)
   val tableName    = "scheduling"

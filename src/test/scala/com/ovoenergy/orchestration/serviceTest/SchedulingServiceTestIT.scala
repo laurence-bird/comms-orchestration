@@ -52,6 +52,7 @@ class SchedulingServiceTestIT
   override def beforeAll() = {
     super.beforeAll()
     uploadFragmentsToFakeS3(region, s3Endpoint)
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
     kafkaTesting.setupTopics()
   }
 
@@ -149,6 +150,46 @@ class SchedulingServiceTestIT
       cancelledComs.map(record => (record.value().get.metadata.traceToken, record.value().get.cancellationRequested)) should contain allOf (
         (triggered1.metadata.traceToken, cancellationRequested),
         (triggered2.metadata.traceToken, cancellationRequested)
+      )
+    }
+  }
+
+  it should "legacy deschedule comms and generate cancelled events" taggedAs DockerComposeTag in {
+    createOKCustomerProfileResponse(mockServerClient)
+    val triggered1 = TestUtil.legacyTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(20).toString))
+    val triggered2 = TestUtil.legacyTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(21).toString),
+                                                   metadata = triggered1.metadata.copy(traceToken = "testTrace123"))
+
+    // 2 trigger events for the same customer and comm
+    val triggeredEvents = Seq(
+      triggered1,
+      triggered2
+    )
+    val genericMetadata = GenericMetadata(triggeredEvents.head.metadata.createdAt,
+                                          triggered1.metadata.eventId,
+                                          triggered1.metadata.traceToken,
+                                          triggered1.metadata.source,
+                                          false)
+    val cancellationRequested: CancellationRequested =
+      CancellationRequested(genericMetadata, triggered1.metadata.commManifest.name, TestUtil.customerId)
+
+    val triggeredFuture = Future.sequence(triggeredEvents.map(tr =>
+      legacyTriggeredProducer.send(new ProducerRecord[String, TriggeredV2](legacyTriggeredTopic, tr))))
+    Thread.sleep(100)
+
+    val cancelledFuture = triggeredFuture.flatMap(
+      t =>
+        legacyCancelationRequestedProducer.send(
+          new ProducerRecord[String, CancellationRequested](legacyCancellationRequestTopic, cancellationRequested)))
+    whenReady(cancelledFuture) { _ =>
+      orchestrationStartedConsumer.poll(15000).records(orchestrationStartedTopic).asScala.toList shouldBe empty
+      orchestratedEmailConsumer.poll(2000).records(emailOrchestratedTopic).asScala.toList shouldBe empty
+
+      val cancelledComs = cancelledConsumer.poll(20000).records(cancelledTopic).asScala.toList
+      cancelledComs.length shouldBe 2
+      cancelledComs.map(record => (record.value().get.metadata.traceToken, record.value().get.cancellationRequested)) should contain allOf (
+        (triggered1.metadata.traceToken, Schedule.cancellationRequestedToV2(cancellationRequested)),
+        (triggered2.metadata.traceToken, Schedule.cancellationRequestedToV2(cancellationRequested))
       )
     }
   }

@@ -39,6 +39,20 @@ package object scheduling {
       )
     }
 
+    def cancellationRequestedToV2(cancellationRequested: CancellationRequested): CancellationRequestedV2 = {
+      CancellationRequestedV2(
+        metadata = GenericMetadataV2(
+          createdAt = Instant.parse(cancellationRequested.metadata.createdAt),
+          eventId = cancellationRequested.metadata.eventId,
+          traceToken = cancellationRequested.metadata.traceToken,
+          source = cancellationRequested.metadata.source,
+          canary = cancellationRequested.metadata.canary
+        ),
+        commName = cancellationRequested.commName,
+        customerId = cancellationRequested.customerId
+      )
+    }
+
     def triggeredV2ToV3(triggeredV2: TriggeredV2): TriggeredV3 = {
       def metadataToV2(metadata: Metadata): MetadataV2 = {
         MetadataV2(

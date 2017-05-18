@@ -1,5 +1,7 @@
 package com.ovoenergy.orchestration.kafka.consumers
 
+import java.time.Instant
+
 import akka.actor.ActorSystem
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.Control
@@ -11,6 +13,7 @@ import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.kafka.{KafkaConfig, Serialisation}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.orchestration.scheduling.Schedule
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.serialization.StringDeserializer
 
@@ -20,7 +23,7 @@ import scala.util.control.NonFatal
 
 object LegacyCancellationRequestConsumer extends LoggingWithMDC {
 
-  val deserializer = Serialisation.cancellationRequestedDeserializer
+  val deserializer = Serialisation.legacyCancellationRequestedDeserializer
 
   def apply(sendFailedCancellationEvent: (FailedCancellationV2) => Future[RecordMetadata],
             sendSuccessfulCancellationEvent: (CancelledV2 => Future[RecordMetadata]),
@@ -48,7 +51,8 @@ object LegacyCancellationRequestConsumer extends LoggingWithMDC {
       .mapAsync(1)(msg => {
         log.debug(s"Event received $msg")
         val result: Future[Seq[RecordMetadata]] = msg.record.value match {
-          case Some(cancellationRequest) =>
+          case Some(legacyCancellationRequest) =>
+            val cancellationRequest = Schedule.cancellationRequestedToV2(legacyCancellationRequest)
             val futures = descheduleComm(cancellationRequest).map {
               case Left(err) =>
                 sendFailedCancellationEvent(

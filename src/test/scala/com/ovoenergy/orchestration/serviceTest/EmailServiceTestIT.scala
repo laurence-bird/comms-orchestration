@@ -196,7 +196,7 @@ class EmailServiceTestIT
       failures.foreach(record => {
         val failure = record.value().getOrElse(fail(s"No record for ${record.key()}"))
         failure.reason should include("No available channels to deliver comm")
-        failure.errorCode shouldBe InvalidProfile
+        failure.errorCode shouldBe OrchestrationError
         failure.metadata.traceToken shouldBe TestUtil.traceToken
       })
     }
