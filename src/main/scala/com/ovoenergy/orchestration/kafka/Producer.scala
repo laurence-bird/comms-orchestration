@@ -5,6 +5,7 @@ import akka.stream.Materializer
 import cakesolutions.kafka.KafkaProducer
 import cakesolutions.kafka.KafkaProducer.Conf
 import com.ovoenergy.comms.model.LoggableEvent
+import com.ovoenergy.orchestration.domain.HasCommName
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.retry.Retry._
 import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
@@ -16,7 +17,8 @@ object Producer extends LoggingWithMDC {
 
   def apply[A <: LoggableEvent](hosts: String, topic: String, serialiser: Serializer[A], retryConfig: RetryConfig)(
       implicit actorSystem: ActorSystem,
-      materializer: Materializer): A => Future[RecordMetadata] = {
+      materializer: Materializer,
+      hasCommName: HasCommName[A]): A => Future[RecordMetadata] = {
 
     implicit val scheduler = actorSystem.scheduler
 
@@ -31,8 +33,7 @@ object Producer extends LoggingWithMDC {
           config = retryConfig,
           onFailure = e => logWarn(event, s"Failed to send Kafka event to topic $topic", e)
         ) { () =>
-          //TODO - Add commName for the partitioning
-          producer.send(new ProducerRecord[String, A](topic, event)).map { record =>
+          producer.send(new ProducerRecord[String, A](topic, hasCommName.commName(event), event)).map { record =>
             logInfo(event, s"Event posted to $topic: \n ${event.loggableString}")
             record
           }
