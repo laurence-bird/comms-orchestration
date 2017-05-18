@@ -111,6 +111,6 @@ object ChannelSelector extends LoggingWithMDC {
       contactProfile.emailAddress.map(_ => Email)
     ).flatten
 
-    nonEmptyListFrom(channels, "No contact details found on customer profile", InvalidProfile)
+    nonEmptyListFrom(channels, "No contact details found", InvalidProfile)
   }
 }

@@ -41,6 +41,7 @@ class EmailServiceTestIT
   override def beforeAll() = {
     super.beforeAll()
     kafkaTesting.setupTopics()
+    uploadFragmentsToFakeS3(region, s3Endpoint)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
   }
 
@@ -115,7 +116,7 @@ class EmailServiceTestIT
       failures.size shouldBe 1
       failures.foreach(record => {
         val failure = record.value().getOrElse(fail(s"No record for ${record.key()}"))
-        failure.reason should include("No contact details found on customer profile")
+        failure.reason should include("No contact details found")
         failure.errorCode shouldBe InvalidProfile
         failure.metadata.traceToken shouldBe TestUtil.traceToken
       })
@@ -148,6 +149,59 @@ class EmailServiceTestIT
     expectOrchestratedEmailEvents(noOfEventsExpected = 1)
   }
 
+  it should "orchestrate triggered event with email contact details" taggedAs DockerComposeTag in {
+    val future =
+      triggeredProducer.send(
+        new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.emailContactDetailsTriggered))
+    whenReady(future) { _ =>
+      expectOrchestrationStartedEvents(10000.millisecond, 1)
+      expectOrchestratedEmailEvents(10000.millisecond, 1, shouldHaveCustomerProfile = false)
+    }
+  }
+
+  it should "raise failure for triggered event with contact details with insufficient details" taggedAs DockerComposeTag in {
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.metadata.commManifest)
+    val future =
+      triggeredProducer.send(
+        new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.invalidContactDetailsTriggered))
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
+    whenReady(future) { _ =>
+      val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
+      failures.size shouldBe 1
+      failures.foreach(record => {
+        val failure = record.value().getOrElse(fail(s"No record for ${record.key()}"))
+        failure.reason should include("No contact details found")
+        failure.errorCode shouldBe InvalidProfile
+        failure.metadata.traceToken shouldBe TestUtil.traceToken
+      })
+    }
+  }
+
+  it should "raise failure for triggered event with contact details that do not provide details for template channel" taggedAs DockerComposeTag in {
+    val commManifest = CommManifest(Service, "sms-only", "0.1")
+    val metadata = TestUtil.metadataV2.copy(
+      deliverTo = ContactDetails(Some("qatesting@ovoenergy.com"), None),
+      commManifest = commManifest
+    )
+    val triggered = TestUtil.emailContactDetailsTriggered.copy(metadata = metadata)
+
+    uploadSMSOnlyTemplateToFakeS3(region, s3Endpoint)(commManifest)
+
+    val future =
+      triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
+    whenReady(future) { _ =>
+      val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
+      failures.size shouldBe 1
+      failures.foreach(record => {
+        val failure = record.value().getOrElse(fail(s"No record for ${record.key()}"))
+        failure.reason should include("No available channels to deliver comm")
+        failure.errorCode shouldBe InvalidProfile
+        failure.metadata.traceToken shouldBe TestUtil.traceToken
+      })
+    }
+  }
+
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25000.millisecond,
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true) = {
@@ -163,15 +217,20 @@ class EmailServiceTestIT
 
   def expectOrchestratedEmailEvents(pollTime: FiniteDuration = 25000.millisecond,
                                     noOfEventsExpected: Int,
-                                    shouldCheckTraceToken: Boolean = true) = {
+                                    shouldCheckTraceToken: Boolean = true,
+                                    shouldHaveCustomerProfile: Boolean = true) = {
     val orchestratedEmails = pollForEvents[OrchestratedEmailV3](pollTime,
                                                                 noOfEventsExpected,
                                                                 orchestratedEmailConsumer,
                                                                 emailOrchestratedTopic)
     orchestratedEmails.map { orchestratedEmail =>
       orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
-      orchestratedEmail.customerProfile shouldBe Some(CustomerProfile("John", "Wayne"))
+
+      if (shouldHaveCustomerProfile) orchestratedEmail.customerProfile shouldBe Some(CustomerProfile("John", "Wayne"))
+      else orchestratedEmail.customerProfile shouldBe None
+
       orchestratedEmail.templateData shouldBe TestUtil.templateData
+
       if (shouldCheckTraceToken) orchestratedEmail.metadata.traceToken shouldBe TestUtil.traceToken
       orchestratedEmail
     }

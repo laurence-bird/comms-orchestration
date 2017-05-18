@@ -15,7 +15,7 @@ import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
-import com.ovoenergy.comms.templates.{ErrorsOr, TemplatesContext, TemplatesRepo}
+import com.ovoenergy.comms.templates.{ErrorsOr, TemplatesRepo}
 import com.ovoenergy.orchestration.aws.AwsProvider
 import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
@@ -25,7 +25,6 @@ import com.ovoenergy.orchestration.kafka.consumers.{
   LegacyTriggeredConsumer,
   TriggeredConsumer
 }
-import com.ovoenergy.orchestration.domain.customer.CustomerDeliveryDetails
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator, Scheduler}
@@ -40,6 +39,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.concurrent.duration._
+
 import com.ovoenergy.comms.serialisation.Codecs._
 
 object Main extends App with LoggingWithMDC {

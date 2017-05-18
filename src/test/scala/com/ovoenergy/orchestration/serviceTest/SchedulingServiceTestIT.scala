@@ -51,7 +51,7 @@ class SchedulingServiceTestIT
 
   override def beforeAll() = {
     super.beforeAll()
-    uploadTemplate(TestUtil.customerTriggered.metadata.commManifest)
+    uploadFragmentsToFakeS3(region, s3Endpoint)
     kafkaTesting.setupTopics()
   }
 
@@ -71,6 +71,34 @@ class SchedulingServiceTestIT
           "testSchedule",
           None,
           Some(triggered),
+          deliverAt,
+          ScheduleStatus.Orchestrating,
+          Nil,
+          expireAt,
+          Some(TestUtil.customerId),
+          triggered.metadata.commManifest.name
+        )
+      ))
+
+    result.getSdkHttpMetadata.getHttpStatusCode shouldBe 200
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1, pollTime = 25000.millisecond)
+    expectOrchestratedEmailEvents(noOfEventsExpected = 1, pollTime = 25000.millisecond)
+  }
+
+  it should "pick up expired legacy events via polling and orchestrate them" taggedAs DockerComposeTag in {
+    createOKCustomerProfileResponse(mockServerClient)
+    val schedulesTable = Table[Schedule](tableName)
+    val triggered      = TestUtil.legacyTriggered
+
+    val deliverAt = Instant.now().minusSeconds(600)
+    val expireAt  = Instant.now().minusSeconds(60)
+
+    val result: PutItemResult = Scanamo.exec(dynamoClient)(
+      schedulesTable.put(
+        Schedule(
+          "testSchedule",
+          Some(triggered),
+          None,
           deliverAt,
           ScheduleStatus.Orchestrating,
           Nil,

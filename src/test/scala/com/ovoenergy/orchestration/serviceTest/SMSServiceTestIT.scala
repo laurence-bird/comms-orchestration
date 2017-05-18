@@ -45,6 +45,8 @@ class SMSServiceTestIT
   override def beforeAll() = {
     super.beforeAll()
     setupTopics()
+    uploadFragmentsToFakeS3(region, s3Endpoint)
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
     kafkaTesting.setupTopics()
   }
 
@@ -82,6 +84,17 @@ class SMSServiceTestIT
     orchestratedSMSes.map(_.metadata.traceToken) should contain allOf ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
   }
 
+  it should "orchestrate triggered event with sms contact details" taggedAs DockerComposeTag in {
+    createOKCustomerProfileResponse(mockServerClient)
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
+    val triggerSMS = TestUtil.smsContactDetailsTriggered
+    val future     = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggerSMS))
+    whenReady(future) { _ =>
+      expectOrchestrationStartedEvents(10000.millisecond, 1)
+      expectSMSOrchestrationEvents(10000.millisecond, 1, shouldHaveCustomerProfile = false)
+    }
+  }
+
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25000.millisecond,
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true) = {
@@ -97,12 +110,18 @@ class SMSServiceTestIT
 
   def expectSMSOrchestrationEvents(pollTime: FiniteDuration = 20000.millisecond,
                                    noOfEventsExpected: Int,
-                                   shouldCheckTraceToken: Boolean = true) = {
+                                   shouldCheckTraceToken: Boolean = true,
+                                   shouldHaveCustomerProfile: Boolean = true) = {
     val orchestratedSMS =
       pollForEvents[OrchestratedSMSV2](pollTime, noOfEventsExpected, smsOrchestratedConsumer, smsOrchestratedTopic)
     orchestratedSMS.map { orchestratedSMS =>
-      orchestratedSMS.customerProfile shouldBe Some(CustomerProfile("John", "Wayne"))
+      orchestratedSMS.recipientPhoneNumber shouldBe "+447985631544"
+
+      if (shouldHaveCustomerProfile) orchestratedSMS.customerProfile shouldBe Some(CustomerProfile("John", "Wayne"))
+      else orchestratedSMS.customerProfile shouldBe None
+
       orchestratedSMS.templateData shouldBe TestUtil.templateData
+
       if (shouldCheckTraceToken) orchestratedSMS.metadata.traceToken shouldBe TestUtil.traceToken
       orchestratedSMS
     }

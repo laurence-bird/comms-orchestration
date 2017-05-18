@@ -42,11 +42,6 @@ object TestUtil {
     triggerSource = "test-trigger"
   )
 
-  val triggeredV1 = Triggered(
-    metadata = metadata,
-    templateData = templateDataV1
-  )
-
   val legacyTriggered = TriggeredV2(
     metadata = metadata,
     templateData = templateData,
@@ -57,6 +52,30 @@ object TestUtil {
 
   val customerTriggered = TriggeredV3(
     metadata = metadataV2,
+    templateData = templateData,
+    deliverAt = None,
+    expireAt = None,
+    Some(List(Email))
+  )
+
+  val emailContactDetailsTriggered = TriggeredV3(
+    metadata = metadataV2.copy(deliverTo = ContactDetails(Some("qatesting@ovoenergy.com"), None)),
+    templateData = templateData,
+    deliverAt = None,
+    expireAt = None,
+    Some(List(Email))
+  )
+
+  val smsContactDetailsTriggered = TriggeredV3(
+    metadata = metadataV2.copy(deliverTo = ContactDetails(None, Some("+447985631544"))),
+    templateData = templateData,
+    deliverAt = None,
+    expireAt = None,
+    Some(List(Email))
+  )
+
+  val invalidContactDetailsTriggered = TriggeredV3(
+    metadata = metadataV2.copy(deliverTo = ContactDetails(None, None)),
     templateData = templateData,
     deliverAt = None,
     expireAt = None,

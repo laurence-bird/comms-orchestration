@@ -1,5 +1,6 @@
 package com.ovoenergy.orchestration.domain
 
+import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model.{Channel, CommType}
 import io.circe.generic.extras.semiauto.deriveEnumerationDecoder
 package object customer {
@@ -11,7 +12,12 @@ package object customer {
   implicit val commTypeDecoder = deriveEnumerationDecoder[CommType]
   implicit val channelDecoder  = deriveEnumerationDecoder[Channel]
 
-  case class CustomerProfile(name: CustomerProfileName, contactProfile: ContactProfile)
+  case class CustomerProfile(name: CustomerProfileName, contactProfile: ContactProfile) {
+    def toModel = model.CustomerProfile(
+      firstName = name.firstName,
+      lastName = name.lastName
+    )
+  }
 
   case class CustomerProfileResponse(name: CustomerProfileName,
                                      emailAddress: Option[String],
@@ -23,8 +29,5 @@ package object customer {
   case class ContactProfile(emailAddress: Option[String],
                             phoneNumber: Option[String],
                             communicationPreferences: Seq[CommunicationPreference])
-
-  // DeliverTo is either phone number or email address
-  case class CustomerDeliveryDetails(name: Option[CustomerProfileName], deliverTo: String)
 
 }
