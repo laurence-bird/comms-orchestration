@@ -11,7 +11,9 @@ import com.ovoenergy.orchestration.domain.customer.{
   ContactProfile,
   CustomerProfile,
   CustomerProfileEmailAddresses,
-  CustomerProfileName
+  CustomerProfileName,
+  EmailAddress,
+  MobilePhoneNumber
 }
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.util.{ArbGenerator, TestUtil}
@@ -20,10 +22,9 @@ import org.scalacheck.Shapeless._
 
 class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
 
-  val contactProfileNoPreferences = ContactProfile(
-    Some("some.email@ovoenergy.com"),
-    Some("123456789"),
-    Seq.empty
+  val contactProfile = ContactProfile(
+    Some(EmailAddress("some.email@ovoenergy.com")),
+    Some(MobilePhoneNumber("123456789"))
   )
 
   def retrieveTemplate(template: CommTemplate[Id]) = (commManifest: CommManifest) => Valid(template)
@@ -42,8 +43,8 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
 
   it should "Return an error if there are no templates available for the specified trigger" in {
     val channelResult =
-      ChannelSelector.determineChannel(retrieveTemplate(noChannelsTemplate))(contactProfileNoPreferences,
-                                                                             triggeredBase)
+      new ChannelSelectorWithTemplate(retrieveTemplate(noChannelsTemplate))
+        .determineChannel(contactProfile, Seq(), triggeredBase)
 
     channelResult shouldBe
       Left(
@@ -57,7 +58,8 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
   it should "Return the cheapest option if there are no trigger channel preferences or customer channel preferences" in {
     val triggered = triggeredBase.copy(preferredChannels = None)
     val channelResult =
-      ChannelSelector.determineChannel(retrieveTemplate(smsAndEmailTemplate))(contactProfileNoPreferences, triggered)
+      new ChannelSelectorWithTemplate(retrieveTemplate(smsAndEmailTemplate))
+        .determineChannel(contactProfile, Seq(), triggered)
 
     channelResult shouldBe Right(Email)
   }
@@ -65,7 +67,8 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
   it should "Return the highest priority trigger channel preference if it is available and the customer has no preferences" in {
     val triggered = triggeredBase.copy(preferredChannels = Some(List(SMS, Email)))
     val channelResult =
-      ChannelSelector.determineChannel(retrieveTemplate(smsAndEmailTemplate))(contactProfileNoPreferences, triggered)
+      new ChannelSelectorWithTemplate(retrieveTemplate(smsAndEmailTemplate))
+        .determineChannel(contactProfile, Seq(), triggered)
 
     channelResult shouldBe Right(SMS)
   }
@@ -73,59 +76,53 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
   it should "Return the second trigger channel preference if the template for the first is not available and the customer has no preferences" in {
     val triggered = triggeredBase.copy(preferredChannels = Some(List(Email, SMS)))
     val channelResult =
-      ChannelSelector.determineChannel(retrieveTemplate(smsOnlyTemplate))(contactProfileNoPreferences, triggered)
+      new ChannelSelectorWithTemplate(retrieveTemplate(smsOnlyTemplate))
+        .determineChannel(contactProfile, Seq(), triggered)
 
     channelResult shouldBe Right(SMS)
   }
 
   it should "Adhere to customer preferences over trigger preferences" in {
     val triggered = triggeredBase.copy(preferredChannels = Some(List(Email, SMS)))
-    val customerProfileSMSPreference =
-      contactProfileNoPreferences.copy(communicationPreferences = Seq(CommunicationPreference(Service, Seq(SMS))))
     val channelResult =
-      ChannelSelector.determineChannel(retrieveTemplate(smsAndEmailTemplate))(customerProfileSMSPreference, triggered)
+      new ChannelSelectorWithTemplate(retrieveTemplate(smsAndEmailTemplate))
+        .determineChannel(contactProfile, Seq(CommunicationPreference(Service, Seq(SMS))), triggered)
 
     channelResult shouldBe Right(SMS)
   }
 
   it should "Adhere to customer preferences over trigger preferences when they don't intersect" in {
     val triggered = triggeredBase.copy(preferredChannels = Some(List(SMS)))
-    val customerProfileEmailPreference =
-      contactProfileNoPreferences.copy(communicationPreferences = Seq(CommunicationPreference(Service, Seq(Email))))
     val channelResult =
-      ChannelSelector.determineChannel(retrieveTemplate(smsAndEmailTemplate))(customerProfileEmailPreference,
-                                                                              triggered)
+      new ChannelSelectorWithTemplate(retrieveTemplate(smsAndEmailTemplate))
+        .determineChannel(contactProfile, Seq(CommunicationPreference(Service, Seq(Email))), triggered)
 
     channelResult shouldBe Right(Email)
   }
 
   it should "Disregard preferences for channels not implemented in templates" in {
     val triggered = triggeredBase.copy(preferredChannels = Some(List(SMS, Email)))
-    val customerProfilePostPreference =
-      contactProfileNoPreferences.copy(communicationPreferences = Seq(CommunicationPreference(Service, Seq(Post))))
     val channelResult =
-      ChannelSelector.determineChannel(retrieveTemplate(smsAndEmailTemplate))(customerProfilePostPreference, triggered)
+      new ChannelSelectorWithTemplate(retrieveTemplate(smsAndEmailTemplate))
+        .determineChannel(contactProfile, Seq(CommunicationPreference(Service, Seq(Post))), triggered)
 
     channelResult shouldBe Right(SMS)
   }
 
   it should "Adhere to trigger preferences priority if customer profile preferences contains all the channels available" in {
     val triggered = triggeredBase.copy(preferredChannels = Some(List(Email, SMS)))
-    val customerProfileAllPreferences =
-      contactProfileNoPreferences.copy(
-        communicationPreferences = Seq(CommunicationPreference(Service, Seq(SMS, Email))))
     val channelResult =
-      ChannelSelector.determineChannel(retrieveTemplate(smsAndEmailTemplate))(customerProfileAllPreferences, triggered)
+      new ChannelSelectorWithTemplate(retrieveTemplate(smsAndEmailTemplate))
+        .determineChannel(contactProfile, Seq(CommunicationPreference(Service, Seq(SMS, Email))), triggered)
 
     channelResult shouldBe Right(Email)
   }
 
   it should "Return an error if there are available channels for a customer, but their preferences can't be met" in {
     val triggered = triggeredBase.copy(preferredChannels = Some(List(Email)))
-    val customerProfileAllPreferences =
-      contactProfileNoPreferences.copy(communicationPreferences = Seq(CommunicationPreference(Service, Seq(SMS))))
     val channelResult =
-      ChannelSelector.determineChannel(retrieveTemplate(emailOnlyTemplate))(customerProfileAllPreferences, triggered)
+      new ChannelSelectorWithTemplate(retrieveTemplate(emailOnlyTemplate))
+        .determineChannel(contactProfile, Seq(CommunicationPreference(Service, Seq(SMS))), triggered)
 
     channelResult shouldBe Left(ErrorDetails("No available channels that the customer accepts", OrchestrationError))
   }
@@ -133,9 +130,10 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
   it should "Use the lower priority channel if the customer is missing contact details for the high priority channel" in {
     val triggered = triggeredBase.copy(preferredChannels = Some(List(SMS, Email)))
     val customerProfileAllPreferences =
-      contactProfileNoPreferences.copy(phoneNumber = None)
+      contactProfile.copy(mobileNumber = None)
     val channelResult =
-      ChannelSelector.determineChannel(retrieveTemplate(emailOnlyTemplate))(customerProfileAllPreferences, triggered)
+      new ChannelSelectorWithTemplate(retrieveTemplate(emailOnlyTemplate))
+        .determineChannel(customerProfileAllPreferences, Seq(), triggered)
 
     channelResult shouldBe Right(Email)
   }

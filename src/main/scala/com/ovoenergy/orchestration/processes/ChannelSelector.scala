@@ -11,7 +11,15 @@ import com.ovoenergy.orchestration.domain.customer.{CommunicationPreference, Con
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 
-object ChannelSelector extends LoggingWithMDC {
+trait ChannelSelector {
+  def determineChannel(contactProfile: ContactProfile,
+                       customerPreferences: Seq[CommunicationPreference],
+                       triggered: TriggeredV3): Either[ErrorDetails, Channel]
+}
+
+class ChannelSelectorWithTemplate(retrieveTemplate: CommManifest => ErrorsOr[CommTemplate[Id]])
+    extends ChannelSelector
+    with LoggingWithMDC {
 
   private val channelCostMap: Map[Channel, Int] = Map(
     Email -> 1,
@@ -22,12 +30,12 @@ object ChannelSelector extends LoggingWithMDC {
 
   private def priority(priorityMap: Map[Channel, Int])(channel: Channel) = priorityMap.getOrElse(channel, Int.MaxValue)
 
-  def determineChannel(retrieveTemplate: CommManifest => ErrorsOr[CommTemplate[Id]])(
-      contactProfile: ContactProfile,
-      triggered: TriggeredV3): Either[ErrorDetails, Channel] = {
+  def determineChannel(contactProfile: ContactProfile,
+                       customerPreferences: Seq[CommunicationPreference],
+                       triggered: TriggeredV3): Either[ErrorDetails, Channel] = {
 
     val customerPrefs: Option[NonEmptyList[Channel]] = {
-      val prefsForCommType = contactProfile.communicationPreferences.collectFirst({
+      val prefsForCommType = customerPreferences.collectFirst({
         case CommunicationPreference(commType, prefs) if commType == triggered.metadata.commManifest.commType => prefs
       })
       prefsForCommType.flatMap { prefs =>
@@ -107,7 +115,7 @@ object ChannelSelector extends LoggingWithMDC {
       contactProfile: ContactProfile): Either[ErrorDetails, NonEmptyList[Channel]] = {
 
     val channels = List(
-      contactProfile.phoneNumber.map(_ => SMS),
+      contactProfile.mobileNumber.map(_ => SMS),
       contactProfile.emailAddress.map(_ => Email)
     ).flatten
 

@@ -6,62 +6,55 @@ import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import org.apache.kafka.clients.producer.RecordMetadata
 import cats.syntax.either._
 import com.ovoenergy.comms.model._
+import com.ovoenergy.orchestration.domain.customer.{CommunicationPreference, EmailAddress, MobilePhoneNumber}
+import com.ovoenergy.orchestration.kafka.{IssueOrchestratedComm, IssueOrchestratedEmail, IssueOrchestratedSMS}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 object Orchestrator extends LoggingWithMDC {
+
   case class ErrorDetails(reason: String, errorCode: ErrorCode)
-  type SendEvent = (Option[CustomerProfile], String, TriggeredV3, InternalMetadata) => Future[RecordMetadata]
 
   def apply(profileCustomer: (String, Boolean, String) => Either[ErrorDetails, domain.CustomerProfile],
-            determineChannel: (domain.ContactProfile, TriggeredV3) => Either[ErrorDetails, Channel],
+            channelSelector: ChannelSelector,
             validateProfile: (domain.CustomerProfile) => Either[ErrorDetails, domain.CustomerProfile],
-            sendOrchestratedEmailEvent: SendEvent,
-            sendOrchestratedSMSEvent: SendEvent)(
+            issueOrchestratedEmail: IssueOrchestratedComm[EmailAddress],
+            issueOrchestratedSMS: IssueOrchestratedComm[MobilePhoneNumber])(
       triggered: TriggeredV3,
       internalMetadata: InternalMetadata): Either[ErrorDetails, Future[RecordMetadata]] = {
 
-    def selectEventSender(channel: Channel): Either[ErrorDetails, SendEvent] =
+    def issueOrchestratedComm(customerProfile: Option[model.CustomerProfile],
+                              channel: Channel,
+                              contactProfile: domain.ContactProfile): Either[ErrorDetails, Future[RecordMetadata]] = {
       channel match {
-        case Email => Right(sendOrchestratedEmailEvent)
-        case SMS   => Right(sendOrchestratedSMSEvent)
-        case _     => Left(ErrorDetails(s"Unsupported channel selected $channel", OrchestrationError))
-      }
-
-    def determineDeliverTo(contactProfile: domain.ContactProfile, channel: Channel): Either[ErrorDetails, String] = {
-      channel match {
-        case SMS => {
-          contactProfile.phoneNumber
-            .toRight {
-              logWarn(triggered.metadata.traceToken, "Phone number missing from customer profile")
-              ErrorDetails("Phone number missing from customer profile", InvalidProfile)
-            }
-        }
         case Email =>
           contactProfile.emailAddress
+            .map(issueOrchestratedEmail.send(customerProfile, _, triggered))
             .toRight {
               val errorDetails = "Phone number missing from customer profile"
               logWarn(triggered.metadata.traceToken, errorDetails)
               ErrorDetails(errorDetails, InvalidProfile)
             }
-
-        case otherChannel => {
-          val errorDetails = s"Channel ${otherChannel.toString} unavailable"
-          logWarn(triggered.metadata.traceToken, errorDetails)
-          Left(ErrorDetails(errorDetails, OrchestrationError))
-        }
+        case SMS =>
+          contactProfile.mobileNumber
+            .map(issueOrchestratedSMS.send(customerProfile, _, triggered))
+            .toRight {
+              logWarn(triggered.metadata.traceToken, "Phone number missing from customer profile")
+              ErrorDetails("Phone number missing from customer profile", InvalidProfile)
+            }
+        case _ => Left(ErrorDetails(s"Unsupported channel selected $channel", OrchestrationError))
       }
     }
 
     def orchestrate(triggeredV3: TriggeredV3,
                     contactProfile: domain.ContactProfile,
+                    customerPreferences: Seq[CommunicationPreference],
                     customerProfile: Option[model.CustomerProfile]) = {
       for {
-        channel     <- determineChannel(contactProfile, triggeredV3)
-        eventSender <- selectEventSender(channel)
-        deliverTo   <- determineDeliverTo(contactProfile, channel)
-      } yield eventSender(customerProfile, deliverTo, triggered, internalMetadata)
+        channel <- channelSelector.determineChannel(contactProfile, customerPreferences, triggeredV3)
+        res     <- issueOrchestratedComm(customerProfile, channel, contactProfile)
+      } yield res
     }
 
     def retrieveCustomerProfile(customerId: String,
@@ -69,21 +62,22 @@ object Orchestrator extends LoggingWithMDC {
       for {
         customerProfile  <- profileCustomer(customerId, triggered.metadata.canary, triggered.metadata.traceToken)
         validatedProfile <- validateProfile(customerProfile)
-      } yield {
-        validatedProfile
-      }
+      } yield validatedProfile
     }
 
     triggered.metadata.deliverTo match {
       case Customer(customerId) => {
         for {
           customerProfile <- retrieveCustomerProfile(customerId, triggered)
-          res             <- orchestrate(triggered, customerProfile.contactProfile, Some(customerProfile.toModel))
+          res <- orchestrate(triggered,
+                             customerProfile.contactProfile,
+                             customerProfile.communicationPreferences,
+                             Some(customerProfile.toModel))
         } yield res
       }
       case ContactDetails(emailAddr, phoneNo) =>
-        val contactProfile = domain.ContactProfile(emailAddr, phoneNo, Seq.empty)
-        orchestrate(triggered, contactProfile, None)
+        val contactProfile = domain.ContactProfile(emailAddr.map(EmailAddress), phoneNo.map(MobilePhoneNumber))
+        orchestrate(triggered, contactProfile, Seq(), None)
     }
   }
 }

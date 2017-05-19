@@ -27,7 +27,7 @@ import com.ovoenergy.orchestration.kafka.consumers.{
 }
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator, Scheduler}
+import com.ovoenergy.orchestration.processes.{ChannelSelector, ChannelSelectorWithTemplate, Orchestrator, Scheduler}
 import com.ovoenergy.orchestration.profile.{CustomerProfiler, ProfileValidation}
 import com.ovoenergy.orchestration.retry.Retry
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence
@@ -39,7 +39,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.concurrent.duration._
-
 import com.ovoenergy.comms.serialisation.Codecs._
 
 object Main extends App with LoggingWithMDC {
@@ -69,7 +68,7 @@ object Main extends App with LoggingWithMDC {
   val templatesContext = AwsProvider.templatesContext(isRunningInCompose, region)
 
   val retrieveTemplate: (CommManifest) => ErrorsOr[CommTemplate[Id]] = TemplatesRepo.getTemplate(templatesContext, _)
-  val determineChannel                                               = ChannelSelector.determineChannel(retrieveTemplate) _
+  val determineChannel                                               = new ChannelSelectorWithTemplate(retrieveTemplate)
 
   val kafkaHosts = config.getString("kafka.hosts")
   val kafkaProducerRetryConfig = Retry.RetryConfig(
@@ -80,7 +79,7 @@ object Main extends App with LoggingWithMDC {
     )
   )
 
-  val orchestrateEmail = OrchestratedEmailEvent.send(
+  val orchestrateEmail = new IssueOrchestratedEmail(
     Producer(
       hosts = kafkaHosts,
       topic = config.getString("kafka.topics.orchestrated.email.v3"),
@@ -89,7 +88,7 @@ object Main extends App with LoggingWithMDC {
     )
   )
 
-  val orchestrateSMS = OrchestratedSMSEvent.send(
+  val orchestrateSMS = new IssueOrchestratedSMS(
     Producer(
       hosts = kafkaHosts,
       topic = config.getString("kafka.topics.orchestrated.sms.v2"),
@@ -116,9 +115,9 @@ object Main extends App with LoggingWithMDC {
 
   val orchestrateComm: (TriggeredV3, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]] = Orchestrator(
     profileCustomer = profileCustomer,
-    determineChannel = determineChannel,
-    sendOrchestratedEmailEvent = orchestrateEmail,
-    sendOrchestratedSMSEvent = orchestrateSMS,
+    channelSelector = determineChannel,
+    issueOrchestratedEmail = orchestrateEmail,
+    issueOrchestratedSMS = orchestrateSMS,
     validateProfile = ProfileValidation.apply
   )
 

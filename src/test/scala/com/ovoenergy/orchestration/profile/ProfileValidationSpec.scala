@@ -12,10 +12,10 @@ class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues {
   it should "Validate a valid profile" in {
     val goodCustomerProfile = CustomerProfile(
       CustomerProfileName(Some("Mr"), "Stevie", "Wonder", Some("Esq")),
+      Seq.empty,
       ContactProfile(
         None,
-        None,
-        Seq.empty
+        None
       )
     )
 
@@ -25,10 +25,10 @@ class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues {
   it should "Fail on an Invalid profile, specifying the parts missing" in {
     val badCustomerProfile = CustomerProfile(
       CustomerProfileName(Some("Mr"), "", "", Some("Esq")),
+      Seq.empty,
       ContactProfile(
         None,
-        None,
-        Seq.empty
+        None
       )
     )
     ProfileValidation(badCustomerProfile).left.value shouldBe ErrorDetails(

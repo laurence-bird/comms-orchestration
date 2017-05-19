@@ -113,19 +113,19 @@ class KafkaTesting(config: Config) {
     }
 
     failedCancellationConsumer.assign(Seq(new TopicPartition(failedCancellationTopic, 0)).asJava)
-    failedCancellationConsumer.poll(5000).records(failedCancellationTopic).asScala.toList
+    failedCancellationConsumer.poll(5000)
     orchestrationStartedConsumer.assign(Seq(new TopicPartition(orchestrationStartedTopic, 0)).asJava)
-    orchestrationStartedConsumer.poll(5000).records(orchestrationStartedTopic).asScala.toList
+    orchestrationStartedConsumer.poll(5000)
     commFailedConsumer.assign(Seq(new TopicPartition(failedTopic, 0)).asJava)
-    commFailedConsumer.poll(5000).records(failedTopic).asScala.toList
+    commFailedConsumer.poll(5000)
     orchestratedEmailConsumer.assign(Seq(new TopicPartition(emailOrchestratedTopic, 0)).asJava)
-    orchestratedEmailConsumer.poll(5000).records(emailOrchestratedTopic).asScala.toList
+    orchestratedEmailConsumer.poll(5000)
     smsOrchestratedConsumer.assign(Seq(new TopicPartition(smsOrchestratedTopic, 0)).asJava)
-    smsOrchestratedConsumer.poll(5000).records(smsOrchestratedTopic)
+    smsOrchestratedConsumer.poll(5000)
     cancelationRequestedConsumer.assign(Seq(new TopicPartition(cancellationRequestTopic, 0)).asJava)
-    cancelationRequestedConsumer.poll(5000).records(cancellationRequestTopic).asScala.toList
+    cancelationRequestedConsumer.poll(5000)
     cancelledConsumer.assign(Seq(new TopicPartition(cancelledTopic, 0)).asJava)
-    cancelledConsumer.poll(5000).records(cancelledTopic).asScala.toList
+    cancelledConsumer.poll(5000)
 
   }
 

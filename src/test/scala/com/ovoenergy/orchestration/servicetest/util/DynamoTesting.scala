@@ -6,12 +6,7 @@ import com.ovoenergy.orchestration.util.LocalDynamoDB
 import com.ovoenergy.orchestration.util.LocalDynamoDB.SecondaryIndexData
 import org.scalatest.{BeforeAndAfterAll, Suite}
 
-trait DynamoTesting extends BeforeAndAfterAll { this: Suite =>
-
-  override abstract def beforeAll() = {
-    super.beforeAll()
-    createTable()
-  }
+trait DynamoTesting {
 
   val dynamoUrl    = "http://localhost:8000"
   val dynamoClient = LocalDynamoDB.client(dynamoUrl)

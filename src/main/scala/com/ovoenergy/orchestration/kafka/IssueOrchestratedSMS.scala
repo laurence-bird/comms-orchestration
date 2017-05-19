@@ -1,24 +1,24 @@
 package com.ovoenergy.orchestration.kafka
 
+import java.util.UUID
+
 import com.ovoenergy.comms.model.sms.OrchestratedSMSV2
 import com.ovoenergy.comms.model._
+import com.ovoenergy.orchestration.domain.customer.MobilePhoneNumber
 import org.apache.kafka.clients.producer.RecordMetadata
 
 import scala.concurrent.Future
 
-object OrchestratedSMSEvent {
+class IssueOrchestratedSMS(sendEvent: OrchestratedSMSV2 => Future[RecordMetadata]) extends IssueOrchestratedComm[MobilePhoneNumber]{
 
-  def send(sendEvent: OrchestratedSMSV2 => Future[RecordMetadata]) = {
-
-    (customerProfile: Option[CustomerProfile], deliverTo: String, triggered: TriggeredV3,
-     internalMetadata: InternalMetadata) =>
+  def send(customerProfile: Option[CustomerProfile], mobileNumber: MobilePhoneNumber, triggered: TriggeredV3) = {
       val orchestratedSMSEvent = OrchestratedSMSV2(
         metadata = MetadataV2.fromSourceMetadata("orchestration", triggered.metadata),
         customerProfile = customerProfile,
         templateData = triggered.templateData,
-        internalMetadata = internalMetadata,
+        internalMetadata = InternalMetadata(UUID.randomUUID.toString),
         expireAt = triggered.expireAt,
-        recipientPhoneNumber = deliverTo
+        recipientPhoneNumber = mobileNumber.number
       )
       sendEvent(orchestratedSMSEvent)
   }

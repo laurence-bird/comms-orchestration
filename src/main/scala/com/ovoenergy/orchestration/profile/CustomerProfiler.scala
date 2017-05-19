@@ -16,6 +16,16 @@ import scala.util.{Failure, Try}
 
 object CustomerProfiler extends LoggingWithMDC {
 
+  case class CustomerProfileResponse(name: CustomerProfileName,
+                                     emailAddress: Option[String],
+                                     phoneNumber: Option[String],
+                                     communicationPreferences: Seq[CommunicationPreference]) {
+    def toCustomerProfile =
+      CustomerProfile(name,
+                      communicationPreferences,
+                      ContactProfile(emailAddress.map(EmailAddress), phoneNumber.map(MobilePhoneNumber)))
+  }
+
   def apply(httpClient: (Request) => Try[Response],
             profileApiKey: String,
             profileHost: String,
