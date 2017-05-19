@@ -43,8 +43,7 @@ class SMSServiceTestIT
   object DockerComposeTag extends Tag("DockerComposeTag")
 
   override def beforeAll() = {
-    super.beforeAll()
-    setupTopics()
+    createTable()
     uploadFragmentsToFakeS3(region, s3Endpoint)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
     kafkaTesting.setupTopics()

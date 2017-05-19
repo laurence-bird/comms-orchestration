@@ -39,7 +39,7 @@ class EmailServiceTestIT
   import kafkaTesting._
 
   override def beforeAll() = {
-    super.beforeAll()
+    createTable()
     kafkaTesting.setupTopics()
     uploadFragmentsToFakeS3(region, s3Endpoint)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)

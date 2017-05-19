@@ -13,10 +13,11 @@ object HasCommName {
     def commName(a: A): String = getCommName(a)
   }
 
-  implicit val failedCancellationHasCommName = HasCommName.instance[FailedCancellationV2](_.cancellationRequested.commName)
-  implicit val failedHasCommName      = HasCommName.instance[FailedV2](_.metadata.commManifest.name)
-  implicit val orchStartedHasCommName = HasCommName.instance[OrchestrationStartedV2](_.metadata.commManifest.name)
-  implicit val cancelledHasCommName   = HasCommName.instance[CancelledV2](_.cancellationRequested.commName)
+  implicit val failedCancellationHasCommName =
+    HasCommName.instance[FailedCancellationV2](_.cancellationRequested.commName)
+  implicit val failedHasCommName            = HasCommName.instance[FailedV2](_.metadata.commManifest.name)
+  implicit val orchStartedHasCommName       = HasCommName.instance[OrchestrationStartedV2](_.metadata.commManifest.name)
+  implicit val cancelledHasCommName         = HasCommName.instance[CancelledV2](_.cancellationRequested.commName)
   implicit val OrchestratedEmailHasCommName = HasCommName.instance[OrchestratedEmailV3](_.metadata.commManifest.name)
-  implicit val OrchestratedSMSHasCommName = HasCommName.instance[OrchestratedSMSV2](_.metadata.commManifest.name)
+  implicit val OrchestratedSMSHasCommName   = HasCommName.instance[OrchestratedSMSV2](_.metadata.commManifest.name)
 }

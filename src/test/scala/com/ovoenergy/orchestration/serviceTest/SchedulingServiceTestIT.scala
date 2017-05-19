@@ -50,7 +50,7 @@ class SchedulingServiceTestIT
   val uploadTemplate: (CommManifest) => Unit = uploadTemplateToFakeS3(region, s3Endpoint)
 
   override def beforeAll() = {
-    super.beforeAll()
+    createTable()
     uploadFragmentsToFakeS3(region, s3Endpoint)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
     kafkaTesting.setupTopics()
@@ -145,9 +145,9 @@ class SchedulingServiceTestIT
       orchestrationStartedConsumer.poll(15000).records(orchestrationStartedTopic).asScala.toList shouldBe empty
       orchestratedEmailConsumer.poll(2000).records(emailOrchestratedTopic).asScala.toList shouldBe empty
 
-      val cancelledComs = cancelledConsumer.poll(20000).records(cancelledTopic).asScala.toList
+      val cancelledComs = pollForEvents(20000.millisecond, 2, cancelledConsumer, cancelledTopic)
       cancelledComs.length shouldBe 2
-      cancelledComs.map(record => (record.value().get.metadata.traceToken, record.value().get.cancellationRequested)) should contain allOf (
+      cancelledComs.map(cc => (cc.metadata.traceToken, cc.cancellationRequested)) should contain allOf (
         (triggered1.metadata.traceToken, cancellationRequested),
         (triggered2.metadata.traceToken, cancellationRequested)
       )
@@ -185,9 +185,9 @@ class SchedulingServiceTestIT
       orchestrationStartedConsumer.poll(15000).records(orchestrationStartedTopic).asScala.toList shouldBe empty
       orchestratedEmailConsumer.poll(2000).records(emailOrchestratedTopic).asScala.toList shouldBe empty
 
-      val cancelledComs = cancelledConsumer.poll(20000).records(cancelledTopic).asScala.toList
+      val cancelledComs = pollForEvents(20000.millisecond, 2, cancelledConsumer, cancelledTopic)
       cancelledComs.length shouldBe 2
-      cancelledComs.map(record => (record.value().get.metadata.traceToken, record.value().get.cancellationRequested)) should contain allOf (
+      cancelledComs.map(cc => (cc.metadata.traceToken, cc.cancellationRequested)) should contain allOf (
         (triggered1.metadata.traceToken, Schedule.cancellationRequestedToV2(cancellationRequested)),
         (triggered2.metadata.traceToken, Schedule.cancellationRequestedToV2(cancellationRequested))
       )
@@ -233,7 +233,8 @@ class SchedulingServiceTestIT
           cancellationRequested,
           "Cancellation of scheduled comm failed: Failed to deserialise pending schedule"
         ))
-      val cancelledComs = cancelledConsumer.poll(20000).records(cancelledTopic).asScala.toList
+
+      val cancelledComs = pollForEvents(20000.millisecond, 1, cancelledConsumer, cancelledTopic)
       cancelledComs.length shouldBe 1
       val orchestratedComms = orchestratedEmailConsumer.poll(20000).records(emailOrchestratedTopic).asScala.toList
       orchestratedComms.length shouldBe 0
