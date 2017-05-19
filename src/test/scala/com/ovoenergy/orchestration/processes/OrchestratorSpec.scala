@@ -2,8 +2,7 @@ package com.ovoenergy.orchestration.processes
 
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.domain.customer
-import com.ovoenergy.orchestration.domain.customer.{
+import com.ovoenergy.orchestration.domain.{
   CommunicationPreference,
   ContactProfile,
   CustomerProfile,

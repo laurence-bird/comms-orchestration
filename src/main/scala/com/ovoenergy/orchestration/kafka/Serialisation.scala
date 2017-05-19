@@ -8,15 +8,16 @@ import com.ovoenergy.comms.serialisation.Codecs._
 
 object Serialisation {
 
-  val orchestratedEmailSerializer             = avroSerializer[OrchestratedEmailV3]
-  val orchestratedSMSSerializer               = avroSerializer[OrchestratedSMSV2]
-  val legacyTriggeredDeserializer             = hackyAvroDeserializerForTriggeredV2[TriggeredV2]
-  val triggeredDeserializer                   = avroDeserializer[TriggeredV3]
-  val failedV2Serializer                      = avroSerializer[FailedV2]
-  val cancelledSerializer                     = avroSerializer[CancelledV2]
-  val orchestrationStartedV2Serializer        = avroSerializer[OrchestrationStartedV2]
   val legacyCancellationRequestedDeserializer = avroDeserializer[CancellationRequested]
-  val cancellationRequestedDeserializer       = avroDeserializer[CancellationRequestedV2]
-  val failedCancellationSerializer            = avroSerializer[FailedCancellationV2]
+  val legacyTriggeredDeserializer             = hackyAvroDeserializerForTriggeredV2[TriggeredV2]
+
+  val orchestratedEmailSerializer       = avroSerializer[OrchestratedEmailV3]
+  val orchestratedSMSSerializer         = avroSerializer[OrchestratedSMSV2]
+  val triggeredDeserializer             = avroDeserializer[TriggeredV3]
+  val failedSerializer                  = avroSerializer[FailedV2]
+  val cancelledSerializer               = avroSerializer[CancelledV2]
+  val orchestrationStartedV2Serializer  = avroSerializer[OrchestrationStartedV2]
+  val cancellationRequestedDeserializer = avroDeserializer[CancellationRequestedV2]
+  val failedCancellationSerializer      = avroSerializer[FailedCancellationV2]
 
 }

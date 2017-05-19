@@ -2,8 +2,8 @@ package com.ovoenergy.orchestration
 
 import java.time.{Clock, Instant, OffsetDateTime}
 
+import com.ovoenergy.orchestration.domain._
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.scheduling.TaskExecutor.log
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence
 
 package object scheduling {
@@ -36,45 +36,6 @@ package object scheduling {
         commName = triggeredV3.metadata.commManifest.name,
         orchestrationExpiry = Instant.now(),
         history = Seq.empty[Change]
-      )
-    }
-
-    def cancellationRequestedToV2(cancellationRequested: CancellationRequested): CancellationRequestedV2 = {
-      CancellationRequestedV2(
-        metadata = GenericMetadataV2(
-          createdAt = Instant.parse(cancellationRequested.metadata.createdAt),
-          eventId = cancellationRequested.metadata.eventId,
-          traceToken = cancellationRequested.metadata.traceToken,
-          source = cancellationRequested.metadata.source,
-          canary = cancellationRequested.metadata.canary
-        ),
-        commName = cancellationRequested.commName,
-        customerId = cancellationRequested.customerId
-      )
-    }
-
-    def triggeredV2ToV3(triggeredV2: TriggeredV2): TriggeredV3 = {
-      def metadataToV2(metadata: Metadata): MetadataV2 = {
-        MetadataV2(
-          createdAt = OffsetDateTime.parse(metadata.createdAt).toInstant,
-          eventId = metadata.eventId,
-          traceToken = metadata.traceToken,
-          commManifest = metadata.commManifest,
-          deliverTo = Customer(metadata.customerId),
-          friendlyDescription = metadata.friendlyDescription,
-          source = metadata.source,
-          canary = metadata.canary,
-          sourceMetadata = metadata.sourceMetadata.map(metadataToV2),
-          triggerSource = metadata.triggerSource
-        )
-      }
-
-      TriggeredV3(
-        metadata = metadataToV2(triggeredV2.metadata),
-        templateData = triggeredV2.templateData,
-        deliverAt = triggeredV2.deliverAt.map(OffsetDateTime.parse(_).toInstant),
-        expireAt = triggeredV2.expireAt.map(OffsetDateTime.parse(_).toInstant),
-        preferredChannels = triggeredV2.preferredChannels
       )
     }
 

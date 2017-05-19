@@ -8,6 +8,7 @@ import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.model.email._
 import com.ovoenergy.comms.model.sms._
+import com.ovoenergy.orchestration.domain._
 import com.ovoenergy.orchestration.scheduling.{Schedule, ScheduleStatus}
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence._
 import com.ovoenergy.orchestration.serviceTest.util.{
@@ -188,8 +189,8 @@ class SchedulingServiceTestIT
       val cancelledComs = pollForEvents(20000.millisecond, 2, cancelledConsumer, cancelledTopic)
       cancelledComs.length shouldBe 2
       cancelledComs.map(cc => (cc.metadata.traceToken, cc.cancellationRequested)) should contain allOf (
-        (triggered1.metadata.traceToken, Schedule.cancellationRequestedToV2(cancellationRequested)),
-        (triggered2.metadata.traceToken, Schedule.cancellationRequestedToV2(cancellationRequested))
+        (triggered1.metadata.traceToken, cancellationRequestedToV2(cancellationRequested)),
+        (triggered2.metadata.traceToken, cancellationRequestedToV2(cancellationRequested))
       )
     }
   }

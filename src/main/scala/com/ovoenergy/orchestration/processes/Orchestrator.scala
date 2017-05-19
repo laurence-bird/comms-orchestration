@@ -1,13 +1,13 @@
 package com.ovoenergy.orchestration.processes
 
 import com.ovoenergy.comms.model
-import com.ovoenergy.orchestration.domain.{customer => domain}
+import com.ovoenergy.orchestration.domain
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import org.apache.kafka.clients.producer.RecordMetadata
 import cats.syntax.either._
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.domain.customer.{CommunicationPreference, EmailAddress, MobilePhoneNumber}
-import com.ovoenergy.orchestration.kafka.{IssueOrchestratedComm, IssueOrchestratedEmail, IssueOrchestratedSMS}
+import com.ovoenergy.orchestration.domain.{CommunicationPreference, EmailAddress, MobilePhoneNumber}
+import com.ovoenergy.orchestration.kafka.IssueOrchestratedComm
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future

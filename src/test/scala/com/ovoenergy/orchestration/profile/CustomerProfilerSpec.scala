@@ -4,9 +4,8 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.domain.customer.CommunicationPreference._
-import com.ovoenergy.orchestration.domain.customer
-import com.ovoenergy.orchestration.domain.customer.{
+import com.ovoenergy.orchestration.domain.{
+  CommunicationPreference,
   ContactProfile,
   CustomerProfile,
   CustomerProfileName,
@@ -104,7 +103,7 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
           suffix = None
         ),
         communicationPreferences = Seq(
-          customer.CommunicationPreference(
+          CommunicationPreference(
             Service,
             Seq(SMS, Email)
           )

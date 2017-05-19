@@ -1,7 +1,7 @@
 package com.ovoenergy.orchestration.profile
 
 import com.ovoenergy.comms.model.InvalidProfile
-import com.ovoenergy.orchestration.domain.customer.{ContactProfile, CustomerProfile, CustomerProfileName}
+import com.ovoenergy.orchestration.domain.{ContactProfile, CustomerProfile, CustomerProfileName}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.scalatest.{EitherValues, FlatSpec, Matchers}
 

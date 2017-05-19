@@ -7,7 +7,7 @@ import cats.data.Validated.{Invalid, Valid}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.ErrorsOr
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
-import com.ovoenergy.orchestration.domain.customer.{CommunicationPreference, ContactProfile, CustomerProfile}
+import com.ovoenergy.orchestration.domain.{CommunicationPreference, ContactProfile}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 

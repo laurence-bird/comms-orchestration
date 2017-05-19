@@ -6,15 +6,7 @@ import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
 import com.ovoenergy.comms.templates.model.template.processed.email.EmailTemplate
 import com.ovoenergy.comms.templates.model.template.processed.sms.SMSTemplate
-import com.ovoenergy.orchestration.domain.customer.{
-  CommunicationPreference,
-  ContactProfile,
-  CustomerProfile,
-  CustomerProfileEmailAddresses,
-  CustomerProfileName,
-  EmailAddress,
-  MobilePhoneNumber
-}
+import com.ovoenergy.orchestration.domain.{CommunicationPreference, ContactProfile, EmailAddress, MobilePhoneNumber}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.util.{ArbGenerator, TestUtil}
 import org.scalatest.{FlatSpec, Matchers}

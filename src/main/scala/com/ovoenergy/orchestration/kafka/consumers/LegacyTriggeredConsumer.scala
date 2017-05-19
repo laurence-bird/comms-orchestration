@@ -11,9 +11,9 @@ import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.kafka.{KafkaConfig, Serialisation}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.scheduling.Schedule._
+import com.ovoenergy.orchestration.domain._
 import org.apache.kafka.clients.producer.RecordMetadata
-import org.apache.kafka.common.serialization.{Deserializer, StringDeserializer}
+import org.apache.kafka.common.serialization.StringDeserializer
 
 import scala.concurrent.duration._
 import scala.concurrent.Future

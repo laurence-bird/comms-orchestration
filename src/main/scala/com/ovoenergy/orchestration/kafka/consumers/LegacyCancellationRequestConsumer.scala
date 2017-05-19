@@ -13,7 +13,7 @@ import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.kafka.{KafkaConfig, Serialisation}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.scheduling.Schedule
+import com.ovoenergy.orchestration.domain._
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.serialization.StringDeserializer
 
@@ -52,7 +52,7 @@ object LegacyCancellationRequestConsumer extends LoggingWithMDC {
         log.debug(s"Event received $msg")
         val result: Future[Seq[RecordMetadata]] = msg.record.value match {
           case Some(legacyCancellationRequest) =>
-            val cancellationRequest = Schedule.cancellationRequestedToV2(legacyCancellationRequest)
+            val cancellationRequest = cancellationRequestedToV2(legacyCancellationRequest)
             val futures = descheduleComm(cancellationRequest).map {
               case Left(err) =>
                 sendFailedCancellationEvent(

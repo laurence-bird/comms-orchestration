@@ -125,7 +125,7 @@ object Main extends App with LoggingWithMDC {
     Producer(
       hosts = kafkaHosts,
       topic = config.getString("kafka.topics.failed.v2"),
-      serialiser = Serialisation.failedV2Serializer,
+      serialiser = Serialisation.failedSerializer,
       retryConfig = kafkaProducerRetryConfig
     )
   }
