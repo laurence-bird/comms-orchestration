@@ -5,7 +5,7 @@ import com.ovoenergy.orchestration.domain
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import org.apache.kafka.clients.producer.RecordMetadata
 import cats.syntax.either._
-import com.ovoenergy.comms.model._
+import com.ovoenergy.comms.model.{ContactDetails, _}
 import com.ovoenergy.orchestration.domain.{CommunicationPreference, EmailAddress, MobilePhoneNumber}
 import com.ovoenergy.orchestration.kafka.IssueOrchestratedComm
 
@@ -41,7 +41,7 @@ object Orchestrator extends LoggingWithMDC {
             .map(issueOrchestratedSMS.send(customerProfile, _, triggered))
             .toRight {
               logWarn(triggered.metadata.traceToken, "Phone number missing from customer profile")
-              ErrorDetails("Phone number missing from customer profile", InvalidProfile)
+              ErrorDetails("No valid phone number provided", InvalidProfile)
             }
         case _ => Left(ErrorDetails(s"Unsupported channel selected $channel", OrchestrationError))
       }
@@ -75,9 +75,24 @@ object Orchestrator extends LoggingWithMDC {
                              Some(customerProfile.toModel))
         } yield res
       }
-      case ContactDetails(emailAddr, phoneNo) =>
-        val contactProfile = domain.ContactProfile(emailAddr.map(EmailAddress), phoneNo.map(MobilePhoneNumber))
-        orchestrate(triggered, contactProfile, Seq(), None)
+      case contactDetails @ ContactDetails(_, _) =>
+        for {
+          contactProfile <- contactDetailsToContactProfile(contactDetails)
+          res            <- orchestrate(triggered, contactProfile, Seq(), None)
+        } yield res
+    }
+  }
+
+  private def contactDetailsToContactProfile(
+      contactDetails: ContactDetails): Either[ErrorDetails, domain.ContactProfile] = {
+    val validatedPhoneNumber = contactDetails.phoneNumber.map(MobilePhoneNumber.create)
+    val emailAddress         = contactDetails.emailAddress
+    (emailAddress, validatedPhoneNumber) match {
+      case (None, None)             => Left(ErrorDetails("No contact details found", InvalidProfile))
+      case (email @ Some(_), None)  => Right(domain.ContactProfile(email.map(EmailAddress), None))
+      case (None, Some(Left(e)))    => Left(ErrorDetails(e, InvalidProfile))
+      case (_, Some(Left(_)))       => Right(domain.ContactProfile(emailAddress.map(EmailAddress), None))
+      case (_, Some(Right(number))) => Right(domain.ContactProfile(emailAddress.map(EmailAddress), Some(number)))
     }
   }
 }

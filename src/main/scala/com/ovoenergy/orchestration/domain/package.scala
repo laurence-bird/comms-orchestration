@@ -7,12 +7,28 @@ import com.ovoenergy.comms.model._
 import io.circe.generic.extras.semiauto.deriveEnumerationDecoder
 package object domain {
 
+  private val validUkMobileRegex = """^\+447\d{9}$""".r
+  private val phoneNumberPrefix  = """^(07|447|0{1,2}447)"""
+
   implicit val commTypeDecoder = deriveEnumerationDecoder[CommType]
   implicit val channelDecoder  = deriveEnumerationDecoder[Channel]
 
   sealed trait ContactInfo
-  case class MobilePhoneNumber(number: String) extends ContactInfo
-  case class EmailAddress(address: String)     extends ContactInfo
+
+  object MobilePhoneNumber {
+    def create(number: String): Either[String, MobilePhoneNumber] = {
+      val strippedPhoneNumber = number.trim
+        .replaceAll("[^0-9]", "")
+        .replaceFirst(phoneNumberPrefix, """+447""")
+      validUkMobileRegex
+        .findFirstIn(strippedPhoneNumber)
+        .map(MobilePhoneNumber(_))
+        .toRight("Invalid phone number provided")
+    }
+  }
+  case class MobilePhoneNumber private (number: String) extends ContactInfo
+
+  case class EmailAddress(address: String) extends ContactInfo
 
   case class CustomerProfileName(title: Option[String], firstName: String, lastName: String, suffix: Option[String])
 

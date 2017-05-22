@@ -18,12 +18,7 @@ object CustomerProfiler extends LoggingWithMDC {
   case class CustomerProfileResponse(name: CustomerProfileName,
                                      emailAddress: Option[String],
                                      phoneNumber: Option[String],
-                                     communicationPreferences: Seq[CommunicationPreference]) {
-    def toCustomerProfile =
-      CustomerProfile(name,
-                      communicationPreferences,
-                      ContactProfile(emailAddress.map(EmailAddress), phoneNumber.map(MobilePhoneNumber)))
-  }
+                                     communicationPreferences: Seq[CommunicationPreference]) {}
 
   def apply(httpClient: (Request) => Try[Response],
             profileApiKey: String,
@@ -31,6 +26,20 @@ object CustomerProfiler extends LoggingWithMDC {
             retryConfig: RetryConfig)(customerId: String,
                                       canary: Boolean,
                                       traceToken: String): Either[ErrorDetails, CustomerProfile] = {
+
+    def toCustomerProfile(response: CustomerProfileResponse) = {
+      val validNumber = response.phoneNumber.map(MobilePhoneNumber.create) match {
+        case Some(Right(number)) => Some(number)
+        case Some(Left(e)) =>
+          logInfo(traceToken, s"Invalid phone number returned for customer $customerId")
+          None
+        case _ => None
+
+      }
+      CustomerProfile(response.name,
+                      response.communicationPreferences,
+                      ContactProfile(response.emailAddress.map(EmailAddress), validNumber))
+    }
 
     val url = {
       val builder = HttpUrl
@@ -60,7 +69,7 @@ object CustomerProfiler extends LoggingWithMDC {
       }
     }
     result
-      .map(_.result.toCustomerProfile)
+      .map(r => toCustomerProfile(r.result))
       .leftMap { (err: Failed) =>
         ErrorDetails(s"Failed to retrive customer profile: ${err.finalException.getMessage}", ProfileRetrievalFailed)
       }
