@@ -8,7 +8,7 @@ import akka.stream.ThrottleMode.Shaping
 import akka.stream.scaladsl.{RunnableGraph, Sink}
 import akka.stream.{ActorAttributes, Materializer, Supervision}
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.kafka.KafkaConfig
+import com.ovoenergy.orchestration.kafka.{KafkaConfig, Serialisation}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.clients.producer.RecordMetadata
@@ -19,11 +19,10 @@ import scala.concurrent.Future
 import scala.util.control.NonFatal
 
 object TriggeredConsumer extends LoggingWithMDC {
-  override def loggerName: String = "OrchestrationGraph"
+  val consumerDeserializer = Serialisation.triggeredDeserializer
 
-  def apply(consumerDeserializer: Deserializer[Option[TriggeredV2]],
-            scheduleTask: (TriggeredV2) => Either[ErrorDetails, Boolean],
-            sendFailedEvent: Failed => Future[RecordMetadata],
+  def apply(scheduleTask: (TriggeredV3) => Either[ErrorDetails, Boolean],
+            sendFailedEvent: FailedV2 => Future[RecordMetadata],
             config: KafkaConfig,
             generateTraceToken: () => String)(implicit actorSystem: ActorSystem,
                                               materializer: Materializer): RunnableGraph[Control] = {
@@ -50,10 +49,10 @@ object TriggeredConsumer extends LoggingWithMDC {
             scheduleTask(triggered) match {
               case Left(err) =>
                 sendFailedEvent(
-                  Failed(triggered.metadata,
-                         InternalMetadata(generateTraceToken()),
-                         s"Scheduling of comm failed: ${err.reason}",
-                         err.errorCode))
+                  FailedV2(triggered.metadata,
+                           InternalMetadata(generateTraceToken()),
+                           s"Scheduling of comm failed: ${err.reason}",
+                           err.errorCode))
               case Right(_) => Future.successful(())
             }
           case None =>

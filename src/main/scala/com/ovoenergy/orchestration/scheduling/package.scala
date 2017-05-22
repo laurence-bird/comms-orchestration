@@ -1,8 +1,9 @@
 package com.ovoenergy.orchestration
 
-import java.time.{Clock, Instant}
+import java.time.{Clock, Instant, OffsetDateTime}
 
-import com.ovoenergy.comms.model.TriggeredV2
+import com.ovoenergy.orchestration.domain._
+import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence
 
 package object scheduling {
@@ -21,28 +22,43 @@ package object scheduling {
   case class Change(timestamp: Instant, operation: String)
 
   object Schedule {
-    def buildFromTrigger(triggeredV2: TriggeredV2, clock: Clock = Clock.systemUTC()) = {
+    def buildFromTrigger(triggeredV3: TriggeredV3, clock: Clock = Clock.systemUTC()) = {
       Schedule(
         scheduleId = DynamoPersistence.generateScheduleId(),
-        triggered = triggeredV2,
-        deliverAt = triggeredV2.deliverAt.map(Instant.parse(_)).getOrElse(Instant.now(clock)),
+        triggered = None,
+        triggeredV3 = Some(triggeredV3),
+        deliverAt = triggeredV3.deliverAt.getOrElse(Instant.now(clock)),
         status = ScheduleStatus.Pending,
-        customerId = triggeredV2.metadata.customerId,
-        commName = triggeredV2.metadata.commManifest.name,
+        customerId = triggeredV3.metadata.deliverTo match {
+          case Customer(customerId) => Some(customerId)
+          case _                    => None
+        },
+        commName = triggeredV3.metadata.commManifest.name,
         orchestrationExpiry = Instant.now(),
         history = Seq.empty[Change]
       )
+    }
+
+    //TODO - Remove once migrated to V3 and no more schedules in DB
+    def triggeredAsV3(schedule: Schedule): Option[TriggeredV3] = {
+      (schedule.triggered, schedule.triggeredV3) match {
+        case (_, Some(v3)) => Some(v3)
+        case (Some(v2), _) => Some(triggeredV2ToV3(v2))
+        case (None, None)  => None
+      }
     }
   }
 
   case class Schedule(
       scheduleId: ScheduleId,
-      triggered: TriggeredV2,
+      //TODO - Remove once migrated to V3 and no more schedules in DB
+      triggered: Option[TriggeredV2],
+      triggeredV3: Option[TriggeredV3],
       deliverAt: Instant,
       status: ScheduleStatus,
       history: Seq[Change],
       orchestrationExpiry: Instant,
-      customerId: String,
+      customerId: Option[String],
       commName: String
   )
 }

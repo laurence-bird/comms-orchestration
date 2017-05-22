@@ -11,6 +11,7 @@ import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.kafka.{KafkaConfig, Serialisation}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.orchestration.domain._
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.serialization.StringDeserializer
 
@@ -18,13 +19,12 @@ import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.util.control.NonFatal
 
-object CancellationRequestConsumer extends LoggingWithMDC {
+object LegacyTriggeredConsumer extends LoggingWithMDC {
 
-  val deserializer = Serialisation.cancellationRequestedDeserializer
+  val consumerDeserializer = Serialisation.legacyTriggeredDeserializer
 
-  def apply(sendFailedCancellationEvent: (FailedCancellationV2) => Future[RecordMetadata],
-            sendSuccessfulCancellationEvent: (CancelledV2 => Future[RecordMetadata]),
-            descheduleComm: CancellationRequestedV2 => Seq[Either[ErrorDetails, MetadataV2]],
+  def apply(scheduleTask: (TriggeredV3) => Either[ErrorDetails, Boolean],
+            sendFailedEvent: FailedV2 => Future[RecordMetadata],
             config: KafkaConfig,
             generateTraceToken: () => String)(implicit actorSystem: ActorSystem,
                                               materializer: Materializer): RunnableGraph[Control] = {
@@ -38,7 +38,7 @@ object CancellationRequestConsumer extends LoggingWithMDC {
     }
 
     val consumerSettings =
-      ConsumerSettings(actorSystem, new StringDeserializer, deserializer)
+      ConsumerSettings(actorSystem, new StringDeserializer, consumerDeserializer)
         .withBootstrapServers(config.hosts)
         .withGroupId(config.groupId)
 
@@ -46,25 +46,21 @@ object CancellationRequestConsumer extends LoggingWithMDC {
       .committableSource(consumerSettings, Subscriptions.topics(config.topic))
       .throttle(5, 1.second, 10, Shaping)
       .mapAsync(1)(msg => {
-        log.debug(s"Event received $msg")
-        val result: Future[Seq[RecordMetadata]] = msg.record.value match {
-          case Some(cancellationRequest) =>
-            val futures = descheduleComm(cancellationRequest).map {
+        val result: Future[_] = msg.record.value match {
+          case Some(triggered: TriggeredV2) =>
+            val triggeredV3 = triggeredV2ToV3(triggered)
+            scheduleTask(triggeredV3) match {
               case Left(err) =>
-                sendFailedCancellationEvent(
-                  FailedCancellationV2(
-                    GenericMetadataV2.fromSourceGenericMetadata("orchestration", cancellationRequest.metadata),
-                    cancellationRequest,
-                    s"Cancellation of scheduled comm failed: ${err.reason}"
-                  ))
-              case Right(metadata) =>
-                sendSuccessfulCancellationEvent(
-                  CancelledV2(MetadataV2.fromSourceMetadata("orchestration", metadata), cancellationRequest))
+                sendFailedEvent(
+                  FailedV2(triggeredV3.metadata,
+                           InternalMetadata(generateTraceToken()),
+                           s"Scheduling of comm failed: ${err.reason}",
+                           err.errorCode))
+              case Right(_) => Future.successful(())
             }
-            Future.sequence(futures)
           case None =>
             log.warn(s"Skipping event: $msg, failed to parse")
-            Future.successful(Nil)
+            Future.successful(())
         }
         result
           .flatMap(_ => msg.committableOffset.commitScaladsl())
@@ -73,7 +69,6 @@ object CancellationRequestConsumer extends LoggingWithMDC {
 
     val sink = Sink.ignore.withAttributes(ActorAttributes.supervisionStrategy(decider))
 
-    log.debug(s"Consuming cancellation requests for: $config")
     source.to(sink)
   }
 }

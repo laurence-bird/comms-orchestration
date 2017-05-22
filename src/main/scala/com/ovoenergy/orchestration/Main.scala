@@ -7,22 +7,27 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
+import akka.kafka.scaladsl.Consumer
 import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.RunnableGraph
 import cats.Id
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
-import com.ovoenergy.comms.templates.{ErrorsOr, TemplatesContext, TemplatesRepo}
+import com.ovoenergy.comms.templates.{ErrorsOr, TemplatesRepo}
 import com.ovoenergy.orchestration.aws.AwsProvider
 import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
-import com.ovoenergy.orchestration.domain.HasIds._
-import com.ovoenergy.orchestration.kafka.consumers.{CancellationRequestConsumer, TriggeredConsumer}
-import com.ovoenergy.orchestration.domain.customer.CustomerDeliveryDetails
+import com.ovoenergy.orchestration.kafka.consumers.{
+  CancellationRequestConsumer,
+  LegacyCancellationRequestConsumer,
+  LegacyTriggeredConsumer,
+  TriggeredConsumer
+}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.processes.{ChannelSelector, Orchestrator, Scheduler}
+import com.ovoenergy.orchestration.processes.{ChannelSelector, ChannelSelectorWithTemplate, Orchestrator, Scheduler}
 import com.ovoenergy.orchestration.profile.{CustomerProfiler, ProfileValidation}
 import com.ovoenergy.orchestration.retry.Retry
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence
@@ -34,6 +39,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import com.ovoenergy.comms.serialisation.Codecs._
 
 object Main extends App with LoggingWithMDC {
 
@@ -62,7 +68,7 @@ object Main extends App with LoggingWithMDC {
   val templatesContext = AwsProvider.templatesContext(isRunningInCompose, region)
 
   val retrieveTemplate: (CommManifest) => ErrorsOr[CommTemplate[Id]] = TemplatesRepo.getTemplate(templatesContext, _)
-  val determineChannel                                               = ChannelSelector.determineChannel(retrieveTemplate) _
+  val determineChannel                                               = new ChannelSelectorWithTemplate(retrieveTemplate)
 
   val kafkaHosts = config.getString("kafka.hosts")
   val kafkaProducerRetryConfig = Retry.RetryConfig(
@@ -73,21 +79,20 @@ object Main extends App with LoggingWithMDC {
     )
   )
 
-  val orchestrateEmail: (CustomerDeliveryDetails, TriggeredV2, InternalMetadata) => Future[RecordMetadata] =
-    OrchestratedEmailEvent.send(
-      Producer(
-        hosts = kafkaHosts,
-        topic = config.getString("kafka.topics.orchestrated.email.v2"),
-        serialiser = Serialisation.orchestratedEmailV2Serializer,
-        retryConfig = kafkaProducerRetryConfig
-      )
-    )
-
-  val orchestrateSMS = OrchestratedSMSEvent.send(
+  val orchestrateEmail = new IssueOrchestratedEmail(
     Producer(
       hosts = kafkaHosts,
-      topic = config.getString("kafka.topics.orchestrated.sms"),
-      serialiser = Serialisation.orchestratedSMSV2Serializer,
+      topic = config.getString("kafka.topics.orchestrated.email.v3"),
+      serialiser = Serialisation.orchestratedEmailSerializer,
+      retryConfig = kafkaProducerRetryConfig
+    )
+  )
+
+  val orchestrateSMS = new IssueOrchestratedSMS(
+    Producer(
+      hosts = kafkaHosts,
+      topic = config.getString("kafka.topics.orchestrated.sms.v2"),
+      serialiser = Serialisation.orchestratedSMSSerializer,
       retryConfig = kafkaProducerRetryConfig
     )
   )
@@ -108,43 +113,43 @@ object Main extends App with LoggingWithMDC {
     ) _
   }
 
-  val orchestrateComm: (TriggeredV2, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]] = Orchestrator(
+  val orchestrateComm: (TriggeredV3, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]] = Orchestrator(
     profileCustomer = profileCustomer,
-    determineChannel = determineChannel,
-    sendOrchestratedEmailEvent = orchestrateEmail,
-    sendOrchestratedSMSEvent = orchestrateSMS,
+    channelSelector = determineChannel,
+    issueOrchestratedEmail = orchestrateEmail,
+    issueOrchestratedSMS = orchestrateSMS,
     validateProfile = ProfileValidation.apply
   )
 
-  val sendFailedTriggerEvent: Failed => Future[RecordMetadata] = {
+  val sendFailedTriggerEvent: FailedV2 => Future[RecordMetadata] = {
     Producer(
       hosts = kafkaHosts,
-      topic = config.getString("kafka.topics.failed"),
+      topic = config.getString("kafka.topics.failed.v2"),
       serialiser = Serialisation.failedSerializer,
       retryConfig = kafkaProducerRetryConfig
     )
   }
 
-  val sendCancelledEvent: (Cancelled) => Future[RecordMetadata] = Producer(
+  val sendCancelledEvent: (CancelledV2) => Future[RecordMetadata] = Producer(
     hosts = kafkaHosts,
-    topic = config.getString("kafka.topics.scheduling.cancelled"),
+    topic = config.getString("kafka.topics.scheduling.cancelled.v2"),
     serialiser = Serialisation.cancelledSerializer,
     retryConfig = kafkaProducerRetryConfig
   )
 
-  val sendFailedCancellationEvent: (FailedCancellation) => Future[RecordMetadata] =
+  val sendFailedCancellationEvent: (FailedCancellationV2) => Future[RecordMetadata] =
     Producer(
       hosts = kafkaHosts,
-      topic = config.getString("kafka.topics.scheduling.failedCancellation"),
+      topic = config.getString("kafka.topics.scheduling.failedCancellation.v2"),
       serialiser = Serialisation.failedCancellationSerializer,
       retryConfig = kafkaProducerRetryConfig
     )
 
-  val sendOrchestrationStartedEvent: OrchestrationStarted => Future[RecordMetadata] =
+  val sendOrchestrationStartedEvent: OrchestrationStartedV2 => Future[RecordMetadata] =
     Producer(
       hosts = kafkaHosts,
-      topic = config.getString("kafka.topics.orchestration.started"),
-      serialiser = Serialisation.orchestrationStartedSerializer,
+      topic = config.getString("kafka.topics.orchestration.started.v2"),
+      serialiser = Serialisation.orchestrationStartedV2Serializer,
       retryConfig = kafkaProducerRetryConfig
     )
 
@@ -159,7 +164,17 @@ object Main extends App with LoggingWithMDC {
   val descheduleComm = Scheduler.descheduleComm(schedulingPersistence.cancelSchedules, removeSchedule) _
 
   val schedulingGraph = TriggeredConsumer(
-    consumerDeserializer = Serialisation.triggeredV2Deserializer,
+    scheduleTask = scheduleTask,
+    sendFailedEvent = sendFailedTriggerEvent,
+    config = KafkaConfig(
+      hosts = kafkaHosts,
+      groupId = config.getString("kafka.group.id"),
+      topic = config.getString("kafka.topics.triggered.v3")
+    ),
+    generateTraceToken = () => UUID.randomUUID().toString
+  )
+
+  val legacySchedulingGraph = LegacyTriggeredConsumer(
     scheduleTask = scheduleTask,
     sendFailedEvent = sendFailedTriggerEvent,
     config = KafkaConfig(
@@ -178,10 +193,21 @@ object Main extends App with LoggingWithMDC {
     config = KafkaConfig(
       hosts = kafkaHosts,
       groupId = config.getString("kafka.group.id"),
-      topic = config.getString("kafka.topics.scheduling.cancellationRequest")
+      topic = config.getString("kafka.topics.scheduling.cancellationRequest.v2")
     )
   )
 
+  val legacyCancellationRequestGraph = LegacyCancellationRequestConsumer(
+    sendFailedCancellationEvent = sendFailedCancellationEvent,
+    sendSuccessfulCancellationEvent = sendCancelledEvent,
+    generateTraceToken = () => UUID.randomUUID().toString,
+    descheduleComm = descheduleComm,
+    config = KafkaConfig(
+      hosts = kafkaHosts,
+      groupId = config.getString("kafka.group.id"),
+      topic = config.getString("kafka.topics.scheduling.cancellationRequest.v1")
+    )
+  )
   QuartzScheduling.init()
 
   /*
@@ -212,18 +238,17 @@ object Main extends App with LoggingWithMDC {
     }
   }
 
-  val schedulingControl   = schedulingGraph.run()
-  val cancellationControl = cancellationRequestGraph.run()
-
-  cancellationControl.isShutdown.foreach { _ =>
-    log.error("ARGH! The Kafka cancellation event source has shut down. Killing the JVM and nuking from orbit.")
-    System.exit(1)
+  def runGraph(graphName: String, graph: RunnableGraph[Consumer.Control]) = {
+    val control = graph.run()
+    control.isShutdown.foreach { _ =>
+      log.error(s"ARGH! The Kafka $graphName event source has shut down. Killing the JVM and nuking from orbit.")
+      System.exit(1)
+    }
   }
 
-  schedulingControl.isShutdown.foreach { _ =>
-    log.error("ARGH! The Kafka triggered event source has shut down. Killing the JVM and nuking from orbit.")
-    System.exit(1)
-  }
-
+  runGraph("scheduling", schedulingGraph)
+  runGraph("legacy scheduling", legacySchedulingGraph)
+  runGraph("cancellation", cancellationRequestGraph)
+  runGraph("legacy cancellation", legacyCancellationRequestGraph)
   log.info("Orchestration started")
 }

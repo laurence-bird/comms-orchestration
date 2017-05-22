@@ -1,14 +1,13 @@
 package com.ovoenergy.orchestration.profile
 
-import com.ovoenergy.orchestration.domain.customer.CustomerProfile
 import okhttp3.{HttpUrl, Request, Response}
 import com.ovoenergy.orchestration.http.JsonDecoding._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.retry.Retry.{Failed, RetryConfig}
-import com.ovoenergy.orchestration.domain.customer._
+import com.ovoenergy.orchestration.domain._
 import io.circe.generic.auto._
 import cats.syntax.either._
-import com.ovoenergy.comms.model.ErrorCode.ProfileRetrievalFailed
+import com.ovoenergy.comms.model.ProfileRetrievalFailed
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.retry.Retry
 
@@ -16,12 +15,31 @@ import scala.util.{Failure, Try}
 
 object CustomerProfiler extends LoggingWithMDC {
 
+  case class CustomerProfileResponse(name: CustomerProfileName,
+                                     emailAddress: Option[String],
+                                     phoneNumber: Option[String],
+                                     communicationPreferences: Seq[CommunicationPreference]) {}
+
   def apply(httpClient: (Request) => Try[Response],
             profileApiKey: String,
             profileHost: String,
             retryConfig: RetryConfig)(customerId: String,
                                       canary: Boolean,
                                       traceToken: String): Either[ErrorDetails, CustomerProfile] = {
+
+    def toCustomerProfile(response: CustomerProfileResponse) = {
+      val validNumber = response.phoneNumber.map(MobilePhoneNumber.create) match {
+        case Some(Right(number)) => Some(number)
+        case Some(Left(e)) =>
+          logInfo(traceToken, s"Invalid phone number returned for customer $customerId")
+          None
+        case _ => None
+
+      }
+      CustomerProfile(response.name,
+                      response.communicationPreferences,
+                      ContactProfile(response.emailAddress.map(EmailAddress), validNumber))
+    }
 
     val url = {
       val builder = HttpUrl
@@ -44,14 +62,14 @@ object CustomerProfiler extends LoggingWithMDC {
       httpClient(request).flatMap { response =>
         val responseBody = response.body.string
         if (response.isSuccessful) {
-          decodeJson[CustomerProfile](responseBody)
+          decodeJson[CustomerProfileResponse](responseBody)
         } else {
           Failure(new Exception(s"Error response (${response.code}) from profile service: $responseBody"))
         }
       }
     }
     result
-      .map(_.result)
+      .map(r => toCustomerProfile(r.result))
       .leftMap { (err: Failed) =>
         ErrorDetails(s"Failed to retrive customer profile: ${err.finalException.getMessage}", ProfileRetrievalFailed)
       }

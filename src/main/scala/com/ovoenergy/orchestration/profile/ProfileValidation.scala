@@ -3,8 +3,8 @@ package com.ovoenergy.orchestration.profile
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, Validated}
 import cats.{Apply, Semigroup}
-import com.ovoenergy.comms.model.ErrorCode.InvalidProfile
-import com.ovoenergy.orchestration.domain.customer.CustomerProfile
+import com.ovoenergy.comms.model.InvalidProfile
+import com.ovoenergy.orchestration.domain.CustomerProfile
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 

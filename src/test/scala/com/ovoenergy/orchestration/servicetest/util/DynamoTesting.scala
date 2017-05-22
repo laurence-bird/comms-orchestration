@@ -6,17 +6,7 @@ import com.ovoenergy.orchestration.util.LocalDynamoDB
 import com.ovoenergy.orchestration.util.LocalDynamoDB.SecondaryIndexData
 import org.scalatest.{BeforeAndAfterAll, Suite}
 
-trait DynamoTesting extends BeforeAndAfterAll { this: Suite =>
-
-  override abstract def beforeAll() = {
-    super.beforeAll()
-    createTable()
-  }
-
-  override def afterAll() = {
-    super.afterAll()
-    removeTable()
-  }
+trait DynamoTesting {
 
   val dynamoUrl    = "http://localhost:8000"
   val dynamoClient = LocalDynamoDB.client(dynamoUrl)
@@ -28,8 +18,10 @@ trait DynamoTesting extends BeforeAndAfterAll { this: Suite =>
       SecondaryIndexData("status-orchestrationExpiry-index", Seq('status -> S, 'orchestrationExpiry -> N))
     )
 
-    LocalDynamoDB.createTableWithSecondaryIndex(dynamoClient, tableName)(Seq('scheduleId -> S))(secondaryIndices)
-    waitUntilTableMade(50)
+    if (!LocalDynamoDB.doesTableExist(dynamoClient, tableName)) {
+      LocalDynamoDB.createTableWithSecondaryIndex(dynamoClient, tableName)(Seq('scheduleId -> S))(secondaryIndices)
+      waitUntilTableMade(50)
+    }
 
     def waitUntilTableMade(noAttemptsLeft: Int): String = {
       try {
