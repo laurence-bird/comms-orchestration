@@ -14,15 +14,20 @@ lazy val buildSettings = Seq(
 
 lazy val service = (project in file("."))
   .settings(buildSettings)
-  .settings(resolvers += Resolver.bintrayRepo("ovotech", "maven"))
-  .settings(resolvers += Resolver.bintrayRepo("cakesolutions", "maven"))
-  .settings(libraryDependencies ++= Dependencies.all)
-  .settings(test in Test := (test in Test).dependsOn(startDynamoDBLocal).value)
-  .settings(testOptions in Test += dynamoDBLocalTestCleanup.value)
-  .settings(testTagsToExecute := "DockerComposeTag")
-  .settings(dockerImageCreationTask := (publishLocal in Docker).value)
-  .settings(credstashInputDir := file("conf"))
-  .settings(variablesForSubstitution := Map("IP_ADDRESS" -> ipAddress))
+  .settings(
+    resolvers ++= Seq(
+      Resolver.bintrayRepo("ovotech", "maven"),
+      Resolver.bintrayRepo("cakesolutions", "maven"),
+      "confluent-release" at "http://packages.confluent.io/maven/"
+    ),
+    libraryDependencies ++= Dependencies.all,
+    test in Test := (test in Test).dependsOn(startDynamoDBLocal).value,
+    testOptions in Test += dynamoDBLocalTestCleanup.value,
+    testTagsToExecute := "DockerComposeTag",
+    dockerImageCreationTask := (publishLocal in Docker).value,
+    credstashInputDir := file("conf"),
+    variablesForSubstitution := Map("IP_ADDRESS" -> ipAddress)
+  )
   .enablePlugins(JavaServerAppPackaging, DockerPlugin, DockerComposePlugin)
 
 lazy val ipAddress: String = {
