@@ -45,7 +45,7 @@ services:
       KAFKA_HEAP_OPTS: "-Xmx256M -Xms128M"
     depends_on:
       - zookeeper
-    mem_limit: 256m
+    mem_limit: 512m
 
   profile.service:
     image: jamesdbloom/mockserver
