@@ -8,9 +8,29 @@ import org.mockserver.matchers.Times
 import org.mockserver.model.HttpRequest.request
 import org.mockserver.model.HttpResponse.response
 
+import scala.concurrent.duration._
+
 trait MockProfileResponses {
 
+  def waitUntilMockServerIsRunning(mockServerClient: MockServerClient): Unit = {
+    val deadline = 5.seconds.fromNow
+
+    def loop(): Unit = {
+      if (deadline.isOverdue())
+        sys.error("Mock server didn't start up in time")
+
+      if (!mockServerClient.isRunning) {
+        Thread.sleep(200)
+        loop()
+      }
+    }
+
+    loop()
+  }
+
   def createOKCustomerProfileResponse(mockServerClient: MockServerClient) {
+    waitUntilMockServerIsRunning(mockServerClient)
+
     val validResponseJson =
       new String(Files.readAllBytes(Paths.get("src/test/resources/profile_valid_response.json")),
                  StandardCharsets.UTF_8)
@@ -30,6 +50,8 @@ trait MockProfileResponses {
   }
 
   def createInvalidCustomerProfileResponse(mockServerClient: MockServerClient) {
+    waitUntilMockServerIsRunning(mockServerClient)
+
     val validResponseJson =
       new String(Files.readAllBytes(Paths.get("src/test/resources/profile_missing_email_fields_response.json")),
                  StandardCharsets.UTF_8)
@@ -49,6 +71,8 @@ trait MockProfileResponses {
   }
 
   def createBadCustomerProfileResponse(mockServerClient: MockServerClient) {
+    waitUntilMockServerIsRunning(mockServerClient)
+
     mockServerClient.reset()
     mockServerClient
       .when(
@@ -64,6 +88,8 @@ trait MockProfileResponses {
   }
 
   def createFlakyCustomerProfileResponse(mockServerClient: MockServerClient) {
+    waitUntilMockServerIsRunning(mockServerClient)
+
     val validResponseJson =
       new String(Files.readAllBytes(Paths.get("src/test/resources/profile_valid_response.json")),
                  StandardCharsets.UTF_8)
