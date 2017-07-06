@@ -151,6 +151,8 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
 
     //side effects
     triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV3.get, InternalMetadata(traceToken))
+
+    implicit val patienceConfig = PatienceConfig(Span(11, Seconds))
     eventually {
       failedEventSent shouldBe Some(
         FailedV2(scheduleWithTriggeredV3.triggeredV3.get.metadata,
@@ -158,7 +160,7 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
                  "Orchestrating comm timed out",
                  OrchestrationError))
       scheduleAsFailed shouldBe Some(scheduleId, "Orchestrating comm timed out")
-    }(PatienceConfig(Span(11, Seconds)))
+    }
   }
 
   it should "should orchestrate" in {
@@ -180,12 +182,13 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
                          generateTraceToken,
                          sendFailedEvent)(scheduleId)
 
+    implicit val patienceConfig = PatienceConfig(Span(3, Seconds))
     eventually {
       //side effects
       triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV3.get, InternalMetadata(traceToken))
       failedEventSent shouldBe None
       scheduleAsComplete shouldBe Some(scheduleId)
-    }(PatienceConfig(Span(3, Seconds)))
+    }
   }
 
   it should "handle send failed event timeout" in {
@@ -219,11 +222,12 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
                          timedOutSendFailedEvent)(scheduleId)
 
     //side effects
+    implicit val patienceConfig = PatienceConfig(Span(6, Seconds))
     eventually {
       triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV3.get, InternalMetadata(traceToken))
       sendFailedEventInvoked shouldBe true
       scheduleFailedPersist shouldBe Some(scheduleId, "Some error")
-    }(PatienceConfig(Span(6, Seconds)))
+    }
   }
 
   it should "handle send failed event failure" in {
@@ -286,13 +290,14 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
                          generateTraceToken,
                          sendFailedEvent)(scheduleId)
 
+    implicit val patienceConfig = PatienceConfig(Span(3, Seconds))
     eventually {
       //side effects
       triggerOrchestrated shouldBe Some(Schedule.triggeredAsV3(scheduleWithTriggeredV2).get,
                                         InternalMetadata(traceToken))
       failedEventSent shouldBe None
       scheduleAsComplete shouldBe Some(scheduleId)
-    }(PatienceConfig(Span(3, Seconds)))
+    }
   }
 
   it should "fail orchestration if schedule has no triggered events" in {
