@@ -21,7 +21,7 @@ import org.apache.kafka.common.serialization.StringDeserializer
 import org.scalatest.concurrent.{Eventually, PatienceConfiguration, ScalaFutures}
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest._
-import servicetest.helpers.KafkaTesting
+import servicetest.helpers.{DynamoTesting, KafkaTesting}
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
@@ -32,7 +32,8 @@ trait DockerIntegrationTest
     with ScalaFutures
     with TestSuite
     with BeforeAndAfterAll
-    with Eventually { self =>
+    with Eventually
+    with DynamoTesting { self =>
 
   implicit class RichDockerContainer(val dockerContainer: DockerContainer) {
 
@@ -42,9 +43,12 @@ trait DockerIntegrationTest
       *
       * @param stringToMatch The container is considered ready when a line containing this string is send to stderr or stdout
       * @param containerName An arbitrary name for the container, used for generating the log file name
+      * @param onReady Extra processing to perform when the container is ready, e.g. creating DB tables
       * @return
       */
-    def withLogWritingAndReadyChecker(stringToMatch: String, containerName: String): DockerContainer = {
+    def withLogWritingAndReadyChecker(stringToMatch: String,
+                                      containerName: String,
+                                      onReady: () => Unit = () => ()): DockerContainer = {
       val outputDir = Paths.get("target", "integration-test-logs")
       val outputFile =
         outputDir.resolve(s"${self.getClass.getSimpleName}-$containerName-${LocalDateTime.now().toString}.log")
@@ -75,6 +79,7 @@ trait DockerIntegrationTest
 
             override def handle(line: String) = {
               if (line.contains(stringToMatch)) {
+                onReady()
                 println(s"Container [$containerName] is ready")
                 readyPromise.trySuccess(true)
                 _tailer.stop()
@@ -224,13 +229,17 @@ trait DockerIntegrationTest
 //                 "-jar",
 //                 "DynamoDBLocal.jar",
 //                 "-sharedDb") // TODO we need to override the entrypoint, not pass a command. This will need a PR against docker-it-scala.
-    .withLogWritingAndReadyChecker("Initializing DynamoDB Local", "dynamodb")
+    .withLogWritingAndReadyChecker("Initializing DynamoDB Local", "dynamodb", onReady = () => {
+      println("Creating Dynamo table")
+      createTable()
+    })
 
   lazy val orchestration = {
     val awsAccountId = sys.env.getOrElse(
       "AWS_ACCOUNT_ID",
       sys.error("Environment variable AWS_ACCOUNT_ID must be set in order to run the integration tests"))
-    DockerContainer(s"$awsAccountId.dkr.ecr.eu-west-1.amazonaws.com/orchestration:0.1-SNAPSHOT", name = Some("orchestration"))
+    DockerContainer(s"$awsAccountId.dkr.ecr.eu-west-1.amazonaws.com/orchestration:0.1-SNAPSHOT",
+                    name = Some("orchestration"))
       .withLinks(
         ContainerLink(profiles, "profiles"),
         ContainerLink(legacyZookeeper, "legacyZookeeper"),
@@ -269,13 +278,13 @@ trait DockerIntegrationTest
          orchestration)
 
   lazy val legacyZkUtils = ZkUtils("localhost:32181", 30000, 5000, isZkSecurityEnabled = false)
-  lazy val aivenZkUtils = ZkUtils("localhost:32182", 30000, 5000, isZkSecurityEnabled = false)
+  lazy val aivenZkUtils  = ZkUtils("localhost:32182", 30000, 5000, isZkSecurityEnabled = false)
 
   def checkKafkaTopic(topic: String, zkUtils: ZkUtils, description: String) = {
     println(s"Checking we can retrieve metadata about topic $topic on $description ZooKeeper")
     eventually {
       val topicInfo = AdminUtils.fetchTopicMetadataFromZk(topic, zkUtils)
-      val error = topicInfo.error()
+      val error     = topicInfo.error()
       if (Errors.NONE != topicInfo.error()) {
         fail(s"${topicInfo.topic()} encountered an error: $error")
       }

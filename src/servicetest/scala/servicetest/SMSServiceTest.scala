@@ -1,57 +1,53 @@
-package com.ovoenergy.orchestration.serviceTest
+package servicetest
 
+import servicetest.helpers._
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.model.sms.OrchestratedSMSV2
-import com.ovoenergy.orchestration.serviceTest.util.{
-  DynamoTesting,
-  FakeS3Configuration,
-  KafkaTesting,
-  MockProfileResponses
-}
 import com.ovoenergy.orchestration.util.TestUtil
-import com.typesafe.config.{Config, ConfigFactory, ConfigParseOptions, ConfigResolveOptions}
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.mockserver.client.server.MockServerClient
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, Tag}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 
-import scala.collection.JavaConverters._
-import scala.annotation.tailrec
 import scala.collection.mutable
-import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 
-class SMSServiceTestIT
+class SMSServiceTest
     extends FlatSpec
+    with DockerIntegrationTest
     with Matchers
     with ScalaFutures
     with BeforeAndAfterAll
     with IntegrationPatience
     with MockProfileResponses
-    with DynamoTesting
     with FakeS3Configuration {
 
-  val config: Config =
-    ConfigFactory.load(ConfigParseOptions.defaults(), ConfigResolveOptions.defaults().setAllowUnresolved(true))
-  val kafkaTesting = new KafkaTesting(config)
   import kafkaTesting._
+
   val mockServerClient = new MockServerClient("localhost", 1080)
 
   val region     = config.getString("aws.region")
   val s3Endpoint = "http://localhost:4569"
 
-  object DockerComposeTag extends Tag("DockerComposeTag")
-
   override def beforeAll() = {
-    createTable()
+    super.beforeAll()
+
+    initKafkaConsumers()
     uploadFragmentsToFakeS3(region, s3Endpoint)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
-    kafkaTesting.setupTopics()
+  }
+
+  override def afterAll() = {
+    shutdownAllKafkaProducers()
+    shutdownAllKafkaConsumers()
+
+    super.afterAll()
   }
 
   behavior of "SMS Orchestration"
 
-  it should "orchestrate SMS request to send immediately" taggedAs DockerComposeTag in {
+  it should "orchestrate SMS request to send immediately" in {
     createOKCustomerProfileResponse(mockServerClient)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
     val triggerSMS = TestUtil.customerTriggered.copy(preferredChannels = Some(List(SMS)))
@@ -62,7 +58,7 @@ class SMSServiceTestIT
     }
   }
 
-  it should "orchestrate multiple SMS" taggedAs DockerComposeTag in {
+  it should "orchestrate multiple SMS" in {
     createOKCustomerProfileResponse(mockServerClient)
 
     var futures = new mutable.ListBuffer[Future[_]]
@@ -83,7 +79,7 @@ class SMSServiceTestIT
     orchestratedSMSes.map(_.metadata.traceToken) should contain allOf ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
   }
 
-  it should "orchestrate triggered event with sms contact details" taggedAs DockerComposeTag in {
+  it should "orchestrate triggered event with sms contact details" in {
     createOKCustomerProfileResponse(mockServerClient)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
     val triggerSMS = TestUtil.smsContactDetailsTriggered
@@ -112,7 +108,7 @@ class SMSServiceTestIT
                                    shouldCheckTraceToken: Boolean = true,
                                    shouldHaveCustomerProfile: Boolean = true) = {
     val orchestratedSMS =
-      pollForEvents[OrchestratedSMSV2](pollTime, noOfEventsExpected, smsOrchestratedConsumer, smsOrchestratedTopic)
+      pollForEvents[OrchestratedSMSV2](pollTime, noOfEventsExpected, smsOrchestratedConsumer, orchestratedSmsTopic)
     orchestratedSMS.map { orchestratedSMS =>
       orchestratedSMS.recipientPhoneNumber shouldBe "+447985631544"
 

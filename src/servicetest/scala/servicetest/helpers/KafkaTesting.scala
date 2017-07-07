@@ -36,7 +36,7 @@ class KafkaTesting(config: Config) {
   val orchestratedSmsTopic      = config.getString("kafka.topics.orchestrated.sms.v2")
   val orchestrationStartedTopic = config.getString("kafka.topics.orchestration.started.v2")
 
-  val triggeredV2Topic           = config.getString("kafka.topics.triggered.v2")
+  val triggeredV2Topic             = config.getString("kafka.topics.triggered.v2")
   val cancellationRequestedV1Topic = config.getString("kafka.topics.scheduling.cancellationRequest.v1")
 
   val aivenTopics = Seq(
@@ -51,9 +51,9 @@ class KafkaTesting(config: Config) {
   )
 
   val legacyTopics = aivenTopics ++ Seq(
-    triggeredV2Topic,
-    cancellationRequestedV1Topic
-  )
+      triggeredV2Topic,
+      cancellationRequestedV1Topic
+    )
 
   private val allKafkaProducers = ArrayBuffer.empty[KafkaProducer[_, _]]
   private val allKafkaConsumers = ArrayBuffer.empty[ApacheKafkaConsumer[_, _]]
@@ -65,25 +65,47 @@ class KafkaTesting(config: Config) {
   }
 
   private def kafkaConsumer[A: SchemaFor: FromRecord: ClassTag](topic: String) = {
-    val consumer = KafkaConsumer(KafkaConsumerConf(new StringDeserializer, avroDeserializer[A], kafkaHosts, consumerGroup))
+    val consumer = KafkaConsumer(
+      KafkaConsumerConf(new StringDeserializer, avroDeserializer[A], kafkaHosts, consumerGroup))
     allKafkaConsumers.append(consumer)
     consumer.assign(Seq(new TopicPartition(topic, 0)).asJava)
     consumer
   }
 
-  val legacyTriggeredProducer = kafkaProducer[TriggeredV2]
-  val triggeredProducer = kafkaProducer[TriggeredV3]
+  /*
+  Note: The consumers and producers are lazy so we don't create and assign them
+  until after we've tested the topics can be consumed from.
 
-  val legacyCancellationRequestedProducer = kafkaProducer[CancellationRequested]
-  val cancellationRequestedProducer = kafkaProducer[CancellationRequestedV2]
+  BUT! You have to assign the consumer to the topic before you send any events to it,
+  hence the initKafkaConsumers() method below.
+   */
+  lazy val legacyTriggeredProducer = kafkaProducer[TriggeredV2]
+  lazy val triggeredProducer       = kafkaProducer[TriggeredV3]
 
-  val cancellationRequestedConsumer = kafkaConsumer[CancellationRequestedV2](cancellationRequestTopic)
-  val cancelledConsumer = kafkaConsumer[CancelledV2](cancelledTopic)
-  val commFailedConsumer = kafkaConsumer[FailedV2](failedTopic)
-  val orchestratedEmailConsumer = kafkaConsumer[OrchestratedEmailV3](orchestratedEmailTopic)
-  val smsOrchestratedConsumer = kafkaConsumer[OrchestratedSMSV2](orchestratedSmsTopic)
-  val orchestrationStartedConsumer = kafkaConsumer[OrchestrationStartedV2](orchestrationStartedTopic)
-  val failedCancellationConsumer = kafkaConsumer[FailedCancellationV2](failedCancellationTopic)
+  lazy val legacyCancellationRequestedProducer = kafkaProducer[CancellationRequested]
+  lazy val cancellationRequestedProducer       = kafkaProducer[CancellationRequestedV2]
+
+  lazy val cancellationRequestedConsumer = kafkaConsumer[CancellationRequestedV2](cancellationRequestTopic)
+  lazy val cancelledConsumer             = kafkaConsumer[CancelledV2](cancelledTopic)
+  lazy val commFailedConsumer            = kafkaConsumer[FailedV2](failedTopic)
+  lazy val orchestratedEmailConsumer     = kafkaConsumer[OrchestratedEmailV3](orchestratedEmailTopic)
+  lazy val smsOrchestratedConsumer       = kafkaConsumer[OrchestratedSMSV2](orchestratedSmsTopic)
+  lazy val orchestrationStartedConsumer  = kafkaConsumer[OrchestrationStartedV2](orchestrationStartedTopic)
+  lazy val failedCancellationConsumer    = kafkaConsumer[FailedCancellationV2](failedCancellationTopic)
+
+  def initKafkaConsumers(): Unit = {
+    Seq(
+      cancellationRequestedConsumer,
+      cancelledConsumer,
+      commFailedConsumer,
+      orchestratedEmailConsumer,
+      smsOrchestratedConsumer,
+      orchestrationStartedConsumer,
+      failedCancellationConsumer
+    ).foreach { consumer =>
+      consumer.poll(100)
+    }
+  }
 
   def pollForEvents[E](pollTime: FiniteDuration = 20000.millisecond,
                        noOfEventsExpected: Int,
@@ -105,7 +127,7 @@ class KafkaTesting(config: Config) {
             throw new Exception(s"Consumed more than $noOfEventsExpected events from $topic")
           case _ => poll(deadline, eventsSoFar)
         }
-      } else throw new Exception("Events didn't appear within the timelimit")
+      } else throw new Exception(s"Events didn't appear within the timelimit (got ${events.size} events)")
     }
 
     poll(pollTime.fromNow, Nil)

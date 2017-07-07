@@ -59,11 +59,15 @@ testWithDynamo := Def.sequential(
 
 // Make ScalaTest write test reports that CircleCI understands
 val testReportsDir = sys.env.getOrElse("CI_REPORTS", "target/reports")
-testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-o", "-u", testReportsDir, "-l", "DockerComposeTag")
+testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-o", "-u", testReportsDir)
 
 lazy val ServiceTest = config("servicetest") extend(Test)
 configs(ServiceTest)
 inConfig(ServiceTest)(Defaults.testSettings)
+inConfig(ServiceTest)(Seq(
+  (parallelExecution in test) := false,
+  (parallelExecution in testOnly) := false
+))
 (test in ServiceTest) := (test in ServiceTest).dependsOn(publishLocal in Docker).value
 
 val scalafmtAll = taskKey[Unit]("Run scalafmt in non-interactive mode with no arguments")

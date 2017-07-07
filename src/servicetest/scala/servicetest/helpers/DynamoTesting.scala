@@ -11,7 +11,7 @@ trait DynamoTesting {
   val dynamoClient = LocalDynamoDB.client(dynamoUrl)
   val tableName    = "scheduling"
 
-  def createTable() = {
+  def createTable(): Unit = {
     val secondaryIndices = Seq(
       SecondaryIndexData("customerId-commName-index", Seq('customerId    -> S, 'commName            -> S)),
       SecondaryIndexData("status-orchestrationExpiry-index", Seq('status -> S, 'orchestrationExpiry -> N))

@@ -22,15 +22,14 @@ class EmailServiceTest
     with BeforeAndAfterAll
     with IntegrationPatience
     with MockProfileResponses
-    with FakeS3Configuration
-    with DynamoTesting {
+    with FakeS3Configuration {
 
   import kafkaTesting._
 
   override def beforeAll() = {
     super.beforeAll()
 
-    createTable()
+    initKafkaConsumers()
     uploadFragmentsToFakeS3(region, s3Endpoint)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
   }
@@ -62,8 +61,8 @@ class EmailServiceTest
 
   it should "orchestrate legacy emails request to send immediately" in {
     createOKCustomerProfileResponse(mockServerClient)
-    val future = legacyTriggeredProducer.send(
-      new ProducerRecord[String, TriggeredV2](triggeredV2Topic, TestUtil.legacyTriggered))
+    val future =
+      legacyTriggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredV2Topic, TestUtil.legacyTriggered))
     whenReady(future) { _ =>
       expectOrchestrationStartedEvents(10000.millisecond, 1)
       expectOrchestratedEmailEvents(10000.millisecond, 1)
