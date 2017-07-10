@@ -7,11 +7,13 @@ import akka.kafka.{ConsumerSettings, Subscriptions}
 import akka.stream.ThrottleMode.Shaping
 import akka.stream.scaladsl.{RunnableGraph, Sink}
 import akka.stream.{ActorAttributes, Materializer, Supervision}
+import com.ovoenergy.comms.akka.streams.Factory.KafkaConfig
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.kafka.{KafkaConfig, Serialisation}
+import com.ovoenergy.orchestration.kafka.Serialisation
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.domain._
+import com.ovoenergy.orchestration.kafka.consumers.TriggeredConsumer.log
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.serialization.StringDeserializer
 
@@ -68,7 +70,7 @@ object LegacyTriggeredConsumer extends LoggingWithMDC {
       .withAttributes(ActorAttributes.supervisionStrategy(decider))
 
     val sink = Sink.ignore.withAttributes(ActorAttributes.supervisionStrategy(decider))
-
+    log.debug(s"Consuming triggered events for $config")
     source.to(sink)
   }
 }

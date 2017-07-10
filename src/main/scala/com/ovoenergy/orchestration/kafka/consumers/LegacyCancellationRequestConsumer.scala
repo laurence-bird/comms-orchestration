@@ -1,7 +1,5 @@
 package com.ovoenergy.orchestration.kafka.consumers
 
-import java.time.Instant
-
 import akka.actor.ActorSystem
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.Control
@@ -9,16 +7,17 @@ import akka.kafka.{ConsumerSettings, Subscriptions}
 import akka.stream.ThrottleMode.Shaping
 import akka.stream.scaladsl.{RunnableGraph, Sink}
 import akka.stream.{ActorAttributes, Materializer, Supervision}
+import com.ovoenergy.comms.akka.streams.Factory.KafkaConfig
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.kafka.{KafkaConfig, Serialisation}
+import com.ovoenergy.orchestration.domain._
+import com.ovoenergy.orchestration.kafka.Serialisation
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.domain._
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.serialization.StringDeserializer
 
-import scala.concurrent.duration._
 import scala.concurrent.Future
+import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
 object LegacyCancellationRequestConsumer extends LoggingWithMDC {

@@ -9,7 +9,7 @@ Resources:
     Properties:
       AssumeRolePolicyDocument:
         Statement:
-          - 
+          -
             Effect: Allow
             Principal:
               Service:
@@ -18,7 +18,7 @@ Resources:
               - sts:AssumeRole
       Path: /
       Policies:
-        - 
+        -
           PolicyName: read-write-dynamo-table
           PolicyDocument:
             Statement:
@@ -60,6 +60,17 @@ Resources:
                 - 'dynamodb:Query'
               Resource:
                 - !Sub "arn:aws:dynamodb:eu-west-1:${AWS::AccountId}:table/credential-store"
+        -
+          PolicyName: read-aiven-bucket
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+                - 's3:Get*'
+                - 's3:List*'
+              Resource:
+                - 'arn:aws:s3:::ovo-comms-aiven'
+                - 'arn:aws:s3:::ovo-comms-aiven/*'
 
   SchedulingTable:
     Type: AWS::DynamoDB::Table

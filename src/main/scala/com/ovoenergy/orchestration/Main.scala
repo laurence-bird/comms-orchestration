@@ -8,12 +8,15 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import akka.kafka.scaladsl.Consumer
+import akka.kafka.scaladsl.Consumer.Control
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.RunnableGraph
 import cats.Id
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
 import com.ovoenergy.comms.model._
+import com.ovoenergy.comms.model.email.OrchestratedEmailV3
+import com.ovoenergy.comms.model.sms.OrchestratedSMSV2
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
 import com.ovoenergy.comms.templates.{ErrorsOr, TemplatesRepo}
 import com.ovoenergy.orchestration.aws.AwsProvider
@@ -32,14 +35,16 @@ import com.ovoenergy.orchestration.profile.{CustomerProfiler, ProfileValidation}
 import com.ovoenergy.orchestration.retry.Retry
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence
 import com.ovoenergy.orchestration.scheduling.{QuartzScheduling, Restore, TaskExecutor}
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.kafka.clients.producer.RecordMetadata
+import com.ovoenergy.comms.akka.streams.Factory.{KafkaConfig, consumerSettings}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import com.ovoenergy.comms.serialisation.Codecs._
+import com.ovoenergy.kafka.serialization.avro.SchemaRegistryClientSettings
 
 object Main extends App with LoggingWithMDC {
 
@@ -49,7 +54,7 @@ object Main extends App with LoggingWithMDC {
     def toFiniteDuration: FiniteDuration = FiniteDuration.apply(duration.toNanos, TimeUnit.NANOSECONDS)
   }
 
-  val config = ConfigFactory.load()
+  val config: Config = ConfigFactory.load()
 
   implicit val actorSystem  = ActorSystem()
   implicit val materializer = ActorMaterializer()
@@ -67,12 +72,19 @@ object Main extends App with LoggingWithMDC {
     )
   )
 
+  val kafkaSettings = new KafkaSettings(config)
+
   val templatesContext = AwsProvider.templatesContext(isRunningInLocalDocker, region)
 
   val retrieveTemplate: (CommManifest) => ErrorsOr[CommTemplate[Id]] = TemplatesRepo.getTemplate(templatesContext, _)
   val determineChannel                                               = new ChannelSelectorWithTemplate(retrieveTemplate)
 
-  val kafkaHosts = config.getString("kafka.hosts")
+  val schemaRegistrySettings = kafkaSettings.schemaRegistryClientSettings
+  val aivenSslConfig         = kafkaSettings.sslConfig
+
+  val legacyKafkaHosts = config.getString("kafka.hosts")
+  val aivenKafkaHosts  = config.getString("kafka.aiven.hosts")
+
   val kafkaProducerRetryConfig = Retry.RetryConfig(
     attempts = config.getInt("kafka.producer.retry.attempts"),
     backoff = Retry.Backoff.exponential(
@@ -82,20 +94,22 @@ object Main extends App with LoggingWithMDC {
   )
 
   val orchestrateEmail = new IssueOrchestratedEmail(
-    Producer(
-      hosts = kafkaHosts,
+    Producer[OrchestratedEmailV3](
+      hosts = aivenKafkaHosts,
       topic = config.getString("kafka.topics.orchestrated.email.v3"),
-      serialiser = Serialisation.orchestratedEmailSerializer,
-      retryConfig = kafkaProducerRetryConfig
+      retryConfig = kafkaProducerRetryConfig,
+      schemaRegistryClientSettings = schemaRegistrySettings,
+      sslConfig = aivenSslConfig
     )
   )
 
   val orchestrateSMS = new IssueOrchestratedSMS(
-    Producer(
-      hosts = kafkaHosts,
+    Producer[OrchestratedSMSV2](
+      hosts = aivenKafkaHosts,
       topic = config.getString("kafka.topics.orchestrated.sms.v2"),
-      serialiser = Serialisation.orchestratedSMSSerializer,
-      retryConfig = kafkaProducerRetryConfig
+      retryConfig = kafkaProducerRetryConfig,
+      schemaRegistryClientSettings = schemaRegistrySettings,
+      sslConfig = aivenSslConfig
     )
   )
 
@@ -124,35 +138,39 @@ object Main extends App with LoggingWithMDC {
   )
 
   val sendFailedTriggerEvent: FailedV2 => Future[RecordMetadata] = {
-    Producer(
-      hosts = kafkaHosts,
+    Producer[FailedV2](
+      hosts = aivenKafkaHosts,
       topic = config.getString("kafka.topics.failed.v2"),
-      serialiser = Serialisation.failedSerializer,
-      retryConfig = kafkaProducerRetryConfig
+      retryConfig = kafkaProducerRetryConfig,
+      schemaRegistryClientSettings = schemaRegistrySettings,
+      sslConfig = aivenSslConfig
     )
   }
 
-  val sendCancelledEvent: (CancelledV2) => Future[RecordMetadata] = Producer(
-    hosts = kafkaHosts,
+  val sendCancelledEvent: (CancelledV2) => Future[RecordMetadata] = Producer[CancelledV2](
+    hosts = aivenKafkaHosts,
     topic = config.getString("kafka.topics.scheduling.cancelled.v2"),
-    serialiser = Serialisation.cancelledSerializer,
-    retryConfig = kafkaProducerRetryConfig
+    retryConfig = kafkaProducerRetryConfig,
+    schemaRegistryClientSettings = schemaRegistrySettings,
+    sslConfig = aivenSslConfig
   )
 
   val sendFailedCancellationEvent: (FailedCancellationV2) => Future[RecordMetadata] =
-    Producer(
-      hosts = kafkaHosts,
+    Producer[FailedCancellationV2](
+      hosts = aivenKafkaHosts,
       topic = config.getString("kafka.topics.scheduling.failedCancellation.v2"),
-      serialiser = Serialisation.failedCancellationSerializer,
-      retryConfig = kafkaProducerRetryConfig
+      retryConfig = kafkaProducerRetryConfig,
+      schemaRegistryClientSettings = schemaRegistrySettings,
+      sslConfig = aivenSslConfig
     )
 
   val sendOrchestrationStartedEvent: OrchestrationStartedV2 => Future[RecordMetadata] =
-    Producer(
-      hosts = kafkaHosts,
+    Producer[OrchestrationStartedV2](
+      hosts = aivenKafkaHosts,
       topic = config.getString("kafka.topics.orchestration.started.v2"),
-      serialiser = Serialisation.orchestrationStartedV2Serializer,
-      retryConfig = kafkaProducerRetryConfig
+      retryConfig = kafkaProducerRetryConfig,
+      schemaRegistryClientSettings = schemaRegistrySettings,
+      sslConfig = aivenSslConfig
     )
 
   val executeScheduledTask = TaskExecutor.execute(schedulingPersistence,
@@ -165,51 +183,67 @@ object Main extends App with LoggingWithMDC {
   val removeSchedule = QuartzScheduling.removeSchedule _
   val descheduleComm = Scheduler.descheduleComm(schedulingPersistence.cancelSchedules, removeSchedule) _
 
-  val schedulingGraph = TriggeredConsumer(
-    scheduleTask = scheduleTask,
-    sendFailedEvent = sendFailedTriggerEvent,
-    config = KafkaConfig(
-      hosts = kafkaHosts,
-      groupId = config.getString("kafka.group.id"),
-      topic = config.getString("kafka.topics.triggered.v3")
-    ),
-    generateTraceToken = () => UUID.randomUUID().toString
-  )
-
-  val legacySchedulingGraph = LegacyTriggeredConsumer(
-    scheduleTask = scheduleTask,
-    sendFailedEvent = sendFailedTriggerEvent,
-    config = KafkaConfig(
-      hosts = kafkaHosts,
-      groupId = config.getString("kafka.group.id"),
-      topic = config.getString("kafka.topics.triggered.v2")
-    ),
-    generateTraceToken = () => UUID.randomUUID().toString
-  )
-
-  val cancellationRequestGraph = CancellationRequestConsumer(
-    sendFailedCancellationEvent = sendFailedCancellationEvent,
-    sendSuccessfulCancellationEvent = sendCancelledEvent,
-    generateTraceToken = () => UUID.randomUUID().toString,
-    descheduleComm = descheduleComm,
-    config = KafkaConfig(
-      hosts = kafkaHosts,
-      groupId = config.getString("kafka.group.id"),
-      topic = config.getString("kafka.topics.scheduling.cancellationRequest.v2")
+  val schedulingGraph: RunnableGraph[Control] = {
+    val kafkaConf = kafkaSettings.kafkaConfig("kafka.topics.triggered.v3", isAivenCluster = false)
+    TriggeredConsumer(
+      scheduleTask = scheduleTask,
+      sendFailedEvent = sendFailedTriggerEvent,
+      config = kafkaConf,
+      generateTraceToken = () => UUID.randomUUID().toString,
+      consumerSettings = kafkaSettings.legacyConsumerSettings[TriggeredV3](kafkaConf)
     )
+  }
+
+  val legacySchedulingGraph: RunnableGraph[Control] = LegacyTriggeredConsumer(
+    scheduleTask = scheduleTask,
+    sendFailedEvent = sendFailedTriggerEvent,
+    config = kafkaSettings.kafkaConfig("kafka.topics.triggered.v2", isAivenCluster = false),
+    generateTraceToken = () => UUID.randomUUID().toString
   )
+
+  val aivenSchedulingGraph: RunnableGraph[Control] = {
+    val kafkaConf: KafkaConfig = kafkaSettings.kafkaConfig("kafka.topics.triggered.v3", isAivenCluster = true)
+    TriggeredConsumer(
+      scheduleTask = scheduleTask,
+      sendFailedEvent = sendFailedTriggerEvent,
+      config = kafkaConf,
+      generateTraceToken = () => UUID.randomUUID().toString,
+      consumerSettings = consumerSettings[TriggeredV3](schemaRegistrySettings, kafkaConfig = kafkaConf)
+    )
+  }
+
+  val aivenCancellationRequestGraph = {
+    val kafkaConf = kafkaSettings.kafkaConfig("kafka.topics.scheduling.cancellationRequest.v2", isAivenCluster = true)
+    CancellationRequestConsumer(
+      sendFailedCancellationEvent = sendFailedCancellationEvent,
+      sendSuccessfulCancellationEvent = sendCancelledEvent,
+      generateTraceToken = () => UUID.randomUUID().toString,
+      descheduleComm = descheduleComm,
+      config = kafkaConf,
+      consumerSettings = kafkaSettings.legacyConsumerSettings[CancellationRequestedV2](kafkaConf)
+    )
+  }
+
+  val cancellationRequestGraph: RunnableGraph[Control] = {
+    val kafkaConf = kafkaSettings.kafkaConfig("kafka.topics.scheduling.cancellationRequest.v2", isAivenCluster = false)
+    CancellationRequestConsumer(
+      sendFailedCancellationEvent = sendFailedCancellationEvent,
+      sendSuccessfulCancellationEvent = sendCancelledEvent,
+      generateTraceToken = () => UUID.randomUUID().toString,
+      descheduleComm = descheduleComm,
+      config = kafkaConf,
+      consumerSettings = kafkaSettings.legacyConsumerSettings[CancellationRequestedV2](kafkaConf)
+    )
+  }
 
   val legacyCancellationRequestGraph = LegacyCancellationRequestConsumer(
     sendFailedCancellationEvent = sendFailedCancellationEvent,
     sendSuccessfulCancellationEvent = sendCancelledEvent,
     generateTraceToken = () => UUID.randomUUID().toString,
     descheduleComm = descheduleComm,
-    config = KafkaConfig(
-      hosts = kafkaHosts,
-      groupId = config.getString("kafka.group.id"),
-      topic = config.getString("kafka.topics.scheduling.cancellationRequest.v1")
-    )
+    config = kafkaSettings.kafkaConfig("kafka.topics.scheduling.cancellationRequest.v1", isAivenCluster = false)
   )
+
   QuartzScheduling.init()
 
   /*
@@ -241,6 +275,7 @@ object Main extends App with LoggingWithMDC {
   }
 
   def runGraph(graphName: String, graph: RunnableGraph[Consumer.Control]) = {
+    log.debug(s"Starting graph: $graph")
     val control = graph.run()
     control.isShutdown.foreach { _ =>
       log.error(s"ARGH! The Kafka $graphName event source has shut down. Killing the JVM and nuking from orbit.")
@@ -249,8 +284,10 @@ object Main extends App with LoggingWithMDC {
   }
 
   runGraph("scheduling", schedulingGraph)
+  runGraph("aiven scheduling", aivenSchedulingGraph)
   runGraph("legacy scheduling", legacySchedulingGraph)
   runGraph("cancellation", cancellationRequestGraph)
+  runGraph("aiven cancellation", aivenCancellationRequestGraph)
   runGraph("legacy cancellation", legacyCancellationRequestGraph)
   log.info("Orchestration started")
 }

@@ -1,9 +1,8 @@
 package servicetest
 
-import java.time.{Instant, LocalDateTime}
+import java.time.Instant
 import java.util.UUID
 
-import servicetest.helpers._
 import com.amazonaws.services.dynamodbv2.model.{AttributeValue, PutItemRequest, PutItemResult}
 import com.gu.scanamo.{Scanamo, Table}
 import com.ovoenergy.comms.model
@@ -12,19 +11,19 @@ import com.ovoenergy.comms.model.email._
 import com.ovoenergy.comms.model.sms._
 import com.ovoenergy.orchestration.domain._
 import com.ovoenergy.orchestration.scheduling.{Schedule, ScheduleStatus}
-import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence._
 import com.ovoenergy.orchestration.util.TestUtil
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.mockserver.client.server.MockServerClient
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, FlatSpec, Matchers}
+import servicetest.helpers._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 
-class SchedulingServiceTest
+class AivenSchedulingServiceTest
     extends FlatSpec
     with DockerIntegrationTest
     with Matchers
@@ -56,68 +55,13 @@ class SchedulingServiceTest
     super.afterAll()
   }
 
-  behavior of "Legacy Comm Scheduling"
 
-  it should "pick up expired events via polling and orchestrate them" in {
-    createOKCustomerProfileResponse(mockServerClient)
-    val schedulesTable = Table[Schedule](tableName)
-    val triggered      = TestUtil.customerTriggered
-
-    val deliverAt = Instant.now().minusSeconds(600)
-    val expireAt  = Instant.now().minusSeconds(60)
-
-    val result: PutItemResult = Scanamo.exec(dynamoClient)(
-      schedulesTable.put(
-        Schedule(
-          "testSchedule",
-          None,
-          Some(triggered),
-          deliverAt,
-          ScheduleStatus.Orchestrating,
-          Nil,
-          expireAt,
-          Some(TestUtil.customerId),
-          triggered.metadata.commManifest.name
-        )
-      ))
-
-    result.getSdkHttpMetadata.getHttpStatusCode shouldBe 200
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1, pollTime = 25000.millisecond)
-    expectOrchestratedEmailEvents(noOfEventsExpected = 1, pollTime = 25000.millisecond)
-  }
-
-  it should "pick up expired legacy events via polling and orchestrate them" in {
-    createOKCustomerProfileResponse(mockServerClient)
-    val schedulesTable = Table[Schedule](tableName)
-    val triggered      = TestUtil.legacyTriggered
-
-    val deliverAt = Instant.now().minusSeconds(600)
-    val expireAt  = Instant.now().minusSeconds(60)
-
-    val result: PutItemResult = Scanamo.exec(dynamoClient)(
-      schedulesTable.put(
-        Schedule(
-          "testSchedule",
-          Some(triggered),
-          None,
-          deliverAt,
-          ScheduleStatus.Orchestrating,
-          Nil,
-          expireAt,
-          Some(TestUtil.customerId),
-          triggered.metadata.commManifest.name
-        )
-      ))
-
-    result.getSdkHttpMetadata.getHttpStatusCode shouldBe 200
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1, pollTime = 25000.millisecond)
-    expectOrchestratedEmailEvents(noOfEventsExpected = 1, pollTime = 25000.millisecond)
-  }
+  behavior of "Aiven comms scheduling"
 
   it should "deschedule comms and generate cancelled events" in { //****//
     createOKCustomerProfileResponse(mockServerClient)
-    val triggered1 = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(15)))
-    val triggered2 = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(16)),
+    val triggered1 = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(20)))
+    val triggered2 = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(21)),
                                                      metadata = triggered1.metadata.copy(traceToken = "testTrace123"))
 
     // 2 trigger events for the same customer and comm
@@ -125,8 +69,8 @@ class SchedulingServiceTest
       triggered1,
       triggered2
     )
-    val triggeredFuture = Future.sequence(
-      triggeredEvents.map(tr => triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, tr))))
+    val triggeredFuture = Future.sequence(triggeredEvents.map(tr =>
+      aivenTriggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, tr))))
     Await.ready(triggeredFuture, atMost = 2.seconds)
 
     Thread.sleep(5000) // give it time to write the events to the DB
@@ -138,7 +82,6 @@ class SchedulingServiceTest
                                             canary = false)
     val cancellationRequested: CancellationRequestedV2 =
       CancellationRequestedV2(genericMetadata, triggered1.metadata.commManifest.name, TestUtil.customerId)
-
     val cancelledFuture = cancellationRequestedProducer.send(
       new ProducerRecord[String, CancellationRequestedV2](cancellationRequestTopic, cancellationRequested))
 
@@ -151,48 +94,6 @@ class SchedulingServiceTest
       cancelledComs.map(cc => (cc.metadata.traceToken, cc.cancellationRequested)) should contain allOf (
         (triggered1.metadata.traceToken, cancellationRequested),
         (triggered2.metadata.traceToken, cancellationRequested)
-      )
-    }
-  }
-
-  it should "legacy deschedule comms and generate cancelled events" in { //****//
-    createOKCustomerProfileResponse(mockServerClient)
-    val triggered1 = TestUtil.legacyTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(15).toString))
-    val triggered2 = TestUtil.legacyTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(16).toString),
-                                                   metadata = triggered1.metadata.copy(traceToken = "testTrace123"))
-
-    // 2 trigger events for the same customer and comm
-    val triggeredEvents = Seq(
-      triggered1,
-      triggered2
-    )
-
-    val triggeredFuture = Future.sequence(triggeredEvents.map(tr =>
-      legacyTriggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredV2Topic, tr))))
-    Await.ready(triggeredFuture, atMost = 2.seconds)
-
-    Thread.sleep(5000) // give it time to write the events to the DB
-
-    val genericMetadata = GenericMetadata(createdAt = Instant.now().toString,
-                                          eventId = UUID.randomUUID().toString,
-                                          traceToken = UUID.randomUUID().toString,
-                                          source = "service test",
-                                          canary = false)
-    val cancellationRequested: CancellationRequested =
-      CancellationRequested(genericMetadata, triggered1.metadata.commManifest.name, TestUtil.customerId)
-
-    val cancelledFuture = legacyCancellationRequestedProducer.send(
-      new ProducerRecord[String, CancellationRequested](cancellationRequestedV1Topic, cancellationRequested))
-
-    whenReady(cancelledFuture) { _ =>
-      orchestrationStartedConsumer.poll(5000).records(orchestrationStartedTopic).asScala.toList shouldBe empty
-      orchestratedEmailConsumer.poll(2000).records(orchestratedEmailTopic).asScala.toList shouldBe empty
-
-      val cancelledComs = pollForEvents(1000.millisecond, 2, cancelledConsumer, cancelledTopic)
-      cancelledComs.length shouldBe 2
-      cancelledComs.map(cc => (cc.metadata.traceToken, cc.cancellationRequested)) should contain allOf (
-        (triggered1.metadata.traceToken, cancellationRequestedToV2(cancellationRequested)),
-        (triggered2.metadata.traceToken, cancellationRequestedToV2(cancellationRequested))
       )
     }
   }
@@ -222,8 +123,8 @@ class SchedulingServiceTest
     val cancellationRequested = CancellationRequestedV2(genericMetadata, commName, TestUtil.customerId)
 
     for {
-      _ <- triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
-      _ <- cancellationRequestedProducer.send(
+      _ <- aivenTriggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
+      _ <- aivenCancellationRequestedProducer.send(
         new ProducerRecord[String, CancellationRequestedV2](cancellationRequestTopic, cancellationRequested))
     } yield checkCancellations()
 
@@ -247,19 +148,7 @@ class SchedulingServiceTest
   it should "orchestrate emails requested to be sent in the future" in { //****//
     createOKCustomerProfileResponse(mockServerClient)
     val triggered = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(5)))
-    val future    = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
-    whenReady(future) { _ =>
-      val orchestratedEmails = orchestratedEmailConsumer.poll(1000).records(orchestratedEmailTopic).asScala.toList
-      orchestratedEmails shouldBe empty
-      expectOrchestrationStartedEvents(noOfEventsExpected = 1)
-      expectOrchestratedEmailEvents(noOfEventsExpected = 1)
-    }
-  }
-
-  it should "orchestrate legacy emails requested to be sent in the future" in { //****//
-    createOKCustomerProfileResponse(mockServerClient)
-    val triggered = TestUtil.legacyTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(5).toString))
-    val future    = legacyTriggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredV2Topic, triggered))
+    val future    = aivenTriggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
     whenReady(future) { _ =>
       val orchestratedEmails = orchestratedEmailConsumer.poll(1000).records(orchestratedEmailTopic).asScala.toList
       orchestratedEmails shouldBe empty
@@ -275,7 +164,7 @@ class SchedulingServiceTest
       preferredChannels = Some(List(SMS))
     )
 
-    val future = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
+    val future = aivenTriggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
     whenReady(future) { _ =>
       val orchestratedSMS = smsOrchestratedConsumer.poll(1000).records(orchestratedSmsTopic).asScala.toList
       orchestratedSMS shouldBe empty

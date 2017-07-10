@@ -124,6 +124,7 @@ trait DockerIntegrationTest
 
   val hostIpAddress = {
     import sys.process._
+//    "10.200.10.1" // TODO revert me
     "./get_ip_address.sh".!!.trim
   }
 
@@ -304,6 +305,7 @@ trait DockerIntegrationTest
     eventually(PatienceConfiguration.Timeout(Span(20, Seconds))) {
       consumer.poll(200)
     }
+    consumer.close()
     println("Yes we can!")
   }
 

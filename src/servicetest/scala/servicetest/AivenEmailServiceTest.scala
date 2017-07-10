@@ -1,20 +1,20 @@
 package servicetest
 
-import servicetest.helpers._
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.model.email.OrchestratedEmailV3
 import com.ovoenergy.orchestration.util.TestUtil
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.mockserver.client.server.MockServerClient
-import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest._
+import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
+import servicetest.helpers._
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
-class EmailServiceTest
+class AivenEmailServiceTest
     extends FlatSpec
     with DockerIntegrationTest
     with Matchers
@@ -47,37 +47,15 @@ class EmailServiceTest
 
   behavior of "Email Orchestration"
 
-  // Upload valid template to S3 with both email and SMS templates available
+  behavior of "Aiven Email Orchestration"
 
   it should "orchestrate emails request to send immediately" in {
     createOKCustomerProfileResponse(mockServerClient)
     val future =
-      triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
+      aivenTriggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
     whenReady(future) { _ =>
       expectOrchestrationStartedEvents(noOfEventsExpected = 1)
       expectOrchestratedEmailEvents(noOfEventsExpected = 1)
-    }
-  }
-
-  it should "orchestrate legacy emails request to send immediately" in {
-    createOKCustomerProfileResponse(mockServerClient)
-    val future =
-      legacyTriggeredProducer.send(new ProducerRecord[String, TriggeredV2](triggeredV2Topic, TestUtil.legacyTriggered))
-    whenReady(future) { _ =>
-      expectOrchestrationStartedEvents(noOfEventsExpected = 1)
-      expectOrchestratedEmailEvents(noOfEventsExpected = 1)
-    }
-  }
-
-  it should "generate unique internalTraceTokens" in {
-    createOKCustomerProfileResponse(mockServerClient)
-    triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
-    triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
-    expectOrchestrationStartedEvents(noOfEventsExpected = 2)
-    val events = expectOrchestratedEmailEvents(noOfEventsExpected = 2)
-    events match {
-      case head :: tail =>
-        head.internalMetadata.internalTraceToken should not equal tail.head.internalMetadata.internalTraceToken
     }
   }
 
@@ -88,7 +66,7 @@ class EmailServiceTest
     (1 to 10).foreach(counter => {
       val triggered =
         TestUtil.customerTriggered.copy(metadata = TestUtil.metadataV2.copy(traceToken = counter.toString))
-      futures += triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
+      futures += aivenTriggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
     })
     futures.foreach(future => Await.ready(future, 1.seconds))
 
@@ -101,11 +79,23 @@ class EmailServiceTest
     orchestratedEmails.map(_.metadata.traceToken) should contain allOf ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
   }
 
+  it should "generate unique internalTraceTokens" in {
+    createOKCustomerProfileResponse(mockServerClient)
+    aivenTriggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
+    aivenTriggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
+    expectOrchestrationStartedEvents(noOfEventsExpected = 2)
+    val events = expectOrchestratedEmailEvents(noOfEventsExpected = 2)
+    events match {
+      case head :: tail =>
+        head.internalMetadata.internalTraceToken should not equal tail.head.internalMetadata.internalTraceToken
+    }
+  }
+
   it should "raise failure for customers with insufficient details to orchestrate emails for" in {
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.metadata.commManifest)
     createInvalidCustomerProfileResponse(mockServerClient)
     val future =
-      triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
+      aivenTriggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
     whenReady(future) { _ =>
       val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
@@ -123,7 +113,7 @@ class EmailServiceTest
     createBadCustomerProfileResponse(mockServerClient)
 
     val future =
-      triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
+      aivenTriggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
     whenReady(future) { _ =>
       val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList
@@ -140,14 +130,14 @@ class EmailServiceTest
   it should "retry if the profile service returns an error response" in {
     createFlakyCustomerProfileResponse(mockServerClient)
 
-    triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
+    aivenTriggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.customerTriggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
     expectOrchestratedEmailEvents(noOfEventsExpected = 1)
   }
 
   it should "orchestrate triggered event with email contact details" in {
     val future =
-      triggeredProducer.send(
+      aivenTriggeredProducer.send(
         new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.emailContactDetailsTriggered))
     whenReady(future) { _ =>
       expectOrchestrationStartedEvents(10000.millisecond, 1)
@@ -158,7 +148,7 @@ class EmailServiceTest
   it should "raise failure for triggered event with contact details with insufficient details" in {
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.metadata.commManifest)
     val future =
-      triggeredProducer.send(
+      aivenTriggeredProducer.send(
         new ProducerRecord[String, TriggeredV3](triggeredTopic, TestUtil.invalidContactDetailsTriggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
     whenReady(future) { _ =>
@@ -184,7 +174,7 @@ class EmailServiceTest
     uploadSMSOnlyTemplateToFakeS3(region, s3Endpoint)(commManifest)
 
     val future =
-      triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
+      aivenTriggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
     whenReady(future) { _ =>
       val failures = commFailedConsumer.poll(30000).records(failedTopic).asScala.toList

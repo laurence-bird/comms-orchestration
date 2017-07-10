@@ -7,8 +7,9 @@ import akka.kafka.{ConsumerSettings, Subscriptions}
 import akka.stream.ThrottleMode.Shaping
 import akka.stream.scaladsl.{RunnableGraph, Sink}
 import akka.stream.{ActorAttributes, Materializer, Supervision}
+import com.ovoenergy.comms.akka.streams.Factory.KafkaConfig
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.kafka.{KafkaConfig, Serialisation}
+import com.ovoenergy.orchestration.kafka.{Serialisation}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.clients.producer.RecordMetadata
@@ -20,12 +21,11 @@ import scala.util.control.NonFatal
 
 object CancellationRequestConsumer extends LoggingWithMDC {
 
-  val deserializer = Serialisation.cancellationRequestedDeserializer
-
   def apply(sendFailedCancellationEvent: (FailedCancellationV2) => Future[RecordMetadata],
             sendSuccessfulCancellationEvent: (CancelledV2 => Future[RecordMetadata]),
             descheduleComm: CancellationRequestedV2 => Seq[Either[ErrorDetails, MetadataV2]],
             config: KafkaConfig,
+            consumerSettings: ConsumerSettings[String, Option[CancellationRequestedV2]],
             generateTraceToken: () => String)(implicit actorSystem: ActorSystem,
                                               materializer: Materializer): RunnableGraph[Control] = {
 
@@ -36,11 +36,6 @@ object CancellationRequestConsumer extends LoggingWithMDC {
         log.error("Stopping due to error", e)
         Supervision.Stop
     }
-
-    val consumerSettings =
-      ConsumerSettings(actorSystem, new StringDeserializer, deserializer)
-        .withBootstrapServers(config.hosts)
-        .withGroupId(config.groupId)
 
     val source = Consumer
       .committableSource(consumerSettings, Subscriptions.topics(config.topic))
