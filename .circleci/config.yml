@@ -31,7 +31,7 @@ jobs:
             - target/resolution-cache
             # TODO docker image cache?
       - run: sbt testWithDynamo
-      - run: sbt dockerComposeTest
+      - run: sbt servicetest:test
       - deploy:
           name: Deploy if master branch
           command: |

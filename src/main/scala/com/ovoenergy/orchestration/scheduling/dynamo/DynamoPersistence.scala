@@ -227,6 +227,8 @@ class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock
         DynamoFormat[Schedule].read(new AttributeValue().withM(item))
       })
 
+    log.info(s"Found ${items.length} schedules to cancel")
+
     items.flatMap {
       case Right(schedule) =>
         attemptToCancelSchedule(schedule.scheduleId)

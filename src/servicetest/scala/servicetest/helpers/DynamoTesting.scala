@@ -1,10 +1,9 @@
-package com.ovoenergy.orchestration.serviceTest.util
+package servicetest.helpers
 
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType._
 import com.ovoenergy.orchestration.util.LocalDynamoDB
 import com.ovoenergy.orchestration.util.LocalDynamoDB.SecondaryIndexData
-import org.scalatest.{BeforeAndAfterAll, Suite}
 
 trait DynamoTesting {
 
@@ -12,7 +11,7 @@ trait DynamoTesting {
   val dynamoClient = LocalDynamoDB.client(dynamoUrl)
   val tableName    = "scheduling"
 
-  def createTable() = {
+  def createTable(): Unit = {
     val secondaryIndices = Seq(
       SecondaryIndexData("customerId-commName-index", Seq('customerId    -> S, 'commName            -> S)),
       SecondaryIndexData("status-orchestrationExpiry-index", Seq('status -> S, 'orchestrationExpiry -> N))

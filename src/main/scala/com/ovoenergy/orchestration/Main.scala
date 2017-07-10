@@ -54,18 +54,20 @@ object Main extends App with LoggingWithMDC {
   implicit val actorSystem  = ActorSystem()
   implicit val materializer = ActorMaterializer()
 
-  val region             = Regions.fromName(config.getString("aws.region"))
-  val isRunningInCompose = sys.env.get("DOCKER_COMPOSE").contains("true")
+  val region = Regions.fromName(config.getString("aws.region"))
+  val isRunningInLocalDocker = sys.env.get("ENV").contains("LOCAL") && sys.env
+      .get("RUNNING_IN_DOCKER")
+      .contains("true")
 
   val schedulingPersistence = new DynamoPersistence(
     orchestrationExpiryMinutes = config.getInt("scheduling.orchestration.expiry"),
     context = DynamoPersistence.Context(
-      db = AwsProvider.dynamoClient(isRunningInCompose, region),
+      db = AwsProvider.dynamoClient(isRunningInLocalDocker, region),
       tableName = config.getString("scheduling.persistence.table")
     )
   )
 
-  val templatesContext = AwsProvider.templatesContext(isRunningInCompose, region)
+  val templatesContext = AwsProvider.templatesContext(isRunningInLocalDocker, region)
 
   val retrieveTemplate: (CommManifest) => ErrorsOr[CommTemplate[Id]] = TemplatesRepo.getTemplate(templatesContext, _)
   val determineChannel                                               = new ChannelSelectorWithTemplate(retrieveTemplate)

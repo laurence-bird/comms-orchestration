@@ -1,4 +1,4 @@
-package com.ovoenergy.orchestration.serviceTest.util
+package servicetest.helpers
 
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.regions.Regions

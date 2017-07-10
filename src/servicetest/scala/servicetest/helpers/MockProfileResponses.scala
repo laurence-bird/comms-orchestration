@@ -1,4 +1,4 @@
-package com.ovoenergy.orchestration.serviceTest.util
+package servicetest.helpers
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}

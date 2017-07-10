@@ -33,9 +33,11 @@ class TaskSchedulerSpec extends FlatSpec with BeforeAndAfterAll with Eventually 
   it should "execute job when scheduled immediately" in {
     val scheduleId = "1231231331"
     addSchedule(scheduleId, Instant.now()) shouldBe true
+
+    implicit val patienceConfig = PatienceConfig(scaled(Span(1, Seconds)), scaled(Span(5, Millis)))
     eventually {
       functionInnvocations should contain(scheduleId)
-    }(PatienceConfig(scaled(Span(1, Seconds)), scaled(Span(5, Millis))))
+    }
   }
 
   it should "execute job when scheduled for future" in {
@@ -44,9 +46,11 @@ class TaskSchedulerSpec extends FlatSpec with BeforeAndAfterAll with Eventually 
     Thread.sleep(1000)
     functionInnvocations should not contain scheduleId
     Thread.sleep(1000)
+
+    implicit val patienceConfig = PatienceConfig(scaled(Span(1, Seconds)), scaled(Span(5, Millis)))
     eventually {
       functionInnvocations should contain(scheduleId)
-    }(PatienceConfig(scaled(Span(1, Seconds)), scaled(Span(5, Millis))))
+    }
   }
 
   it should "not schedule a job if it has already been scheduled" in {
