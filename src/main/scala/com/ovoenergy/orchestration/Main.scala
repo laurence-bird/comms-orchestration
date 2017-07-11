@@ -184,7 +184,7 @@ object Main extends App with LoggingWithMDC {
   val descheduleComm = Scheduler.descheduleComm(schedulingPersistence.cancelSchedules, removeSchedule) _
 
   val schedulingGraph: RunnableGraph[Control] = {
-    val kafkaConf = kafkaSettings.kafkaConfig("kafka.topics.triggered.v3", isAivenCluster = false)
+    val kafkaConf = kafkaSettings.getLegacyKafkaConfig("kafka.topics.triggered.v3")
     TriggeredConsumer(
       scheduleTask = scheduleTask,
       sendFailedEvent = sendFailedTriggerEvent,
@@ -197,12 +197,12 @@ object Main extends App with LoggingWithMDC {
   val legacySchedulingGraph: RunnableGraph[Control] = LegacyTriggeredConsumer(
     scheduleTask = scheduleTask,
     sendFailedEvent = sendFailedTriggerEvent,
-    config = kafkaSettings.kafkaConfig("kafka.topics.triggered.v2", isAivenCluster = false),
+    config = kafkaSettings.getLegacyKafkaConfig("kafka.topics.triggered.v2"),
     generateTraceToken = () => UUID.randomUUID().toString
   )
 
   val aivenSchedulingGraph: RunnableGraph[Control] = {
-    val kafkaConf: KafkaConfig = kafkaSettings.kafkaConfig("kafka.topics.triggered.v3", isAivenCluster = true)
+    val kafkaConf: KafkaConfig = kafkaSettings.getAivenKafkaConfig("kafka.topics.triggered.v3")
     TriggeredConsumer(
       scheduleTask = scheduleTask,
       sendFailedEvent = sendFailedTriggerEvent,
@@ -213,7 +213,7 @@ object Main extends App with LoggingWithMDC {
   }
 
   val aivenCancellationRequestGraph = {
-    val kafkaConf = kafkaSettings.kafkaConfig("kafka.topics.scheduling.cancellationRequest.v2", isAivenCluster = true)
+    val kafkaConf = kafkaSettings.getAivenKafkaConfig("kafka.topics.scheduling.cancellationRequest.v2")
     CancellationRequestConsumer(
       sendFailedCancellationEvent = sendFailedCancellationEvent,
       sendSuccessfulCancellationEvent = sendCancelledEvent,
@@ -225,7 +225,7 @@ object Main extends App with LoggingWithMDC {
   }
 
   val cancellationRequestGraph: RunnableGraph[Control] = {
-    val kafkaConf = kafkaSettings.kafkaConfig("kafka.topics.scheduling.cancellationRequest.v2", isAivenCluster = false)
+    val kafkaConf = kafkaSettings.getLegacyKafkaConfig("kafka.topics.scheduling.cancellationRequest.v2")
     CancellationRequestConsumer(
       sendFailedCancellationEvent = sendFailedCancellationEvent,
       sendSuccessfulCancellationEvent = sendCancelledEvent,
@@ -241,7 +241,7 @@ object Main extends App with LoggingWithMDC {
     sendSuccessfulCancellationEvent = sendCancelledEvent,
     generateTraceToken = () => UUID.randomUUID().toString,
     descheduleComm = descheduleComm,
-    config = kafkaSettings.kafkaConfig("kafka.topics.scheduling.cancellationRequest.v1", isAivenCluster = false)
+    config = kafkaSettings.getLegacyKafkaConfig("kafka.topics.scheduling.cancellationRequest.v1")
   )
 
   QuartzScheduling.init()

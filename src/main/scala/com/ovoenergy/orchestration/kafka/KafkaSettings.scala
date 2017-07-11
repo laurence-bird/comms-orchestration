@@ -16,6 +16,8 @@ import scala.reflect.ClassTag
 
 class KafkaSettings(config: Config) {
 
+  private val kafkaGroupId = config.getString("kafka.group.id")
+
   val schemaRegistryClientSettings = {
     val schemaRegistryEndpoint = config.getString("kafka.aiven.schema_registry.url")
     val schemaRegistryUsername = config.getString("kafka.aiven.schema_registry.username")
@@ -23,14 +25,14 @@ class KafkaSettings(config: Config) {
     SchemaRegistryClientSettings(schemaRegistryEndpoint, schemaRegistryUsername, schemaRegistryPassword)
   }
 
-  def kafkaConfig(topicKey: String, isAivenCluster: Boolean) = {
+  def getAivenKafkaConfig(topicKey: String) = {
     val topic        = config.getString(topicKey)
-    val kafkaGroupId = config.getString("kafka.group.id")
-    if (isAivenCluster) {
-      KafkaConfig(kafkaGroupId, config.getString("kafka.aiven.hosts"), topic, sslConfig)
-    } else {
-      KafkaConfig(kafkaGroupId, config.getString("kafka.hosts"), topic, None)
-    }
+    KafkaConfig(kafkaGroupId, config.getString("kafka.aiven.hosts"), topic, sslConfig)
+  }
+
+  def getLegacyKafkaConfig(topicKey: String) = {
+    val topic        = config.getString(topicKey)
+    KafkaConfig(kafkaGroupId, config.getString("kafka.hosts"), topic, None)
   }
 
   val sslConfig = {
