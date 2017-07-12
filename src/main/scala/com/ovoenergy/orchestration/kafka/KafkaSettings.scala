@@ -26,26 +26,26 @@ class KafkaSettings(config: Config) {
   }
 
   def getAivenKafkaConfig(topicKey: String) = {
-    val topic        = config.getString(topicKey)
+    val topic = config.getString(topicKey)
     KafkaConfig(kafkaGroupId, config.getString("kafka.aiven.hosts"), topic, sslConfig)
   }
 
   def getLegacyKafkaConfig(topicKey: String) = {
-    val topic        = config.getString(topicKey)
+    val topic = config.getString(topicKey)
     KafkaConfig(kafkaGroupId, config.getString("kafka.hosts"), topic, None)
   }
 
   val sslConfig = {
-    if (config.getBoolean("kafka.ssl.enabled")) {
+    if (config.getBoolean("kafka.aiven.ssl.enabled")) {
       Some(
         Factory.SSLConfig(
-          keystoreLocation = Paths.get(config.getString("kafka.ssl.keystore.location")),
+          keystoreLocation = Paths.get(config.getString("kafka.aiven.ssl.keystore.location")),
           keystoreType = Factory.StoreType.PKCS12,
-          keystorePassword = config.getString("kafka.ssl.keystore.password"),
-          keyPassword = config.getString("kafka.ssl.key.password"),
-          truststoreLocation = Paths.get(config.getString("kafka.ssl.truststore.location")),
+          keystorePassword = config.getString("kafka.aiven.ssl.keystore.password"),
+          keyPassword = config.getString("kafka.aiven.ssl.key.password"),
+          truststoreLocation = Paths.get(config.getString("kafka.aiven.ssl.truststore.location")),
           truststoreType = Factory.StoreType.JKS,
-          truststorePassword = config.getString("kafka.ssl.truststore.password")
+          truststorePassword = config.getString("kafka.aiven.ssl.truststore.password")
         ))
     } else None
   }

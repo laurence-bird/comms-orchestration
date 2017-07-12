@@ -55,7 +55,6 @@ class AivenSchedulingServiceTest
     super.afterAll()
   }
 
-
   behavior of "Aiven comms scheduling"
 
   it should "deschedule comms and generate cancelled events" in { //****//
