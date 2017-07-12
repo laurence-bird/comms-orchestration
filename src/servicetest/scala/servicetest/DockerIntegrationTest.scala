@@ -239,6 +239,22 @@ trait DockerIntegrationTest
     val awsAccountId = sys.env.getOrElse(
       "AWS_ACCOUNT_ID",
       sys.error("Environment variable AWS_ACCOUNT_ID must be set in order to run the integration tests"))
+
+    val envVars = List(
+      sys.env.get("AWS_ACCESS_KEY_ID").map(envVar => s"AWS_ACCESS_KEY_ID=$envVar"),
+      sys.env.get("AWS_ACCOUNT_ID").map(envVar => s"AWS_ACCOUNT_ID=$envVar"),
+      sys.env.get("AWS_SECRET_ACCESS_KEY").map(envVar => s"AWS_SECRET_ACCESS_KEY=$envVar"),
+      Some("ENV=LOCAL"),
+      Some("RUNNING_IN_DOCKER=true"),
+      Some("PROFILE_SERVICE_API_KEY=someApiKey"),
+      Some("PROFILE_SERVICE_HOST=http://profiles:1080"),
+      Some("POLL_FOR_EXPIRED_INTERVAL=5 seconds"),
+      Some("KAFKA_HOSTS=legacyKafka:29092"),
+      Some("KAFKA_HOSTS_AIVEN=aivenKafka:29093"),
+      Some("LOCAL_DYNAMO=http://dynamodb:8000"),
+      Some("SCHEMA_REGISTRY_URL=http://schema-registry:8081")
+    ).flatten
+
     DockerContainer(s"$awsAccountId.dkr.ecr.eu-west-1.amazonaws.com/orchestration:0.1-SNAPSHOT",
                     name = Some("orchestration"))
       .withLinks(
@@ -251,17 +267,7 @@ trait DockerIntegrationTest
         ContainerLink(dynamodb, "dynamodb"),
         ContainerLink(fakes3ssl, "ovo-comms-templates.s3-eu-west-1.amazonaws.com")
       )
-      .withEnv(
-        "ENV=LOCAL",
-        "RUNNING_IN_DOCKER=true",
-        "PROFILE_SERVICE_API_KEY=someApiKey",
-        "PROFILE_SERVICE_HOST=http://profiles:1080",
-        "POLL_FOR_EXPIRED_INTERVAL=5 seconds",
-        "KAFKA_HOSTS=legacyKafka:29092",
-        "KAFKA_HOSTS_AIVEN=aivenKafka:29093",
-        "LOCAL_DYNAMO=http://dynamodb:8000",
-        "SCHEMA_REGISTRY_URL=http://schema-registry:8081"
-      )
+      .withEnv(envVars: _*)
       .withVolumes(List(VolumeMapping(host = s"${sys.env("HOME")}/.aws", container = "/sbin/.aws"))) // share AWS creds so that credstash works
       .withLogWritingAndReadyChecker("Orchestration started", "orchestration")
   }
