@@ -220,7 +220,7 @@ object Main extends App with LoggingWithMDC {
       generateTraceToken = () => UUID.randomUUID().toString,
       descheduleComm = descheduleComm,
       config = kafkaConf,
-      consumerSettings = kafkaSettings.legacyConsumerSettings[CancellationRequestedV2](kafkaConf)
+      consumerSettings = consumerSettings[CancellationRequestedV2](schemaRegistrySettings, kafkaConfig = kafkaConf)
     )
   }
 

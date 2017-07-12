@@ -81,7 +81,7 @@ class AivenSchedulingServiceTest
                                             canary = false)
     val cancellationRequested: CancellationRequestedV2 =
       CancellationRequestedV2(genericMetadata, triggered1.metadata.commManifest.name, TestUtil.customerId)
-    val cancelledFuture = cancellationRequestedProducer.send(
+    val cancelledFuture = aivenCancellationRequestedProducer.send(
       new ProducerRecord[String, CancellationRequestedV2](cancellationRequestTopic, cancellationRequested))
 
     whenReady(cancelledFuture) { _ =>
