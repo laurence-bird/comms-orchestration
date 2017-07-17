@@ -2,7 +2,7 @@
 
 [![CircleCI](https://circleci.com/gh/ovotech/comms-orchestration.svg?style=svg)](https://circleci.com/gh/ovotech/comms-orchestration)
 
-Encriches communication events with customer data and determines the best channel to issue the communication over.
+Enriches communication events with customer data and determines the best channel to issue the communication over.
 
 Also handles scheduling of comms for delivery in the future.
 
