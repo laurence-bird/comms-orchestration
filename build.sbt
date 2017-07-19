@@ -13,7 +13,7 @@ libraryDependencies ++= Seq(
   "com.ovoenergy"              %% "comms-kafka-messages"      % "1.25",
   "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-kafka-akka-helpers"  % commsKafkaSerialisationVersion,
-  "com.ovoenergy"              %% "comms-templates"           % "0.6",
+  "com.ovoenergy"              %% "comms-templates"           % "0.8",
   "ch.qos.logback"             % "logback-classic"            % "1.1.7",
   "me.moocar"                  % "logback-gelf"               % "0.2",
   "io.logz.logback"            % "logzio-logback-appender"    % "1.0.11",
