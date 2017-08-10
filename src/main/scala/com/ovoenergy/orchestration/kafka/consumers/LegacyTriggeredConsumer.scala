@@ -3,7 +3,7 @@ package com.ovoenergy.orchestration.kafka.consumers
 import akka.actor.ActorSystem
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.Control
-import akka.kafka.Subscriptions
+import akka.kafka.{ConsumerSettings, Subscriptions}
 import akka.stream.ThrottleMode.Shaping
 import akka.stream.scaladsl.{RunnableGraph, Sink}
 import akka.stream.{ActorAttributes, Materializer, Supervision}
@@ -14,6 +14,7 @@ import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.domain._
 import org.apache.kafka.clients.producer.RecordMetadata
+import org.apache.kafka.common.serialization.StringDeserializer
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
@@ -31,6 +32,11 @@ object LegacyTriggeredConsumer extends LoggingWithMDC {
 
     implicit val executionContext = actorSystem.dispatcher
 
+    val consumerSettings =
+      ConsumerSettings(actorSystem, new StringDeserializer, consumerDeserializer)
+        .withBootstrapServers(topic.kafkaConfig.hosts)
+        .withGroupId(topic.kafkaConfig.groupId)
+
     val decider: Supervision.Decider = {
       case NonFatal(e) =>
         log.error("Stopping due to error", e)
@@ -38,7 +44,7 @@ object LegacyTriggeredConsumer extends LoggingWithMDC {
     }
 
     val source = Consumer
-      .committableSource(topic.consumerSettings, Subscriptions.topics(topic.name))
+      .committableSource(consumerSettings, Subscriptions.topics(topic.name))
       .throttle(5, 1.second, 10, Shaping)
       .mapAsync(1)(msg => {
         val result: Future[_] = msg.record.value match {
