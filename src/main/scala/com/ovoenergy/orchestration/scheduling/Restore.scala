@@ -13,7 +13,7 @@ object Restore {
   def pickUpPendingSchedules(dynamo: Persistence.Listing, addSchedule: (ScheduleId, Instant) => Boolean): Int = {
     dynamo
       .listPendingSchedules()
-      .map { schedule =>
+      .map { (schedule: Schedule) =>
         addSchedule(schedule.scheduleId, schedule.deliverAt)
       }
       .count(identity)

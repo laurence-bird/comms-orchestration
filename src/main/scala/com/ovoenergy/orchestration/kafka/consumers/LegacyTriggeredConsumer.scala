@@ -3,19 +3,17 @@ package com.ovoenergy.orchestration.kafka.consumers
 import akka.actor.ActorSystem
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.Control
-import akka.kafka.{ConsumerSettings, Subscriptions}
+import akka.kafka.Subscriptions
 import akka.stream.ThrottleMode.Shaping
 import akka.stream.scaladsl.{RunnableGraph, Sink}
 import akka.stream.{ActorAttributes, Materializer, Supervision}
-import com.ovoenergy.comms.akka.streams.Factory.KafkaConfig
+import com.ovoenergy.comms.helpers.Topic
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.kafka.Serialisation
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.domain._
-import com.ovoenergy.orchestration.kafka.consumers.TriggeredConsumer.log
 import org.apache.kafka.clients.producer.RecordMetadata
-import org.apache.kafka.common.serialization.StringDeserializer
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
@@ -25,9 +23,9 @@ object LegacyTriggeredConsumer extends LoggingWithMDC {
 
   val consumerDeserializer = Serialisation.legacyTriggeredDeserializer
 
-  def apply(scheduleTask: (TriggeredV3) => Either[ErrorDetails, Boolean],
+  def apply(topic: Topic[TriggeredV2],
+            scheduleTask: (TriggeredV3) => Either[ErrorDetails, Boolean],
             sendFailedEvent: FailedV2 => Future[RecordMetadata],
-            config: KafkaConfig,
             generateTraceToken: () => String)(implicit actorSystem: ActorSystem,
                                               materializer: Materializer): RunnableGraph[Control] = {
 
@@ -39,13 +37,8 @@ object LegacyTriggeredConsumer extends LoggingWithMDC {
         Supervision.Stop
     }
 
-    val consumerSettings =
-      ConsumerSettings(actorSystem, new StringDeserializer, consumerDeserializer)
-        .withBootstrapServers(config.hosts)
-        .withGroupId(config.groupId)
-
     val source = Consumer
-      .committableSource(consumerSettings, Subscriptions.topics(config.topic))
+      .committableSource(topic.consumerSettings, Subscriptions.topics(topic.name))
       .throttle(5, 1.second, 10, Shaping)
       .mapAsync(1)(msg => {
         val result: Future[_] = msg.record.value match {
@@ -70,7 +63,7 @@ object LegacyTriggeredConsumer extends LoggingWithMDC {
       .withAttributes(ActorAttributes.supervisionStrategy(decider))
 
     val sink = Sink.ignore.withAttributes(ActorAttributes.supervisionStrategy(decider))
-    log.debug(s"Consuming triggered events for $config")
+    log.debug(s"Consuming triggered events for ${topic.name}")
     source.to(sink)
   }
 }

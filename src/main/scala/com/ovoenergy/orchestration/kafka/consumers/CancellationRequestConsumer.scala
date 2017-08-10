@@ -3,17 +3,16 @@ package com.ovoenergy.orchestration.kafka.consumers
 import akka.actor.ActorSystem
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.Control
-import akka.kafka.{ConsumerSettings, Subscriptions}
+import akka.kafka.Subscriptions
 import akka.stream.ThrottleMode.Shaping
 import akka.stream.scaladsl.{RunnableGraph, Sink}
 import akka.stream.{ActorAttributes, Materializer, Supervision}
-import com.ovoenergy.comms.akka.streams.Factory.KafkaConfig
+import com.ovoenergy.comms.helpers.Topic
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.kafka.{Serialisation}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.clients.producer.RecordMetadata
-import org.apache.kafka.common.serialization.StringDeserializer
+import com.ovoenergy.comms.serialisation.Codecs._
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
@@ -21,11 +20,10 @@ import scala.util.control.NonFatal
 
 object CancellationRequestConsumer extends LoggingWithMDC {
 
-  def apply(sendFailedCancellationEvent: (FailedCancellationV2) => Future[RecordMetadata],
+  def apply(topic: Topic[CancellationRequestedV2],
+            sendFailedCancellationEvent: (FailedCancellationV2) => Future[RecordMetadata],
             sendSuccessfulCancellationEvent: (CancelledV2 => Future[RecordMetadata]),
             descheduleComm: CancellationRequestedV2 => Seq[Either[ErrorDetails, MetadataV2]],
-            config: KafkaConfig,
-            consumerSettings: ConsumerSettings[String, Option[CancellationRequestedV2]],
             generateTraceToken: () => String)(implicit actorSystem: ActorSystem,
                                               materializer: Materializer): RunnableGraph[Control] = {
 
@@ -38,7 +36,7 @@ object CancellationRequestConsumer extends LoggingWithMDC {
     }
 
     val source = Consumer
-      .committableSource(consumerSettings, Subscriptions.topics(config.topic))
+      .committableSource(topic.consumerSettings, Subscriptions.topics(topic.name))
       .throttle(5, 1.second, 10, Shaping)
       .mapAsync(1)(msg => {
         log.debug(s"Event received $msg")
@@ -46,6 +44,7 @@ object CancellationRequestConsumer extends LoggingWithMDC {
           case Some(cancellationRequest) =>
             val futures = descheduleComm(cancellationRequest).map {
               case Left(err) =>
+                logWarn(cancellationRequest.metadata.traceToken, s"Cancellation request failed with error $err")
                 sendFailedCancellationEvent(
                   FailedCancellationV2(
                     GenericMetadataV2.fromSourceGenericMetadata("orchestration", cancellationRequest.metadata),
@@ -68,7 +67,7 @@ object CancellationRequestConsumer extends LoggingWithMDC {
 
     val sink = Sink.ignore.withAttributes(ActorAttributes.supervisionStrategy(decider))
 
-    log.debug(s"Consuming cancellation requests for: $config")
+    log.debug(s"Consuming cancellation requests for: ${topic.name}")
     source.to(sink)
   }
 }

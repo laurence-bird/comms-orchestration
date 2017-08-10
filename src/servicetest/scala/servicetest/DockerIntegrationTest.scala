@@ -21,7 +21,7 @@ import org.apache.kafka.common.serialization.StringDeserializer
 import org.scalatest.concurrent.{Eventually, PatienceConfiguration, ScalaFutures}
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest._
-import servicetest.helpers.{DynamoTesting, KafkaTesting}
+import servicetest.helpers.DynamoTesting
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
@@ -117,16 +117,27 @@ trait DockerIntegrationTest
     ExecutionContext.fromExecutor(Executors.newFixedThreadPool(Math.max(1, dockerContainers.length * 4)))
   }
 
-  val config: Config =
-    ConfigFactory.load(ConfigParseOptions.defaults(), ConfigResolveOptions.defaults().setAllowUnresolved(true))
-  val kafkaTesting = new KafkaTesting(config)
-  import kafkaTesting._
-
   val hostIpAddress = {
     import sys.process._
 //    "10.200.10.1" // TODO revert me
     "./get_ip_address.sh".!!.trim
   }
+
+  val aivenTopics = Seq(
+    "comms.failed.v2",
+    "comms.triggered.v3",
+    "comms.cancellation.requested.v2",
+    "comms.cancelled.v2",
+    "comms.failed.cancellation.v2",
+    "comms.orchestrated.email.v3",
+    "comms.orchestrated.sms.v2",
+    "comms.orchestration.started.v2"
+  )
+
+  val legacyTopics = aivenTopics ++ Seq(
+      "comms.triggered.v2",
+      "comms.cancellation.requested"
+    )
 
   // TODO currently no way to set the memory limit on docker containers. Need to make a PR to add support to docker-it-scala. I've checked that the spotify client supports it.
 

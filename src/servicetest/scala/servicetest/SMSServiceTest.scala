@@ -1,17 +1,18 @@
 package servicetest
 
+import com.ovoenergy.comms.helpers.Kafka
 import servicetest.helpers._
 import com.ovoenergy.comms.model._
-import com.ovoenergy.comms.model.sms.OrchestratedSMSV2
 import com.ovoenergy.orchestration.util.TestUtil
-import org.apache.kafka.clients.producer.ProducerRecord
+import com.typesafe.config.{Config, ConfigFactory}
 import org.mockserver.client.server.MockServerClient
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import com.ovoenergy.comms.testhelpers.KafkaTestHelpers._
 
-import scala.collection.mutable
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Await
+import com.ovoenergy.comms.serialisation.Codecs._
 
 class SMSServiceTest
     extends FlatSpec
@@ -23,25 +24,26 @@ class SMSServiceTest
     with MockProfileResponses
     with FakeS3Configuration {
 
-  import kafkaTesting._
-
-  val mockServerClient = new MockServerClient("localhost", 1080)
+  implicit val config: Config = ConfigFactory.load("servicetest.conf")
+  val mockServerClient        = new MockServerClient("localhost", 1080)
 
   val region     = config.getString("aws.region")
   val s3Endpoint = "http://localhost:4569"
 
+  lazy val orchestratedSmsConsumer      = Kafka.aiven.orchestratedSMS.v2.consumer()
+  lazy val orchestrationStartedConsumer = Kafka.aiven.orchestrationStarted.v2.consumer()
+
+  private def allKafkaConsumers = Seq(orchestratedSmsConsumer, orchestrationStartedConsumer)
+
   override def beforeAll() = {
     super.beforeAll()
-
-    initKafkaConsumers()
+    allKafkaConsumers.foreach(_.poll(5))
     uploadFragmentsToFakeS3(region, s3Endpoint)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
   }
 
   override def afterAll() = {
-    shutdownAllKafkaProducers()
-    shutdownAllKafkaConsumers()
-
+    allKafkaConsumers.foreach(_.close)
     super.afterAll()
   }
 
@@ -51,24 +53,22 @@ class SMSServiceTest
     createOKCustomerProfileResponse(mockServerClient)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
     val triggerSMS = TestUtil.customerTriggered.copy(preferredChannels = Some(List(SMS)))
-    val future     = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggerSMS))
-    whenReady(future) { _ =>
-      expectOrchestrationStartedEvents(10000.millisecond, 1)
-      expectSMSOrchestrationEvents(10000.millisecond, 1)
-    }
+    Kafka.aiven.triggered.v3.publishOnce(triggerSMS)
+
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
+    expectSMSOrchestrationEvents(noOfEventsExpected = 1)
   }
 
   it should "orchestrate multiple SMS" in {
     createOKCustomerProfileResponse(mockServerClient)
 
-    var futures = new mutable.ListBuffer[Future[_]]
-    (1 to 10).foreach(counter => {
-      val triggered = TestUtil.customerTriggered.copy(metadata =
-                                                        TestUtil.metadataV2.copy(traceToken = counter.toString),
-                                                      preferredChannels = Some(List(SMS)))
-      futures += triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggered))
-    })
-    futures.foreach(future => Await.ready(future, 1.seconds))
+    (1 to 10)
+      .foreach(counter => {
+        val triggered = TestUtil.customerTriggered.copy(metadata =
+                                                          TestUtil.metadataV2.copy(traceToken = counter.toString),
+                                                        preferredChannels = Some(List(SMS)))
+        Kafka.aiven.triggered.v3.publishOnce(triggered, 10.seconds)
+      })
 
     val deadline = 15.seconds
     val orchestrationStartedEvents =
@@ -83,20 +83,17 @@ class SMSServiceTest
     createOKCustomerProfileResponse(mockServerClient)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
     val triggerSMS = TestUtil.smsContactDetailsTriggered
-    val future     = triggeredProducer.send(new ProducerRecord[String, TriggeredV3](triggeredTopic, triggerSMS))
-    whenReady(future) { _ =>
-      expectOrchestrationStartedEvents(10000.millisecond, 1)
-      expectSMSOrchestrationEvents(10000.millisecond, 1, shouldHaveCustomerProfile = false)
-    }
+    Kafka.aiven.triggered.v3.publishOnce(triggerSMS)
+
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
+    expectSMSOrchestrationEvents(noOfEventsExpected = 1, shouldHaveCustomerProfile = false)
   }
 
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25000.millisecond,
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true) = {
-    val orchestrationStartedEvents = pollForEvents[OrchestrationStartedV2](pollTime,
-                                                                           noOfEventsExpected,
-                                                                           orchestrationStartedConsumer,
-                                                                           orchestrationStartedTopic)
+    val orchestrationStartedEvents =
+      orchestrationStartedConsumer.pollFor(pollTime, noOfEventsExpected)
     orchestrationStartedEvents.foreach { o =>
       if (shouldCheckTraceToken) o.metadata.traceToken shouldBe TestUtil.traceToken
     }
@@ -107,8 +104,7 @@ class SMSServiceTest
                                    noOfEventsExpected: Int,
                                    shouldCheckTraceToken: Boolean = true,
                                    shouldHaveCustomerProfile: Boolean = true) = {
-    val orchestratedSMS =
-      pollForEvents[OrchestratedSMSV2](pollTime, noOfEventsExpected, smsOrchestratedConsumer, orchestratedSmsTopic)
+    val orchestratedSMS = orchestratedSmsConsumer.pollFor(pollTime, noOfEventsExpected)
     orchestratedSMS.map { orchestratedSMS =>
       orchestratedSMS.recipientPhoneNumber shouldBe "+447985631544"
 

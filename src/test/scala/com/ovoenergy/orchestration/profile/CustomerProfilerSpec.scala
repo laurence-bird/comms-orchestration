@@ -3,6 +3,7 @@ package com.ovoenergy.orchestration.profile
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
+import com.ovoenergy.comms.helpers.{Retry, RetryConfig}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.{
   CommunicationPreference,
@@ -13,19 +14,18 @@ import com.ovoenergy.orchestration.domain.{
   MobilePhoneNumber
 }
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.retry.Retry
 import okhttp3._
 import org.scalatest.{EitherValues, FlatSpec, Matchers}
 
 import scala.util.{Failure, Success}
-
+import scala.concurrent.duration._
 class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
 
   val failureHttpClient = (request: Request) => Failure(new Exception("uh oh"))
   val profileApiKey     = "apiKey"
   val profileHost       = "http://somehost.com"
   val traceToken        = "token"
-  val retryConfig       = Retry.RetryConfig(1, Retry.Backoff.retryImmediately)
+  val retryConfig       = RetryConfig(1, 0 second, 0)
 
   val validResponseJson =
     new String(Files.readAllBytes(Paths.get("src/test/resources/profile_valid_response.json")), StandardCharsets.UTF_8)

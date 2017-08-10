@@ -11,5 +11,4 @@ object HttpClient {
   def apply(request: Request): Try[Response] = {
     Try(httpClient.newCall(request).execute())
   }
-
 }

@@ -61,7 +61,7 @@ object TaskExecutor extends LoggingWithMDC {
       case FailedPersistence =>
         log.warn(
           s"Unable to orchestrate scheduleId: $scheduleId, failed to mark as orchestrating in persistence. Unable to raise a failed event.")
-      case Successful(schedule) =>
+      case Successful(schedule: Schedule) =>
         Schedule.triggeredAsV3(schedule) match {
           case Some(triggered) =>
             sendOrchestrationStartedEvent(OrchestrationStartedV2(triggered.metadata, internalMetadata))

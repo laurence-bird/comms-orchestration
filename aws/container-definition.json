@@ -3,7 +3,7 @@
     "name": "orchestration",
     "image": "@@AWS_ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/orchestration:@@VERSION",
     "essential": true,
-    "memory": 712,
+    "memory": 1024,
     "environment": [
       {
         "name": "ENV",

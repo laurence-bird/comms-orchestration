@@ -8,7 +8,9 @@
         </encoder>
     </appender>
 
-    <root level="WARN">
+    <logger name="org.apache.kafka" level="WARN" />
+
+    <root level="INFO">
         <appender-ref ref="CONSOLE"/>
     </root>
 

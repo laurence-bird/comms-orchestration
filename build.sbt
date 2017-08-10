@@ -4,7 +4,7 @@ scalaVersion          := "2.11.11"
 scalacOptions         := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
 val circeVersion = "0.7.0"
-val commsKafkaSerialisationVersion = "2.8"
+val commsKafkaSerialisationVersion = "2.16"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka"          %% "akka-stream-kafka"         % "0.12",
@@ -12,7 +12,7 @@ libraryDependencies ++= Seq(
   "net.cakesolutions"          %% "scala-kafka-client"        % "0.10.0.0",
   "com.ovoenergy"              %% "comms-kafka-messages"      % "1.25",
   "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
-  "com.ovoenergy"              %% "comms-kafka-akka-helpers"  % commsKafkaSerialisationVersion,
+  "com.ovoenergy"              %% "comms-kafka-helpers"       % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-templates"           % "0.6",
   "ch.qos.logback"             % "logback-classic"            % "1.1.7",
   "me.moocar"                  % "logback-gelf"               % "0.2",
@@ -35,6 +35,7 @@ libraryDependencies ++= Seq(
 
   "com.whisk" %% "docker-testkit-scalatest" % "0.9.3" % ServiceTest,
   "com.whisk" %% "docker-testkit-impl-docker-java" % "0.9.3" % ServiceTest,
+  "com.ovoenergy" %% "comms-kafka-test-helpers" % commsKafkaSerialisationVersion % ServiceTest,
   "commons-io" % "commons-io" % "2.5" % ServiceTest
 )
 
@@ -46,7 +47,8 @@ resolvers ++= Seq(
 
 enablePlugins(JavaServerAppPackaging, DockerPlugin)
 
-commsPackagingMaxMetaspaceSize := 128
+commsPackagingMaxMetaspaceSize := 256
+commsPackagingHeapSize := 512
 
 test in Test := (test in Test).dependsOn(startDynamoDBLocal).value
 testOptions in Test += dynamoDBLocalTestCleanup.value
