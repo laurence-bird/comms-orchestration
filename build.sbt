@@ -4,7 +4,7 @@ scalaVersion          := "2.11.11"
 scalacOptions         := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
 val circeVersion = "0.7.0"
-val commsKafkaSerialisationVersion = "2.16"
+val commsKafkaSerialisationVersion = "2.19"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka"          %% "akka-stream-kafka"         % "0.12",
