@@ -170,7 +170,6 @@ object Main extends App with LoggingWithMDC {
 
   QuartzScheduling.init()
 
-
   /*
   For pending schedules, we only need to load them once at startup.
   Actually a few minutes after startup, as we need to wait until this instance
