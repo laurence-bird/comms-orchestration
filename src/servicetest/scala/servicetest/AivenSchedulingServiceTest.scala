@@ -9,6 +9,7 @@ import com.ovoenergy.comms.testhelpers.KafkaTestHelpers._
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.util.TestUtil
+import com.typesafe.config.ConfigFactory
 import org.mockserver.client.server.MockServerClient
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
@@ -31,6 +32,8 @@ class AivenSchedulingServiceTest
     with ScalaFutures
     with BeforeAndAfterAll
     with KafkaTesting {
+
+  implicit val config = ConfigFactory.load("servicetest.conf")
 
   val mockServerClient = new MockServerClient("localhost", 1080)
   val region           = config.getString("aws.region")

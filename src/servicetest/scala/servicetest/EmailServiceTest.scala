@@ -25,7 +25,8 @@ class EmailServiceTest
     with BeforeAndAfterAll
     with IntegrationPatience
     with MockProfileResponses
-    with FakeS3Configuration {
+    with FakeS3Configuration
+    with KafkaTesting {
 
   override def beforeAll() = {
     super.beforeAll()
@@ -215,6 +216,27 @@ class EmailServiceTest
           failure.errorCode shouldBe OrchestrationError
           failure.metadata.traceToken shouldBe TestUtil.traceToken
         })
+    }
+  }
+
+  it should "orchestrate legacy TriggeredV2 comms with the hacky deserialiser" in {
+    case class HackyTriggeredV2(metadata: Metadata, templateData: Map[String, TemplateData])
+
+    val hackyLegacyTriggered = HackyTriggeredV2(
+      metadata = TestUtil.metadata,
+      templateData = TestUtil.templateData
+    )
+
+    withThrowawayConsumerFor(Kafka.aiven.orchestrationStarted.v2, Kafka.aiven.orchestratedEmail.v3) {
+      (orchestrationStartedConsumer, orchestratedEmailConsumer) =>
+        val triggered: HackyTriggeredV2 = hackyLegacyTriggered
+        legacyPublishOnce[HackyTriggeredV2](Kafka.legacy.triggered.v2.name,
+                                            Kafka.legacy.kafkaConfig.hosts,
+                                            triggered,
+                                            5.seconds)
+
+        expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
+        expectOrchestratedEmailEvents(noOfEventsExpected = 1, consumer = orchestratedEmailConsumer)
     }
   }
 
