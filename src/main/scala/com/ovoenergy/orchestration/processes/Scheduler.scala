@@ -17,7 +17,7 @@ object Scheduler extends LoggingWithMDC {
                    registerTask: (ScheduleId, Instant) => Boolean,
                    clock: Clock = Clock.systemUTC())(triggered: TriggeredV3): Either[ErrorDetails, Boolean] = {
     val result = Try {
-      log.debug(s"Scheduling triggered event: $triggered")
+      log.info(s"Scheduling triggered event: $triggered")
       val schedule        = Schedule.buildFromTrigger(triggered, clock)
       val scheduleInstant = schedule.deliverAt
       storeInDb(schedule)

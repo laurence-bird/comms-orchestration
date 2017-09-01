@@ -46,6 +46,7 @@ object LegacyCancellationRequestConsumer extends LoggingWithMDC {
         val result: Future[Seq[RecordMetadata]] = msg.record.value match {
           case Some(legacyCancellationRequest) =>
             val cancellationRequest = cancellationRequestedToV2(legacyCancellationRequest)
+            logInfo(cancellationRequest, s"Event recieved: ${cancellationRequest.loggableString}")
             val futures = descheduleComm(cancellationRequest).map {
               case Left(err) =>
                 sendFailedCancellationEvent(

@@ -42,6 +42,7 @@ object CancellationRequestConsumer extends LoggingWithMDC {
         log.debug(s"Event received $msg")
         val result: Future[Seq[RecordMetadata]] = msg.record.value match {
           case Some(cancellationRequest) =>
+            logInfo(cancellationRequest, s"Event recieved: ${cancellationRequest.loggableString}")
             val futures = descheduleComm(cancellationRequest).map {
               case Left(err) =>
                 logWarn(cancellationRequest.metadata.traceToken, s"Cancellation request failed with error $err")
