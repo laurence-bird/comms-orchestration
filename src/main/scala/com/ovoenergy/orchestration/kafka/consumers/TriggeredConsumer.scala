@@ -42,13 +42,16 @@ object TriggeredConsumer extends LoggingWithMDC {
       .mapAsync(1)(msg => {
         val result: Future[_] = msg.record.value match {
           case Some(triggered) =>
+            logInfo(triggered, s"Processing event: ${triggered.loggableString.get}") // Always evaluates to Some, library needs updating
             scheduleTask(triggered) match {
               case Left(err) =>
                 sendFailedEvent(
-                  FailedV2(triggered.metadata,
-                           InternalMetadata(generateTraceToken()),
-                           s"Scheduling of comm failed: ${err.reason}",
-                           err.errorCode)
+                  FailedV2(
+                    MetadataV2.fromSourceMetadata("orchestration", triggered.metadata),
+                    InternalMetadata(generateTraceToken()),
+                    s"Scheduling of comm failed: ${err.reason}",
+                    err.errorCode
+                  )
                 )
               case Right(_) => Future.successful(())
             }

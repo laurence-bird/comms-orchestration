@@ -28,7 +28,11 @@ object TaskExecutor extends LoggingWithMDC {
                errorCode: ErrorCode,
                internalMetadata: InternalMetadata): Unit = {
       persistence.setScheduleAsFailed(scheduleId, reason)
-      val future = sendFailedEvent(FailedV2(triggered.metadata, internalMetadata, reason, errorCode))
+      val future = sendFailedEvent(
+        FailedV2(MetadataV2.fromSourceMetadata("orchestration", triggered.metadata),
+                 internalMetadata,
+                 reason,
+                 errorCode))
       try {
         Await.result(future, 5.seconds)
       } catch {

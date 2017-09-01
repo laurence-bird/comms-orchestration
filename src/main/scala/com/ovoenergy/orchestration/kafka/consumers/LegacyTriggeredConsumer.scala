@@ -50,13 +50,16 @@ object LegacyTriggeredConsumer extends LoggingWithMDC {
         val result: Future[_] = msg.record.value match {
           case Some(triggered: TriggeredV2) =>
             val triggeredV3 = triggeredV2ToV3(triggered)
+            logInfo(triggeredV3, s"Processing event: ${triggeredV3.loggableString.get}") // Always evaluates to Some, library needs updating
             scheduleTask(triggeredV3) match {
               case Left(err) =>
                 sendFailedEvent(
-                  FailedV2(triggeredV3.metadata,
-                           InternalMetadata(generateTraceToken()),
-                           s"Scheduling of comm failed: ${err.reason}",
-                           err.errorCode))
+                  FailedV2(
+                    MetadataV2.fromSourceMetadata("orchestration", triggeredV3.metadata),
+                    InternalMetadata(generateTraceToken()),
+                    s"Scheduling of comm failed: ${err.reason}",
+                    err.errorCode
+                  ))
               case Right(_) => Future.successful(())
             }
           case None =>
