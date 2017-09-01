@@ -46,10 +46,12 @@ object TriggeredConsumer extends LoggingWithMDC {
             scheduleTask(triggered) match {
               case Left(err) =>
                 sendFailedEvent(
-                  FailedV2(MetadataV2.fromSourceMetadata(triggered.metadata.source, triggered.metadata),
-                           InternalMetadata(generateTraceToken()),
-                           s"Scheduling of comm failed: ${err.reason}",
-                           err.errorCode)
+                  FailedV2(
+                    MetadataV2.fromSourceMetadata("orchestration", triggered.metadata),
+                    InternalMetadata(generateTraceToken()),
+                    s"Scheduling of comm failed: ${err.reason}",
+                    err.errorCode
+                  )
                 )
               case Right(_) => Future.successful(())
             }

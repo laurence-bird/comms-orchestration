@@ -121,11 +121,12 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
 
     //side effects
     triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV3.get, InternalMetadata(traceToken))
-    failedEventSent shouldBe Some(
-      FailedV2(scheduleWithTriggeredV3.triggeredV3.get.metadata,
-               InternalMetadata(traceToken),
-               "Some error",
-               OrchestrationError))
+    failedEventSent shouldBe 'defined
+    val failedEventResult = failedEventSent.get
+    failedEventResult.internalMetadata shouldBe InternalMetadata(traceToken)
+    failedEventResult.errorCode shouldBe OrchestrationError
+    failedEventResult.reason shouldBe "Some error"
+
     scheduleFailedPersist shouldBe Some(scheduleId, "Some error")
   }
 
@@ -154,11 +155,11 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
 
     implicit val patienceConfig = PatienceConfig(Span(11, Seconds))
     eventually {
-      failedEventSent shouldBe Some(
-        FailedV2(scheduleWithTriggeredV3.triggeredV3.get.metadata,
-                 InternalMetadata(traceToken),
-                 "Orchestrating comm timed out",
-                 OrchestrationError))
+      failedEventSent shouldBe 'defined
+      val failedEventResult = failedEventSent.get
+      failedEventResult.internalMetadata shouldBe InternalMetadata(traceToken)
+      failedEventResult.errorCode shouldBe OrchestrationError
+      failedEventResult.reason shouldBe "Orchestrating comm timed out"
       scheduleAsFailed shouldBe Some(scheduleId, "Orchestrating comm timed out")
     }
   }
