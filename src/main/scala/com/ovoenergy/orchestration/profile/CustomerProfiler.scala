@@ -6,9 +6,9 @@ import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.domain._
 import io.circe.generic.auto._
 import cats.syntax.either._
-import com.ovoenergy.comms.helpers.Retry.Failed
-import com.ovoenergy.comms.helpers.{Retry, RetryConfig}
 import com.ovoenergy.comms.model.ProfileRetrievalFailed
+import com.ovoenergy.comms.serialisation.Retry
+import com.ovoenergy.comms.serialisation.Retry.{Failed, RetryConfig}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 
 import scala.util.{Failure, Try}

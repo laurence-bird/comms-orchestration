@@ -12,6 +12,7 @@ import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.clients.producer.RecordMetadata
+import com.ovoenergy.orchestration.ErrorHandling._
 import com.ovoenergy.comms.serialisation.Codecs._
 
 import scala.concurrent.duration._
@@ -29,6 +30,8 @@ object CancellationRequestConsumer extends LoggingWithMDC {
 
     implicit val executionContext = actorSystem.dispatcher
 
+    val consumerSettings = exitAppOnFailure(topic.consumerSettings, topic.name)
+
     val decider: Supervision.Decider = {
       case NonFatal(e) =>
         log.error("Stopping due to error", e)
@@ -36,7 +39,7 @@ object CancellationRequestConsumer extends LoggingWithMDC {
     }
 
     val source = Consumer
-      .committableSource(topic.consumerSettings, Subscriptions.topics(topic.name))
+      .committableSource(consumerSettings, Subscriptions.topics(topic.name))
       .throttle(5, 1.second, 10, Shaping)
       .mapAsync(1)(msg => {
         log.debug(s"Event received $msg")

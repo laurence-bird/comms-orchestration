@@ -3,8 +3,8 @@ package com.ovoenergy.orchestration.profile
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
-import com.ovoenergy.comms.helpers.{Retry, RetryConfig}
 import com.ovoenergy.comms.model._
+import com.ovoenergy.comms.serialisation.Retry.RetryConfig
 import com.ovoenergy.orchestration.domain.{
   CommunicationPreference,
   ContactProfile,
