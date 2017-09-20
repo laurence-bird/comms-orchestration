@@ -14,6 +14,7 @@ import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.clients.producer.RecordMetadata
 import com.ovoenergy.comms.serialisation.Codecs._
+import com.ovoenergy.orchestration.ErrorHandling.exitAppOnFailure
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
@@ -35,9 +36,11 @@ object TriggeredConsumer extends LoggingWithMDC {
         Supervision.Stop
     }
 
+    val consumerSettings = exitAppOnFailure(topic.consumerSettings, topic.name)
+
     log.debug(s"Setting up triggered source for ${topic.name}")
     val source: Source[Done, Control] = Consumer
-      .committableSource(topic.consumerSettings, Subscriptions.topics(topic.name))
+      .committableSource(consumerSettings, Subscriptions.topics(topic.name))
       .throttle(5, 1.second, 10, Shaping)
       .mapAsync(1)(msg => {
         val result: Future[_] = msg.record.value match {

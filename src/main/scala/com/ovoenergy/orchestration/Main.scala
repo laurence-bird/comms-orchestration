@@ -14,12 +14,11 @@ import akka.stream.scaladsl.RunnableGraph
 import cats.Id
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
-import com.ovoenergy.comms.helpers.{Kafka, Retry, RetryConfig}
+import com.ovoenergy.comms.helpers.Kafka
 import com.ovoenergy.comms.model._
-import com.ovoenergy.comms.model.email.OrchestratedEmailV3
-import com.ovoenergy.comms.model.sms.OrchestratedSMSV2
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
 import com.ovoenergy.comms.templates.{ErrorsOr, TemplatesRepo}
+import com.ovoenergy.orchestration.ErrorHandling._
 import com.ovoenergy.orchestration.aws.AwsProvider
 import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
@@ -43,6 +42,8 @@ import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import com.ovoenergy.comms.serialisation.Codecs._
+import com.ovoenergy.comms.serialisation.Retry
+import com.ovoenergy.comms.serialisation.Retry.RetryConfig
 
 object Main extends App with LoggingWithMDC {
   Files.readAllLines(new File("banner.txt").toPath).asScala.foreach(println(_))
@@ -74,13 +75,21 @@ object Main extends App with LoggingWithMDC {
   val retrieveTemplate: (CommManifest) => ErrorsOr[CommTemplate[Id]] = TemplatesRepo.getTemplate(templatesContext, _)
   val determineChannel                                               = new ChannelSelectorWithTemplate(retrieveTemplate)
 
-  val orchestrateEmail = new IssueOrchestratedEmail(Kafka.aiven.orchestratedEmail.v3.retryPublisher)
-  val orchestrateSMS   = new IssueOrchestratedSMS(Kafka.aiven.orchestratedSMS.v2.retryPublisher)
+  val sendFailedTriggerEvent = {
+    val topic = Kafka.aiven.failed.v2
+    exitAppOnFailure(topic.retryPublisher, topic.name)
+  }
+  val sendCancelledEvent = {
+    val topic = Kafka.aiven.cancelled.v2
+    exitAppOnFailure(topic.retryPublisher, topic.name)
+  }
+  val sendFailedCancellationEvent   = retryPublisherFor(Kafka.aiven.failedCancellation.v2)
+  val sendOrchestrationStartedEvent = retryPublisherFor(Kafka.aiven.orchestrationStarted.v2)
+  val sendOrchestratedEmailEvent    = retryPublisherFor(Kafka.aiven.orchestratedEmail.v3)
+  val sendOrchestratedSMSEvent      = retryPublisherFor(Kafka.aiven.orchestratedSMS.v2)
 
-  val sendFailedTriggerEvent        = Kafka.aiven.failed.v2.retryPublisher
-  val sendCancelledEvent            = Kafka.aiven.cancelled.v2.retryPublisher
-  val sendFailedCancellationEvent   = Kafka.aiven.failedCancellation.v2.retryPublisher
-  val sendOrchestrationStartedEvent = Kafka.aiven.orchestrationStarted.v2.retryPublisher
+  val orchestrateEmail = new IssueOrchestratedEmail(sendOrchestratedEmailEvent)
+  val orchestrateSMS   = new IssueOrchestratedSMS(sendOrchestratedSMSEvent)
 
   val profileCustomer = {
     val retryConfig = RetryConfig(

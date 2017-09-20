@@ -9,6 +9,7 @@ import akka.stream.scaladsl.{RunnableGraph, Sink}
 import akka.stream.{ActorAttributes, Materializer, Supervision}
 import com.ovoenergy.comms.helpers.Topic
 import com.ovoenergy.comms.model._
+import com.ovoenergy.orchestration.ErrorHandling.exitAppOnFailure
 import com.ovoenergy.orchestration.domain._
 import com.ovoenergy.orchestration.kafka.Serialisation
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
@@ -38,8 +39,10 @@ object LegacyCancellationRequestConsumer extends LoggingWithMDC {
         Supervision.Stop
     }
 
+    val consumerSettings = exitAppOnFailure(topic.consumerSettings, topic.name)
+
     val source = Consumer
-      .committableSource(topic.consumerSettings, Subscriptions.topics(topic.name))
+      .committableSource(consumerSettings, Subscriptions.topics(topic.name))
       .throttle(5, 1.second, 10, Shaping)
       .mapAsync(1)(msg => {
         log.debug(s"Event received $msg")

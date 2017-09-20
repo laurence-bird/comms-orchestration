@@ -1,8 +1,8 @@
 package com.ovoenergy.orchestration.kafka
 
 import com.ovoenergy.comms.model._
-import com.ovoenergy.comms.model.email.{OrchestratedEmailV2, OrchestratedEmailV3}
-import com.ovoenergy.comms.model.sms.{OrchestratedSMS, OrchestratedSMSV2}
+import com.ovoenergy.comms.model.email.OrchestratedEmailV3
+import com.ovoenergy.comms.model.sms.OrchestratedSMSV2
 import com.ovoenergy.comms.serialisation.Serialisation._
 import com.ovoenergy.comms.serialisation.Codecs._
 
