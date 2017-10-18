@@ -1,5 +1,7 @@
 package com.ovoenergy.orchestration.logging
 
+import cats.kernel.Monoid
+import cats.implicits._
 import com.ovoenergy.comms.model.LoggableEvent
 import org.slf4j.{LoggerFactory, MDC}
 
@@ -23,6 +25,10 @@ trait LoggingWithMDC {
 
   def logInfo(event: LoggableEvent, message: String): Unit = {
     log(event.mdcMap, () => log.info(message))
+  }
+
+  def logInfo(event: LoggableEvent, message: String, mdcParams: Map[String, String]): Unit = {
+    log(Monoid.combine(event.mdcMap, mdcParams), () => log.info(message))
   }
 
   def logWarn(traceToken: String, message: String): Unit = {

@@ -29,6 +29,7 @@ object CancellationRequestConsumer extends LoggingWithMDC {
                                               materializer: Materializer): RunnableGraph[Control] = {
 
     implicit val executionContext = actorSystem.dispatcher
+    val additionalMdcParams       = Map("kafkaHosts" -> topic.kafkaConfig.hosts)
 
     val consumerSettings = exitAppOnFailure(topic.consumerSettings, topic.name)
 
@@ -45,7 +46,7 @@ object CancellationRequestConsumer extends LoggingWithMDC {
         log.debug(s"Event received $msg")
         val result: Future[Seq[RecordMetadata]] = msg.record.value match {
           case Some(cancellationRequest) =>
-            logInfo(cancellationRequest, s"Event recieved: ${cancellationRequest.loggableString}")
+            logInfo(cancellationRequest, s"Event recieved: ${cancellationRequest.loggableString}", additionalMdcParams)
             val futures = descheduleComm(cancellationRequest).map {
               case Left(err) =>
                 logWarn(cancellationRequest.metadata.traceToken, s"Cancellation request failed with error $err")
