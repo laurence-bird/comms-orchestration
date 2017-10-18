@@ -32,6 +32,7 @@ object LegacyCancellationRequestConsumer extends LoggingWithMDC {
                                               materializer: Materializer): RunnableGraph[Control] = {
 
     implicit val executionContext = actorSystem.dispatcher
+    val additionalMdcParams       = Map("kafkaHosts" -> topic.kafkaConfig.hosts)
 
     val decider: Supervision.Decider = {
       case NonFatal(e) =>
@@ -49,7 +50,7 @@ object LegacyCancellationRequestConsumer extends LoggingWithMDC {
         val result: Future[Seq[RecordMetadata]] = msg.record.value match {
           case Some(legacyCancellationRequest) =>
             val cancellationRequest = cancellationRequestedToV2(legacyCancellationRequest)
-            logInfo(cancellationRequest, s"Event recieved: ${cancellationRequest.loggableString}")
+            logInfo(cancellationRequest, s"Event recieved: ${cancellationRequest.loggableString}", additionalMdcParams)
             val futures = descheduleComm(cancellationRequest).map {
               case Left(err) =>
                 sendFailedCancellationEvent(

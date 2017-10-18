@@ -13,7 +13,7 @@ import scala.reflect.ClassTag
 object ErrorHandling extends LoggingWithMDC {
 
   def exitAppOnFailure[LeftRes, RightRes](eitherval: Either[LeftRes, RightRes], topicName: String)(
-    implicit errorBuidler: ErrorBuilder[LeftRes]): RightRes = {
+      implicit errorBuidler: ErrorBuilder[LeftRes]): RightRes = {
     eitherval match {
       case Left(err) => {
         val loggableError = errorBuidler.buildError(topicName).apply(err)
