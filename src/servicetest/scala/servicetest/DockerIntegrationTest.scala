@@ -295,21 +295,6 @@ trait DockerIntegrationTest
          profiles,
          orchestration)
 
-  lazy val legacyZkUtils = ZkUtils("localhost:32181", 30000, 5000, isZkSecurityEnabled = false)
-  lazy val aivenZkUtils  = ZkUtils("localhost:32182", 30000, 5000, isZkSecurityEnabled = false)
-
-  def checkKafkaTopic(topic: String, zkUtils: ZkUtils, description: String) = {
-    println(s"Checking we can retrieve metadata about topic $topic on $description ZooKeeper")
-    eventually {
-      val topicInfo = AdminUtils.fetchTopicMetadataFromZk(topic, zkUtils)
-      val error     = topicInfo.error()
-      if (Errors.NONE != topicInfo.error()) {
-        fail(s"${topicInfo.topic()} encountered an error: $error")
-      }
-    }
-    println("Yes we can!")
-  }
-
   def checkCanConsumeFromKafkaTopic(topic: String, bootstrapServers: String, description: String) {
     println(s"Checking we can consume from topic $topic on $description Kafka")
     import cakesolutions.kafka.KafkaConsumer._
@@ -345,19 +330,11 @@ trait DockerIntegrationTest
       "Starting a whole bunch of Docker containers. This could take a few minutes, but I promise it'll be worth the wait!")
     startAllOrFail()
 
-    legacyTopics.foreach(t => checkKafkaTopic(t, legacyZkUtils, "legacy"))
-    aivenTopics.foreach(t => checkKafkaTopic(t, aivenZkUtils, "Aiven"))
-
     legacyTopics.foreach(t => checkCanConsumeFromKafkaTopic(t, "localhost:29092", "legacy"))
     aivenTopics.foreach(t => checkCanConsumeFromKafkaTopic(t, "localhost:29093", "Aiven"))
   }
 
   abstract override def afterAll(): Unit = {
-    Try {
-      legacyZkUtils.close()
-      aivenZkUtils.close()
-    }
-
     stopAllQuietly()
 
     super.afterAll()

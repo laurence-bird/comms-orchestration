@@ -4,9 +4,10 @@ import java.time.{Clock, Instant, OffsetDateTime}
 
 import com.ovoenergy.orchestration.domain._
 import com.ovoenergy.comms.model._
+import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence
 
-package object scheduling {
+package object scheduling extends LoggingWithMDC {
 
   type ScheduleId = String
 
@@ -44,7 +45,11 @@ package object scheduling {
       (schedule.triggered, schedule.triggeredV3) match {
         case (_, Some(v3)) => Some(v3)
         case (Some(v2), _) => Some(triggeredV2ToV3(v2))
-        case (None, None)  => None
+        case (None, None) => {
+          log.error(
+            s"Triggered event doesn't exist for schedule with id ${schedule.scheduleId}, commName ${schedule.commName}")
+          None
+        }
       }
     }
   }

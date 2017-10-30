@@ -86,9 +86,11 @@ object Main extends App with LoggingWithMDC {
   val sendOrchestrationStartedEvent = retryPublisherFor(Kafka.aiven.orchestrationStarted.v2)
   val sendOrchestratedEmailEvent    = retryPublisherFor(Kafka.aiven.orchestratedEmail.v3)
   val sendOrchestratedSMSEvent      = retryPublisherFor(Kafka.aiven.orchestratedSMS.v2)
+  val sendOrchestratedPrintEvent    = retryPublisherFor(Kafka.aiven.orchestratedPrint.v1)
 
   val orchestrateEmail = new IssueOrchestratedEmail(sendOrchestratedEmailEvent)
   val orchestrateSMS   = new IssueOrchestratedSMS(sendOrchestratedSMSEvent)
+  val orchestratePrint = new IssueOrchestratedPrint(sendOrchestratedPrintEvent)
 
   val profileCustomer = {
     val retryConfig = RetryConfig(
@@ -106,11 +108,12 @@ object Main extends App with LoggingWithMDC {
   }
 
   val orchestrateComm: (TriggeredV3, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]] = Orchestrator(
-    profileCustomer = profileCustomer,
     channelSelector = determineChannel,
+    getValidatedCustomerProfile = ProfileValidation.getValidatedCustomerProfile(profileCustomer),
+    getValidatedContactProfile = ProfileValidation.validateContactProfile,
     issueOrchestratedEmail = orchestrateEmail,
     issueOrchestratedSMS = orchestrateSMS,
-    validateProfile = ProfileValidation.apply
+    issueOrchestratedPrint = orchestratePrint
   )
 
   val executeScheduledTask = TaskExecutor.execute(schedulingPersistence,

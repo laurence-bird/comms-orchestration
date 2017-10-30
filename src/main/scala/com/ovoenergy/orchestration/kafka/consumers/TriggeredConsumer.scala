@@ -46,7 +46,7 @@ object TriggeredConsumer extends LoggingWithMDC {
       .throttle(5, 1.second, 10, Shaping)
       .mapAsync(1)(msg => {
         val result: Future[_] = msg.record.value match {
-          case Some(triggered) =>
+          case Some(triggered: TriggeredV3) =>
             logInfo(triggered, s"Processing event: ${triggered.loggableString.get}", additionalMdcParams) // Always evaluates to Some, library needs updating
             scheduleTask(triggered) match {
               case Left(err) =>

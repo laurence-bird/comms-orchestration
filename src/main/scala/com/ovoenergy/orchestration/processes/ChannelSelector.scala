@@ -23,7 +23,8 @@ class ChannelSelectorWithTemplate(retrieveTemplate: CommManifest => ErrorsOr[Com
 
   private val channelCostMap: Map[Channel, Int] = Map(
     Email -> 1,
-    SMS   -> 2
+    SMS   -> 2,
+    Print -> 3
   )
 
   private val costPriority = priority(channelCostMap) _
@@ -93,7 +94,8 @@ class ChannelSelectorWithTemplate(retrieveTemplate: CommManifest => ErrorsOr[Com
                                         triggeredV3: TriggeredV3): Either[ErrorDetails, NonEmptyList[Channel]] = {
     retrieveTemplate(triggeredV3.metadata.commManifest) match {
       case Valid(template) =>
-        val channelsWithTemplates = List(template.email.map(_ => Email), template.sms.map(_ => SMS)).flatten
+        val channelsWithTemplates =
+          List(template.email.map(_ => Email), template.sms.map(_ => SMS), template.print.map(_ => Print)).flatten
 
         nonEmptyListFrom(
           channelsWithTemplates,
@@ -116,7 +118,8 @@ class ChannelSelectorWithTemplate(retrieveTemplate: CommManifest => ErrorsOr[Com
 
     val channels = List(
       contactProfile.mobileNumber.map(_ => SMS),
-      contactProfile.emailAddress.map(_ => Email)
+      contactProfile.emailAddress.map(_ => Email),
+      contactProfile.postalAddress.map(_ => Print)
     ).flatten
 
     nonEmptyListFrom(channels, "No contact details found", InvalidProfile)
