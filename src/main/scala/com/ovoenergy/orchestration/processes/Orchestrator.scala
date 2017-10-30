@@ -6,7 +6,7 @@ import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import org.apache.kafka.clients.producer.RecordMetadata
 import cats.syntax.either._
 import com.ovoenergy.comms.model.{ContactDetails, _}
-import com.ovoenergy.orchestration.domain.{CommunicationPreference, EmailAddress, MobilePhoneNumber}
+import com.ovoenergy.orchestration.domain.{CommunicationPreference, ContactAddress, ContactInfo, EmailAddress, MobilePhoneNumber}
 import com.ovoenergy.orchestration.kafka.IssueOrchestratedComm
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -20,7 +20,8 @@ object Orchestrator extends LoggingWithMDC {
             channelSelector: ChannelSelector,
             validateProfile: (domain.CustomerProfile) => Either[ErrorDetails, domain.CustomerProfile],
             issueOrchestratedEmail: IssueOrchestratedComm[EmailAddress],
-            issueOrchestratedSMS: IssueOrchestratedComm[MobilePhoneNumber])(
+            issueOrchestratedSMS: IssueOrchestratedComm[MobilePhoneNumber],
+            issueOrchestratedPrint: IssueOrchestratedComm[CustomerAddress])(
       triggered: TriggeredV3,
       internalMetadata: InternalMetadata): Either[ErrorDetails, Future[RecordMetadata]] = {
 
@@ -43,6 +44,15 @@ object Orchestrator extends LoggingWithMDC {
               logWarn(triggered.metadata.traceToken, "Phone number missing from customer profile")
               ErrorDetails("No valid phone number provided", InvalidProfile)
             }
+
+        case Print =>
+          contactProfile.postalAddress
+            .map(issueOrchestratedPrint.send(customerProfile, _, triggered))
+            .toRight {
+              logWarn(triggered.metadata.traceToken, "Customer address missing from customer profile")
+              ErrorDetails("No valid postal address provided", InvalidProfile)
+            }
+
         case _ => Left(ErrorDetails(s"Unsupported channel selected $channel", OrchestrationError))
       }
     }
@@ -75,7 +85,7 @@ object Orchestrator extends LoggingWithMDC {
                              Some(customerProfile.toModel))
         } yield res
       }
-      case contactDetails @ ContactDetails(_, _) =>
+      case contactDetails @ ContactDetails(_, _, _) =>
         for {
           contactProfile <- contactDetailsToContactProfile(contactDetails)
           res            <- orchestrate(triggered, contactProfile, Seq(), None)
@@ -85,14 +95,26 @@ object Orchestrator extends LoggingWithMDC {
 
   private def contactDetailsToContactProfile(
       contactDetails: ContactDetails): Either[ErrorDetails, domain.ContactProfile] = {
-    val validatedPhoneNumber = contactDetails.phoneNumber.map(MobilePhoneNumber.create)
-    val emailAddress         = contactDetails.emailAddress
+    val validatedPhoneNumber: Option[Either[String, MobilePhoneNumber]] = contactDetails.phoneNumber.map(MobilePhoneNumber.create)
+    val emailAddress = contactDetails.emailAddress.map(e => Right(EmailAddress(e)))
+    val validatedPostalAddress: Option[Either[String, ContactAddress]] = ??? //contactDetails.postalAddress.map(ContactAddress.fromCustomerAddress)
+
+    val detailsList: Seq[Either[String, ContactInfo]] = List(validatedPhoneNumber, emailAddress, validatedPostalAddress).flatten
+
+
+    val result: Either[String, ContactInfo] = detailsList.foldLeft(domain.ContactProfile(None, None, None)){ (acc, elememt: Either[String, ContactInfo]) =>
+
+      ???
+    }
+
+    val contactProfile = domain.ContactProfile(None, None, None)
+
     (emailAddress, validatedPhoneNumber) match {
       case (None, None)             => Left(ErrorDetails("No contact details found", InvalidProfile))
-      case (email @ Some(_), None)  => Right(domain.ContactProfile(email.map(EmailAddress), None))
+      case (email @ Some(_), None)  => Right(domain.ContactProfile(email.map(EmailAddress), None, None))
       case (None, Some(Left(e)))    => Left(ErrorDetails(e, InvalidProfile))
-      case (_, Some(Left(_)))       => Right(domain.ContactProfile(emailAddress.map(EmailAddress), None))
-      case (_, Some(Right(number))) => Right(domain.ContactProfile(emailAddress.map(EmailAddress), Some(number)))
+      case (_, Some(Left(_)))       => Right(domain.ContactProfile(emailAddress.map(EmailAddress), None, None))
+      case (_, Some(Right(number))) => Right(domain.ContactProfile(emailAddress.map(EmailAddress), Some(number), None))
     }
   }
 }

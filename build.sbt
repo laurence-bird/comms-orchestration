@@ -10,7 +10,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka"          %% "akka-stream-kafka"         % "0.12",
   "com.typesafe.akka"          %% "akka-slf4j"                % "2.3.14",
   "net.cakesolutions"          %% "scala-kafka-client"        % "0.10.0.0",
-  "com.ovoenergy"              %% "comms-kafka-messages"      % "1.25",
+  "com.ovoenergy"              %% "comms-kafka-messages"      % "1.37",
   "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-kafka-helpers"       % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-templates"           % "0.6",
