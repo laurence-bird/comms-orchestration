@@ -27,12 +27,9 @@ object ProfileValidation extends LoggingWithMDC {
     for {
       customerProfile <- retrieveCustomerProfile(
         ProfileCustomer(customer.customerId, triggered.metadata.canary, triggered.metadata.traceToken))
-      validatedContactProfile <- validateCustomerProfile(customerProfile)
-    } yield validatedContactProfile
-  }
-
-  def getValidatedContactProfile(triggered: TriggeredV3, contactProfile: ContactProfile) = {
-    validateContactProfile(contactProfile)
+      _ <- validateProfileName(customerProfile.name)
+      _ <- getValidatedContactProfile(customerProfile.contactProfile)
+    } yield customerProfile
   }
 
   private val validUkMobileRegex = """^\+447\d{9}$""".r
@@ -56,20 +53,7 @@ object ProfileValidation extends LoggingWithMDC {
       .map(errors => ErrorDetails(errors.toList.mkString(", "), InvalidProfile))
   }
 
-  private def validateCustomerProfile(customerProfile: CustomerProfile): Either[ErrorDetails, CustomerProfile] = {
-    /*
-      1 - Validate customer name
-      2 - if customer name is valid, validate contact info
-      3 - if at least one piece of contact info is valid, build customer profile
-
-     */
-    for {
-      _ <- validateProfileName(customerProfile.name)
-      _ <- validateContactProfile(customerProfile.contactProfile)
-    } yield customerProfile
-  }
-
-  private def validateContactProfile(contactProfile: ContactProfile): Either[ErrorDetails, domain.ContactProfile] = {
+  def getValidatedContactProfile(contactProfile: ContactProfile): Either[ErrorDetails, domain.ContactProfile] = {
     /*
       1 - Validate mobile
       2 - validate email

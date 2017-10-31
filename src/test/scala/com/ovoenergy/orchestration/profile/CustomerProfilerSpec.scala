@@ -5,15 +5,9 @@ import java.nio.file.{Files, Paths}
 
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.serialisation.Retry.RetryConfig
-import com.ovoenergy.orchestration.domain.{
-  CommunicationPreference,
-  ContactProfile,
-  CustomerProfile,
-  CustomerProfileName,
-  EmailAddress,
-  MobilePhoneNumber
-}
+import com.ovoenergy.orchestration.domain.{CommunicationPreference, ContactProfile, CustomerProfile, CustomerProfileName, EmailAddress, MobilePhoneNumber}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.orchestration.profile.CustomerProfiler.ProfileCustomer
 import okhttp3._
 import org.scalatest.{EitherValues, FlatSpec, Matchers}
 
@@ -34,9 +28,9 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
 
   it should "Fail when request fails" in {
     val result =
-      CustomerProfiler(failureHttpClient, profileApiKey, profileHost, retryConfig)("whatever",
+      CustomerProfiler(failureHttpClient, profileApiKey, profileHost, retryConfig)(ProfileCustomer("whatever",
                                                                                    canary = false,
-                                                                                   traceToken)
+                                                                                   traceToken))
 
     result shouldBe Left(ErrorDetails(s"Failed to retrive customer profile: uh oh", ProfileRetrievalFailed))
   }
@@ -51,9 +45,9 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
           .body(ResponseBody.create(MediaType.parse("UTF-8"), "Some error message"))
           .build())
 
-    val result = CustomerProfiler(nonOkResponseHttpClient, profileApiKey, profileHost, retryConfig)("whatever",
+    val result = CustomerProfiler(nonOkResponseHttpClient, profileApiKey, profileHost, retryConfig)(ProfileCustomer("whatever",
                                                                                                     canary = false,
-                                                                                                    traceToken)
+                                                                                                    traceToken))
     result shouldBe Left(
       ErrorDetails("Failed to retrive customer profile: Error response (401) from profile service: Some error message",
                    ProfileRetrievalFailed))
@@ -69,9 +63,9 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
           .body(ResponseBody.create(MediaType.parse("UTF-8"), "{\"some\":\"value\"}"))
           .build())
 
-    val result = CustomerProfiler(badResponseHttpClient, profileApiKey, profileHost, retryConfig)("whatever",
+    val result = CustomerProfiler(badResponseHttpClient, profileApiKey, profileHost, retryConfig)(ProfileCustomer("whatever",
                                                                                                   canary = false,
-                                                                                                  traceToken)
+                                                                                                  traceToken))
     result.isLeft shouldBe true
     result.left.value.errorCode shouldBe ProfileRetrievalFailed
     result.left.value.reason should include("Failed to retrive customer profile: Invalid JSON")
@@ -91,9 +85,9 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
           .build())
     }
 
-    val result = CustomerProfiler(okResponseHttpClient, profileApiKey, profileHost, retryConfig)("whatever",
+    val result = CustomerProfiler(okResponseHttpClient, profileApiKey, profileHost, retryConfig)(ProfileCustomer("whatever",
                                                                                                  canary = false,
-                                                                                                 traceToken)
+                                                                                                 traceToken))
     result shouldBe Right(
       CustomerProfile(
         name = CustomerProfileName(
@@ -131,7 +125,7 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
           .build())
     }
     val result =
-      CustomerProfiler(httpClient, profileApiKey, profileHost, retryConfig)("whatever", canary = true, traceToken)
+      CustomerProfiler(httpClient, profileApiKey, profileHost, retryConfig)(ProfileCustomer("whatever", canary = true, traceToken))
     result match {
       case Right(customerProfile) =>
       // ok
