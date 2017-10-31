@@ -28,7 +28,7 @@ object ProfileValidation extends LoggingWithMDC {
       customerProfile <- retrieveCustomerProfile(
         ProfileCustomer(customer.customerId, triggered.metadata.canary, triggered.metadata.traceToken))
       _ <- validateProfileName(customerProfile.name)
-      _ <- getValidatedContactProfile(customerProfile.contactProfile)
+      _ <- validateContactProfile(customerProfile.contactProfile)
     } yield customerProfile
   }
 
@@ -53,7 +53,7 @@ object ProfileValidation extends LoggingWithMDC {
       .map(errors => ErrorDetails(errors.toList.mkString(", "), InvalidProfile))
   }
 
-  def getValidatedContactProfile(contactProfile: ContactProfile): Either[ErrorDetails, domain.ContactProfile] = {
+  def validateContactProfile(contactProfile: ContactProfile): Either[ErrorDetails, domain.ContactProfile] = {
     /*
       1 - Validate mobile
       2 - validate email
@@ -133,7 +133,8 @@ object ProfileValidation extends LoggingWithMDC {
   }
   private type ValidationErrorsOr[A] = Validated[ValidationErrors, A]
 
-  def validateProfileName(customerProfileName: CustomerProfileName): Either[ErrorDetails, CustomerProfileName] = {
+  private def validateProfileName(
+      customerProfileName: CustomerProfileName): Either[ErrorDetails, CustomerProfileName] = {
     val firstName: ValidationErrorsOr[String] = {
       if (customerProfileName.firstName.isEmpty) Validated.invalid(ValidationErrors("Customer has no first name"))
       else Validated.valid(customerProfileName.firstName)

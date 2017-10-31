@@ -10,23 +10,22 @@ import org.apache.kafka.clients.producer.RecordMetadata
 import scala.concurrent.Future
 
 class IssueOrchestratedPrint(sendEvent: OrchestratedPrint => Future[RecordMetadata])
-  extends IssueOrchestratedComm[ContactAddress]{
+    extends IssueOrchestratedComm[ContactAddress] {
 
   override def send(customerProfile: Option[CustomerProfile], contactInfo: ContactAddress, triggered: TriggeredV3) = {
 
     val orchestratedPrintEvent = OrchestratedPrint(
-      metadata          = MetadataV2.fromSourceMetadata("orchestration", triggered.metadata),
-      internalMetadata  = InternalMetadata(UUID.randomUUID.toString),
-      customerProfile   = customerProfile,
-      templateData      = triggered.templateData,
-      expireAt          = triggered.expireAt,
-      address           = CustomerAddress(
-                            contactInfo.line1,
-                            contactInfo.line2,
-                            contactInfo.town,
-                            contactInfo.county,
-                            contactInfo.postcode,
-                            contactInfo.country)
+      metadata = MetadataV2.fromSourceMetadata("orchestration", triggered.metadata),
+      internalMetadata = InternalMetadata(UUID.randomUUID.toString),
+      customerProfile = customerProfile,
+      templateData = triggered.templateData,
+      expireAt = triggered.expireAt,
+      address = CustomerAddress(contactInfo.line1,
+                                contactInfo.line2,
+                                contactInfo.town,
+                                contactInfo.county,
+                                contactInfo.postcode,
+                                contactInfo.country)
     )
 
     sendEvent(orchestratedPrintEvent)
