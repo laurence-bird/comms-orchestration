@@ -20,7 +20,7 @@ object ProfileValidation extends LoggingWithMDC {
     def apply(message: String): ValidationErrors        = ValidationErrors(ValidationError(message))
     def apply(error: ValidationError): ValidationErrors = ValidationErrors(NonEmptyList.of(error))
     implicit val sg = new Semigroup[ValidationErrors] {
-      def combine(x: ValidationErrors, y: ValidationErrors): ValidationErrors =
+      override def combine(x: ValidationErrors, y: ValidationErrors): ValidationErrors =
         ValidationErrors(x.errors.concat(y.errors))
     }
   }

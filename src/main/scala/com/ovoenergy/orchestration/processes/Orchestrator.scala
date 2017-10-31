@@ -5,9 +5,18 @@ import com.ovoenergy.orchestration.domain
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import org.apache.kafka.clients.producer.RecordMetadata
 import cats.syntax.either._
+import cats.implicits._
+import cats.kernel.{Monoid, Semigroup}
 import com.ovoenergy.comms.model.{ContactDetails, _}
-import com.ovoenergy.orchestration.domain.{CommunicationPreference, ContactAddress, ContactInfo, EmailAddress, MobilePhoneNumber}
+import com.ovoenergy.orchestration.domain.{
+  CommunicationPreference,
+  ContactAddress,
+  ContactInfo,
+  EmailAddress,
+  MobilePhoneNumber
+}
 import com.ovoenergy.orchestration.kafka.IssueOrchestratedComm
+import com.ovoenergy.orchestration.profile.ContactValidation
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -21,7 +30,7 @@ object Orchestrator extends LoggingWithMDC {
             validateProfile: (domain.CustomerProfile) => Either[ErrorDetails, domain.CustomerProfile],
             issueOrchestratedEmail: IssueOrchestratedComm[EmailAddress],
             issueOrchestratedSMS: IssueOrchestratedComm[MobilePhoneNumber],
-            issueOrchestratedPrint: IssueOrchestratedComm[CustomerAddress])(
+            issueOrchestratedPrint: IssueOrchestratedComm[ContactAddress])(
       triggered: TriggeredV3,
       internalMetadata: InternalMetadata): Either[ErrorDetails, Future[RecordMetadata]] = {
 
@@ -47,6 +56,7 @@ object Orchestrator extends LoggingWithMDC {
 
         case Print =>
           contactProfile.postalAddress
+            .map(ContactAddress.fromCustomerAddress)
             .map(issueOrchestratedPrint.send(customerProfile, _, triggered))
             .toRight {
               logWarn(triggered.metadata.traceToken, "Customer address missing from customer profile")
@@ -95,26 +105,58 @@ object Orchestrator extends LoggingWithMDC {
 
   private def contactDetailsToContactProfile(
       contactDetails: ContactDetails): Either[ErrorDetails, domain.ContactProfile] = {
-    val validatedPhoneNumber: Option[Either[String, MobilePhoneNumber]] = contactDetails.phoneNumber.map(MobilePhoneNumber.create)
+    val validatedPhoneNumber: Option[Either[ErrorDetails, MobilePhoneNumber]] =
+      contactDetails.phoneNumber.map(ContactValidation.validateMobileNumber)
     val emailAddress = contactDetails.emailAddress.map(e => Right(EmailAddress(e)))
-    val validatedPostalAddress: Option[Either[String, ContactAddress]] = ??? //contactDetails.postalAddress.map(ContactAddress.fromCustomerAddress)
-
-    val detailsList: Seq[Either[String, ContactInfo]] = List(validatedPhoneNumber, emailAddress, validatedPostalAddress).flatten
-
-
-    val result: Either[String, ContactInfo] = detailsList.foldLeft(domain.ContactProfile(None, None, None)){ (acc, elememt: Either[String, ContactInfo]) =>
-
-      ???
+    val validatedPostalAddress: Option[Either[ErrorDetails, ContactAddress]] = {
+      contactDetails.postalAddress
+        .map(ContactAddress.fromCustomerAddress)
+        .map(ContactValidation.validatePostalAddress)
     }
 
-    val contactProfile = domain.ContactProfile(None, None, None)
+    val detailsList: Seq[Either[ErrorDetails, ContactInfo]] =
+      List(validatedPhoneNumber, emailAddress, validatedPostalAddress).flatten
 
-    (emailAddress, validatedPhoneNumber) match {
-      case (None, None)             => Left(ErrorDetails("No contact details found", InvalidProfile))
-      case (email @ Some(_), None)  => Right(domain.ContactProfile(email.map(EmailAddress), None, None))
-      case (None, Some(Left(e)))    => Left(ErrorDetails(e, InvalidProfile))
-      case (_, Some(Left(_)))       => Right(domain.ContactProfile(emailAddress.map(EmailAddress), None, None))
-      case (_, Some(Right(number))) => Right(domain.ContactProfile(emailAddress.map(EmailAddress), Some(number), None))
+    case class ValidatedContactDetails(invalidDetails: List[ErrorDetails], validDetails: List[ContactInfo])
+
+    val result = detailsList.foldLeft(ValidatedContactDetails(Nil, Nil)) {
+      (acc: ValidatedContactDetails, element: Either[ErrorDetails, ContactInfo]) =>
+        element match {
+          case Left(e: ErrorDetails) => acc.copy(invalidDetails = acc.invalidDetails :+ e)
+          case Right(r)              => acc.copy(validDetails = acc.validDetails :+ r)
+        }
+    }
+
+    result match {
+      case ValidatedContactDetails(Nil, Nil)    => Left(ErrorDetails("No contact details found", InvalidProfile))
+      case ValidatedContactDetails(errors, Nil) => Left(combineErrors(errors))
+      case ValidatedContactDetails(_, details)  => Right(buildContactProfile(details))
+    }
+  }
+
+  private def combineErrors(errors: List[ErrorDetails]) = {
+    implicit val mon = new Monoid[ErrorDetails] {
+      override def empty = ErrorDetails("", InvalidProfile)
+      override def combine(x: ErrorDetails, y: ErrorDetails) = {
+        if (x.reason.isEmpty) {
+          ErrorDetails(y.reason, y.errorCode)
+        } else {
+          ErrorDetails(s"${x.reason}, ${y.reason}", x.errorCode)
+        }
+      }
+    }
+
+    errors.foldMap(identity)
+  }
+
+  private def buildContactProfile(contactInfo: List[ContactInfo]): domain.ContactProfile = {
+    contactInfo.foldLeft(domain.ContactProfile(None, None, None)) { (acc, elem) =>
+      elem match {
+        case MobilePhoneNumber(sms) => acc.copy(mobileNumber = Some(MobilePhoneNumber(sms)))
+        case EmailAddress(email)    => acc.copy(emailAddress = Some(EmailAddress(email)))
+        case ContactAddress(l1, l2, town, county, postcode, country) =>
+          acc.copy(postalAddress = Some(CustomerAddress(l1, l2, town, county, postcode, country)))
+      }
     }
   }
 }

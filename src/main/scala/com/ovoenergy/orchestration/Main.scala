@@ -111,7 +111,8 @@ object Main extends App with LoggingWithMDC {
     channelSelector = determineChannel,
     issueOrchestratedEmail = orchestrateEmail,
     issueOrchestratedSMS = orchestrateSMS,
-    validateProfile = ProfileValidation.apply
+    validateProfile = ProfileValidation.apply,
+    issueOrchestratedPrint = ???
   )
 
   val executeScheduledTask = TaskExecutor.execute(schedulingPersistence,

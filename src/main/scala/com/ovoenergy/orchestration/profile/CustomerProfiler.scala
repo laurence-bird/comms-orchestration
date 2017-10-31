@@ -28,7 +28,7 @@ object CustomerProfiler extends LoggingWithMDC {
                                       traceToken: String): Either[ErrorDetails, CustomerProfile] = {
 
     def toCustomerProfile(response: CustomerProfileResponse) = {
-      val validNumber = response.phoneNumber.map(MobilePhoneNumber.create) match {
+      val validNumber = response.phoneNumber.map(ContactValidation.validateMobileNumber) match {
         case Some(Right(number)) => Some(number)
         case Some(Left(e)) =>
           logInfo(traceToken, s"Invalid phone number returned for customer $customerId")
@@ -36,9 +36,10 @@ object CustomerProfiler extends LoggingWithMDC {
         case _ => None
 
       }
-      CustomerProfile(response.name,
-                      response.communicationPreferences,
-                      ContactProfile(response.emailAddress.map(EmailAddress), validNumber))
+      CustomerProfile(
+        response.name,
+        response.communicationPreferences,
+        ContactProfile(response.emailAddress.map(EmailAddress), validNumber, None)) // TODO: Get customer address
     }
 
     val url = {
