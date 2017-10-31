@@ -46,6 +46,13 @@ package object domain {
                             mobileNumber: Option[MobilePhoneNumber],
                             postalAddress: Option[CustomerAddress])
 
+  object ContactProfile {
+    def fromContactDetails(contactDetails: ContactDetails) =
+      ContactProfile(contactDetails.emailAddress.map(EmailAddress),
+                     contactDetails.phoneNumber.map(MobilePhoneNumber),
+                     contactDetails.postalAddress)
+  }
+
   case class CustomerProfile(name: CustomerProfileName,
                              communicationPreferences: Seq[CommunicationPreference],
                              contactProfile: ContactProfile) {

@@ -4,6 +4,7 @@ import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.{
   CommunicationPreference,
+  ContactAddress,
   ContactProfile,
   CustomerProfile,
   EmailAddress,
@@ -64,6 +65,16 @@ class OrchestratorSpec
     }
   }
 
+  object StubPrintOrchestrator extends IssueOrchestratedComm[ContactAddress] {
+    override def send(customerProfile: Option[model.CustomerProfile],
+                      contactInfo: ContactAddress,
+                      triggered: TriggeredV3) = {
+      orchestratedDetails = Some(customerProfile, contactInfo.toString)
+      passedTriggered = Some(triggered)
+      Future.successful(SMSOrchestratedMetadata)
+    }
+  }
+
   private def customerProfiler(profile: CustomerProfile) =
     (customerId: String, canary: Boolean, traceToken: String) => {
       Right(profile)
@@ -73,8 +84,9 @@ class OrchestratorSpec
     fail("Customer profile shouldn't be invoked")
   }
 
-  val validProfile = (customerProfile: CustomerProfile) => Right(customerProfile)
-  val invalidProfile = (customerProfile: CustomerProfile) =>
+  val validCustomerProfile = (triggeredV3: TriggeredV3, customer: Customer) => Right(customerProfile)
+  val validContactProfile = (triggeredV3: TriggeredV3, contactProfile: ContactProfile) => Right(contactProfile)
+  val invalidProfile = (triggeredV3: TriggeredV3, customer: Customer) =>
     Left(ErrorDetails("Name missing from profile", InvalidProfile))
 
   override def beforeEach(): Unit = {
@@ -84,19 +96,20 @@ class OrchestratorSpec
 
   behavior of "Orchestrator"
 
-  it should "handle customer delivery - unsupported channels" in {
+  it should "Specify no postal address available for triggers to be orchestrated via print, where a customer ID is provided" in {
     object SelectNonSupportedChannel extends ChannelSelector {
       override def determineChannel(contactProfile: ContactProfile,
                                     customerPreferences: Seq[CommunicationPreference],
-                                    triggered: TriggeredV3) = Right(Post)
+                                    triggered: TriggeredV3) = Right(Print)
     }
-    val orchestrator = //(CustomerProfile, TriggeredV2, InternalMetadata)
-    Orchestrator(customerProfiler(customerProfile),
-                 SelectNonSupportedChannel,
-                 validProfile,
-                 StubEmailOrchestrator,
-                 StubSmsOrchestrator)(customerTriggered, internalMetadata)
-    orchestrator.left.value shouldBe ErrorDetails("Unsupported channel selected Post", OrchestrationError)
+    val orchestrator =
+      Orchestrator(SelectNonSupportedChannel,
+                   validCustomerProfile,
+                   validContactProfile,
+                   StubEmailOrchestrator,
+                   StubSmsOrchestrator,
+                   StubPrintOrchestrator)(customerTriggered, internalMetadata)
+    orchestrator.left.value shouldBe ErrorDetails("No valid postal address provided", InvalidProfile)
   }
 
   it should "handle customer delivery - failed channel selection" in {
@@ -106,11 +119,12 @@ class OrchestratorSpec
                                     triggered: TriggeredV3) = Left(ErrorDetails("whatever", OrchestrationError))
     }
     val orchestrator: Either[ErrorDetails, Future[RecordMetadata]] =
-      Orchestrator(customerProfiler(customerProfile),
-                   FailedChannelSelection,
-                   validProfile,
+      Orchestrator(FailedChannelSelection,
+                   validCustomerProfile,
+                   validContactProfile,
                    StubEmailOrchestrator,
-                   StubSmsOrchestrator)(customerTriggered, internalMetadata)
+                   StubSmsOrchestrator,
+                   StubPrintOrchestrator)(customerTriggered, internalMetadata)
     orchestrator.left.value shouldBe ErrorDetails("whatever", OrchestrationError)
   }
 
@@ -119,9 +133,12 @@ class OrchestratorSpec
       (customerId: String, canary: Boolean, traceToken: String) =>
         Left(ErrorDetails("whatever", ProfileRetrievalFailed))
     val orchestrator =
-      Orchestrator(badCustomerProfiler, SelectEmailChannel, validProfile, StubEmailOrchestrator, StubSmsOrchestrator)(
-        customerTriggered,
-        internalMetadata)
+      Orchestrator(badCustomerProfiler,
+                   SelectEmailChannel,
+                   validCustomerProfile,
+                   StubEmailOrchestrator,
+                   StubSmsOrchestrator,
+                   StubPrintOrchestrator)(customerTriggered, internalMetadata)
     orchestrator.left.value shouldBe ErrorDetails("whatever", ProfileRetrievalFailed)
   }
 
@@ -132,9 +149,10 @@ class OrchestratorSpec
     val orchestrationResult =
       Orchestrator(customerProfiler(profileWithEmailAddress),
                    SelectEmailChannel,
-                   validProfile,
+                   validCustomerProfile,
                    StubEmailOrchestrator,
-                   StubSmsOrchestrator)(customerTriggered, internalMetadata)
+                   StubSmsOrchestrator,
+                   StubPrintOrchestrator)(customerTriggered, internalMetadata)
     whenReady(orchestrationResult.right.value) { (resultMetadata: RecordMetadata) =>
       resultMetadata shouldBe emailOrchestratedMetadata
       orchestratedDetails shouldBe Some(
@@ -151,9 +169,10 @@ class OrchestratorSpec
     val orchestrator =
       Orchestrator(customerProfiler(profileWithPhoneNumber),
                    SelectSMSChannel,
-                   validProfile,
+                   validCustomerProfile,
                    StubEmailOrchestrator,
-                   StubSmsOrchestrator)(customerTriggered, internalMetadata)
+                   StubSmsOrchestrator,
+                   StubPrintOrchestrator)(customerTriggered, internalMetadata)
     whenReady(orchestrator.right.value) { resultMetadata =>
       resultMetadata shouldBe SMSOrchestratedMetadata
       orchestratedDetails shouldBe Some(
@@ -162,7 +181,8 @@ class OrchestratorSpec
       )
       contactDetailsPassedToChannelSelection shouldBe Some(
         ContactProfile(profileWithPhoneNumber.contactProfile.emailAddress,
-                       (profileWithPhoneNumber.contactProfile.mobileNumber)))
+                       (profileWithPhoneNumber.contactProfile.mobileNumber),
+                       None))
       passedTriggered shouldBe Some(customerTriggered)
     }
   }
@@ -173,13 +193,16 @@ class OrchestratorSpec
       generate[TriggeredV3].copy(metadata = generate[MetadataV2].copy(deliverTo = contactDetails))
 
     val orchestrationResult =
-      Orchestrator(nonCustomerProfiler, SelectEmailChannel, validProfile, StubEmailOrchestrator, StubSmsOrchestrator)(
-        nonCustomerTriggered,
-        internalMetadata)
+      Orchestrator(nonCustomerProfiler,
+                   SelectEmailChannel,
+                   validCustomerProfile,
+                   StubEmailOrchestrator,
+                   StubSmsOrchestrator,
+                   StubPrintOrchestrator)(nonCustomerTriggered, internalMetadata)
     whenReady(orchestrationResult.right.value) { (resultMetadata: RecordMetadata) =>
       resultMetadata shouldBe emailOrchestratedMetadata
       contactDetailsPassedToChannelSelection shouldBe Some(
-        ContactProfile(Some(EmailAddress("email@address.com")), None))
+        ContactProfile(Some(EmailAddress("email@address.com")), None, None))
       orchestratedDetails shouldBe Some(None, contactDetails.emailAddress.get)
       passedTriggered shouldBe Some(nonCustomerTriggered)
     }
@@ -191,13 +214,16 @@ class OrchestratorSpec
       generate[TriggeredV3].copy(metadata = generate[MetadataV2].copy(deliverTo = contactDetails))
 
     val orchestrationResult =
-      Orchestrator(nonCustomerProfiler, SelectSMSChannel, validProfile, StubEmailOrchestrator, StubSmsOrchestrator)(
-        nonCustomerTriggered,
-        internalMetadata)
+      Orchestrator(nonCustomerProfiler,
+                   SelectSMSChannel,
+                   validCustomerProfile,
+                   StubEmailOrchestrator,
+                   StubSmsOrchestrator,
+                   StubPrintOrchestrator)(nonCustomerTriggered, internalMetadata)
     whenReady(orchestrationResult.right.value) { (resultMetadata: RecordMetadata) =>
       resultMetadata shouldBe SMSOrchestratedMetadata
       contactDetailsPassedToChannelSelection shouldBe Some(
-        ContactProfile(None, Some(MobilePhoneNumber("+447995447896"))))
+        ContactProfile(None, Some(MobilePhoneNumber("+447995447896")), None))
       orchestratedDetails shouldBe Some(None, "+447995447896")
       passedTriggered shouldBe Some(nonCustomerTriggered)
     }
@@ -209,9 +235,12 @@ class OrchestratorSpec
       generate[TriggeredV3].copy(metadata = generate[MetadataV2].copy(deliverTo = contactDetails))
 
     val orchestrationResult =
-      Orchestrator(nonCustomerProfiler, SelectSMSChannel, validProfile, StubEmailOrchestrator, StubSmsOrchestrator)(
-        nonCustomerTriggered,
-        internalMetadata)
+      Orchestrator(nonCustomerProfiler,
+                   SelectSMSChannel,
+                   validCustomerProfile,
+                   StubEmailOrchestrator,
+                   StubSmsOrchestrator,
+                   StubPrintOrchestrator)(nonCustomerTriggered, internalMetadata)
     orchestrationResult.left.value.errorCode shouldBe InvalidProfile
     contactDetailsPassedToChannelSelection shouldBe None
   }
@@ -222,11 +251,15 @@ class OrchestratorSpec
       generate[TriggeredV3].copy(metadata = generate[MetadataV2].copy(deliverTo = contactDetails))
 
     val orchestrationResult =
-      Orchestrator(nonCustomerProfiler, SelectSMSChannel, validProfile, StubEmailOrchestrator, StubSmsOrchestrator)(
-        nonCustomerTriggered,
-        internalMetadata)
+      Orchestrator(nonCustomerProfiler,
+                   SelectSMSChannel,
+                   validCustomerProfile,
+                   StubEmailOrchestrator,
+                   StubSmsOrchestrator,
+                   StubPrintOrchestrator)(nonCustomerTriggered, internalMetadata)
     orchestrationResult.left.value.errorCode shouldBe InvalidProfile
-    contactDetailsPassedToChannelSelection shouldBe Some(ContactProfile(Some(EmailAddress("email@address.com")), None))
+    contactDetailsPassedToChannelSelection shouldBe Some(
+      ContactProfile(Some(EmailAddress("email@address.com")), None, None))
   }
 
   it should "handle non customer delivery - removing invalid phone number and continuing if email is acceptable" in {
@@ -234,13 +267,16 @@ class OrchestratorSpec
     val nonCustomerTriggered =
       generate[TriggeredV3].copy(metadata = generate[MetadataV2].copy(deliverTo = contactDetails))
     val orchestrationResult =
-      Orchestrator(nonCustomerProfiler, SelectEmailChannel, validProfile, StubEmailOrchestrator, StubSmsOrchestrator)(
-        nonCustomerTriggered,
-        internalMetadata)
+      Orchestrator(nonCustomerProfiler,
+                   SelectEmailChannel,
+                   validCustomerProfile,
+                   StubEmailOrchestrator,
+                   StubSmsOrchestrator,
+                   StubPrintOrchestrator)(nonCustomerTriggered, internalMetadata)
     whenReady(orchestrationResult.right.value) { (resultMetadata: RecordMetadata) =>
       resultMetadata shouldBe emailOrchestratedMetadata
       contactDetailsPassedToChannelSelection shouldBe Some(
-        ContactProfile(Some(EmailAddress("email@address.com")), None))
+        ContactProfile(Some(EmailAddress("email@address.com")), None, None))
       orchestratedDetails shouldBe Some(None, contactDetails.emailAddress.get)
       passedTriggered shouldBe Some(nonCustomerTriggered)
     }

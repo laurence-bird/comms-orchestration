@@ -16,7 +16,8 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
 
   val contactProfile = ContactProfile(
     Some(EmailAddress("some.email@ovoenergy.com")),
-    Some(MobilePhoneNumber("123456789"))
+    Some(MobilePhoneNumber("123456789")),
+    None
   )
 
   def retrieveTemplate(template: CommTemplate[Id]) = (commManifest: CommManifest) => Valid(template)
@@ -26,10 +27,10 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
   val serviceCommMetadata = generate[MetadataV2].copy(commManifest = CommManifest(Service, "test-comm", "1.0"))
   val triggeredBase       = TestUtil.customerTriggered
 
-  val noChannelsTemplate  = CommTemplate(None, None)
-  val emailOnlyTemplate   = CommTemplate[Id](Some(emailTemplate), None)
-  val smsOnlyTemplate     = CommTemplate[Id](None, Some(smsTemplate))
-  val smsAndEmailTemplate = CommTemplate[Id](Some(emailTemplate), Some(smsTemplate))
+  val noChannelsTemplate  = CommTemplate(None, None, None)
+  val emailOnlyTemplate   = CommTemplate[Id](Some(emailTemplate), None, None)
+  val smsOnlyTemplate     = CommTemplate[Id](None, Some(smsTemplate), None)
+  val smsAndEmailTemplate = CommTemplate[Id](Some(emailTemplate), Some(smsTemplate), None)
 
   behavior of "ChannelSelector"
 
@@ -90,15 +91,6 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
         .determineChannel(contactProfile, Seq(CommunicationPreference(Service, Seq(Email))), triggered)
 
     channelResult shouldBe Right(Email)
-  }
-
-  it should "Disregard preferences for channels not implemented in templates" in {
-    val triggered = triggeredBase.copy(preferredChannels = Some(List(SMS, Email)))
-    val channelResult =
-      new ChannelSelectorWithTemplate(retrieveTemplate(smsAndEmailTemplate))
-        .determineChannel(contactProfile, Seq(CommunicationPreference(Service, Seq(Post))), triggered)
-
-    channelResult shouldBe Right(SMS)
   }
 
   it should "Adhere to trigger preferences priority if customer profile preferences contains all the channels available" in {

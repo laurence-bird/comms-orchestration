@@ -20,34 +20,27 @@ object CustomerProfiler extends LoggingWithMDC {
                                      phoneNumber: Option[String],
                                      communicationPreferences: Seq[CommunicationPreference]) {}
 
+  case class ProfileCustomer(customerId: String, canary: Boolean, traceToken: String)
+
   def apply(httpClient: (Request) => Try[Response],
             profileApiKey: String,
             profileHost: String,
-            retryConfig: RetryConfig)(customerId: String,
-                                      canary: Boolean,
-                                      traceToken: String): Either[ErrorDetails, CustomerProfile] = {
+            retryConfig: RetryConfig)(profileCustomer: ProfileCustomer): Either[ErrorDetails, CustomerProfile] = {
 
     def toCustomerProfile(response: CustomerProfileResponse) = {
-      val validNumber = response.phoneNumber.map(ContactValidation.validateMobileNumber) match {
-        case Some(Right(number)) => Some(number)
-        case Some(Left(e)) =>
-          logInfo(traceToken, s"Invalid phone number returned for customer $customerId")
-          None
-        case _ => None
-
-      }
       CustomerProfile(
         response.name,
         response.communicationPreferences,
-        ContactProfile(response.emailAddress.map(EmailAddress), validNumber, None)) // TODO: Get customer address
+        ContactProfile(response.emailAddress.map(EmailAddress), response.phoneNumber.map(MobilePhoneNumber), None)
+      ) // TODO: Get customer address
     }
 
     val url = {
       val builder = HttpUrl
-        .parse(s"$profileHost/api/customers/$customerId")
+        .parse(s"$profileHost/api/customers/${profileCustomer.customerId}")
         .newBuilder()
         .addQueryParameter("apikey", profileApiKey)
-      if (canary) builder.addQueryParameter("canary", "true")
+      if (profileCustomer.canary) builder.addQueryParameter("canary", "true")
       builder.build()
     }
 
@@ -58,7 +51,8 @@ object CustomerProfiler extends LoggingWithMDC {
 
     val result = Retry.retry(
       config = retryConfig,
-      onFailure = e => logWarn(traceToken, "Failed to retrieve customer profile from profiles service", e)
+      onFailure =
+        e => logWarn(profileCustomer.traceToken, "Failed to retrieve customer profile from profiles service", e)
     ) { () =>
       httpClient(request).flatMap { response =>
         val responseBody = response.body.string

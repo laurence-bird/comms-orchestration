@@ -110,7 +110,8 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
         ),
         ContactProfile(
           emailAddress = Some(EmailAddress("qatesting@ovoenergy.com")),
-          mobileNumber = Some(MobilePhoneNumber("+447985631544"))
+          mobileNumber = Some(MobilePhoneNumber("+447985631544")),
+          postalAddress = None
         )
       )
     )
