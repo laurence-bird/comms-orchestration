@@ -6,35 +6,19 @@ class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues {
 
   behavior of "getValidatedContactProfile"
 
+  it should "return a valid profile if all but one contact method is valid" in {}
 
-  it should "return a valid profile if all but one contact method is valid" in {
+  it should "return a valid profile if all contact methods are valid" in {}
 
-  }
+  it should "return appropriate error response if no contact details are provided" in {}
 
-  it should "return a valid profile if all contact methods are valid" in {
-
-  }
-
-  it should "return appropriate error response if no contact details are provided" in {
-
-  }
-
-  it should "combine error messages if all contact methods are invalid" in {
-
-  }
+  it should "combine error messages if all contact methods are invalid" in {}
 
   behavior of "getValidatedCustomerProfile"
 
-  it should "return appropriate error message if call to profiles service fails" in {
+  it should "return appropriate error message if call to profiles service fails" in {}
 
-  }
-
-
-  it should "return appropriate error message if customer name fails validation checks" in {
-
-  }
-
-
+  it should "return appropriate error message if customer name fails validation checks" in {}
 //  it should "Validate a valid profile" in {
 //    val goodCustomerProfile = CustomerProfile(
 //      CustomerProfileName(Some("Mr"), "Stevie", "Wonder", Some("Esq")),

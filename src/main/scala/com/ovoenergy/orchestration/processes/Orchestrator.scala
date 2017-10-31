@@ -24,7 +24,7 @@ object Orchestrator extends LoggingWithMDC {
 
   def apply(channelSelector: ChannelSelector,
             getValidatedCustomerProfile: (TriggeredV3, Customer) => Either[ErrorDetails, domain.CustomerProfile],
-            getValidatedContactProfile: (TriggeredV3, ContactProfile) => Either[ErrorDetails, ContactProfile],
+            getValidatedContactProfile: ContactProfile => Either[ErrorDetails, ContactProfile],
             issueOrchestratedEmail: IssueOrchestratedComm[EmailAddress],
             issueOrchestratedSMS: IssueOrchestratedComm[MobilePhoneNumber],
             issueOrchestratedPrint: IssueOrchestratedComm[ContactAddress])(
@@ -39,7 +39,7 @@ object Orchestrator extends LoggingWithMDC {
           contactProfile.emailAddress
             .map(issueOrchestratedEmail.send(customerProfile, _, triggered))
             .toRight {
-              val errorDetails = "Phone number missing from customer profile"
+              val errorDetails = "Email address missing from customer profile"
               logWarn(triggered.metadata.traceToken, errorDetails)
               ErrorDetails(errorDetails, InvalidProfile)
             }
@@ -87,7 +87,7 @@ object Orchestrator extends LoggingWithMDC {
       }
       case contactDetails @ ContactDetails(_, _, _) => {
         for {
-          contactProfile <- getValidatedContactProfile(triggered, ContactProfile.fromContactDetails(contactDetails))
+          contactProfile <- getValidatedContactProfile(ContactProfile.fromContactDetails(contactDetails))
           res            <- orchestrate(triggered, contactProfile, Nil, None)
         } yield res
       }
