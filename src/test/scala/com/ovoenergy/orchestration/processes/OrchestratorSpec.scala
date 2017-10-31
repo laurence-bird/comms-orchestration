@@ -129,8 +129,8 @@ class OrchestratorSpec
   }
 
   it should "handle customer delivery - failed customer profiler" in {
-    val badCustomerProfiler = (triggeredV3: TriggeredV3, customer: Customer) =>
-      Left(ErrorDetails("whatever", ProfileRetrievalFailed))
+    val badCustomerProfiler =
+      (triggeredV3: TriggeredV3, customer: Customer) => Left(ErrorDetails("whatever", ProfileRetrievalFailed))
 
     val orchestrator: Either[ErrorDetails, Future[RecordMetadata]] =
       Orchestrator(SelectEmailChannel,
@@ -148,7 +148,8 @@ class OrchestratorSpec
       customerProfile.copy(
         contactProfile = contactProfile.copy(emailAddress = Some(EmailAddress("mrtest@testing.com"))))
 
-    val validCustomerProfileWithEmailAddress = (triggeredV3: TriggeredV3, customer: Customer) => Right(profileWithEmailAddress)
+    val validCustomerProfileWithEmailAddress =
+      (triggeredV3: TriggeredV3, customer: Customer) => Right(profileWithEmailAddress)
     val orchestrationResult =
       Orchestrator(SelectEmailChannel,
                    validCustomerProfileWithEmailAddress,
@@ -171,7 +172,8 @@ class OrchestratorSpec
     val profileWithPhoneNumber =
       customerProfile.copy(contactProfile = contactProfile.copy(mobileNumber = Some(MobilePhoneNumber("0799547896"))))
 
-    val validCustomerProfileWithPhoneNumber = (triggeredV3: TriggeredV3, customer: Customer) => Right(profileWithPhoneNumber)
+    val validCustomerProfileWithPhoneNumber =
+      (triggeredV3: TriggeredV3, customer: Customer) => Right(profileWithPhoneNumber)
     val orchestrator =
       Orchestrator(SelectSMSChannel,
                    validCustomerProfileWithPhoneNumber,
