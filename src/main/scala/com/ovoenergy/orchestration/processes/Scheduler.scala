@@ -26,7 +26,10 @@ object Scheduler extends LoggingWithMDC {
 
     Either
       .fromTry(result)
-      .leftMap(e => ErrorDetails("Failed to schedule comm", OrchestrationError))
+      .leftMap { e =>
+        logWarn(triggered.metadata.traceToken, "failed to schedule comm", e)
+        ErrorDetails("Failed to schedule comm", OrchestrationError)
+      }
   }
 
   def descheduleComm(removeFromDb: (CustomerId, CommName) => Seq[Either[ErrorDetails, Schedule]],

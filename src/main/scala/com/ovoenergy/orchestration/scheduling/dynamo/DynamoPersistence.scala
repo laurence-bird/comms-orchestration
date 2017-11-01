@@ -39,6 +39,9 @@ object DynamoPersistence {
   implicit val instantDynamoFormat =
     DynamoFormat.coercedXmap[Instant, Long, DateTimeException](Instant.ofEpochMilli)(_.toEpochMilli)
 
+  implicit val addressDynamoFormat =
+    DynamoFormat.coercedXmap[Instant, Long, DateTimeException](Instant.ofEpochMilli)(_.toEpochMilli)
+
   implicit val scheduleStatusDynamoFormat = DynamoFormat.coercedXmap[ScheduleStatus, String, MatchError] {
     case "Pending"       => ScheduleStatus.Pending
     case "Orchestrating" => ScheduleStatus.Orchestrating
@@ -101,8 +104,9 @@ class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock
   private val log = LoggerFactory.getLogger("Persistence")
 
   def storeSchedule(commSchedule: Schedule): Unit = {
+    log.info(s"persisting schedule: ${commSchedule}")
     Scanamo.exec(context.db)(context.table.put(commSchedule))
-    log.debug(s"Persisted comm schedule: $commSchedule")
+    log.info(s"Persisted comm schedule: $commSchedule")
   }
 
   def retrieveSchedule(scheduleId: ScheduleId): Option[Schedule] = {

@@ -9,8 +9,6 @@ import org.mockserver.client.server.MockServerClient
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import servicetest.helpers._
-
-import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import com.ovoenergy.comms.serialisation.Codecs._
