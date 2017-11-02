@@ -9,7 +9,6 @@ val commsKafkaSerialisationVersion = "3.4"
 libraryDependencies ++= Seq(
   "com.typesafe.akka"          %% "akka-stream-kafka"         % "0.12",
   "com.typesafe.akka"          %% "akka-slf4j"                % "2.3.14",
-  "net.cakesolutions"          %% "scala-kafka-client"        % "0.10.0.0",
   "com.ovoenergy"              %% "comms-kafka-messages"      % "1.38",
   "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-kafka-helpers"       % commsKafkaSerialisationVersion,
@@ -26,8 +25,6 @@ libraryDependencies ++= Seq(
   "io.circe"                   %% "circe-generic"             % circeVersion,
   "org.quartz-scheduler"       % "quartz"                     % "2.2.3",
   "com.gu"                     %% "scanamo"                   % "0.9.1",
-
-  "org.apache.kafka"           %% "kafka"                     % "0.10.2.1" % Test,
   "org.scalacheck"             %% "scalacheck"                % "1.13.4" % Test,
   "org.scalatest"              %% "scalatest"                 % "3.0.3" % Test,
   "com.github.alexarchambault" %% "scalacheck-shapeless_1.13" % "1.1.4" % Test,
