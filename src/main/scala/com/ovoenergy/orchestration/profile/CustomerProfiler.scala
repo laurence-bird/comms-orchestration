@@ -56,6 +56,7 @@ object CustomerProfiler extends LoggingWithMDC {
     ) { () =>
       httpClient(request).flatMap { response =>
         val responseBody = response.body.string
+        log.info(s"Response from SF: ${responseBody}")
         if (response.isSuccessful) {
           decodeJson[CustomerProfileResponse](responseBody)
         } else {

@@ -23,7 +23,7 @@ class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues wit
   val validEmail                 = Some(EmailAddress("mrtest@gmail.com"))
   val validAddress = Some(
     CustomerAddress(line1 = "33 Notting Hill Gate",
-                    line2 = None,
+                    line2 = Some(""),
                     town = "Kensington",
                     county = Some("London"),
                     postcode = "W11 3JQ",

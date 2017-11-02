@@ -7,7 +7,6 @@ val circeVersion = "0.7.0"
 val commsKafkaSerialisationVersion = "3.4"
 
 libraryDependencies ++= Seq(
-  "com.typesafe.akka"          %% "akka-stream-kafka"         % "0.12",
   "com.typesafe.akka"          %% "akka-slf4j"                % "2.3.14",
   "com.ovoenergy"              %% "comms-kafka-messages"      % "1.38",
   "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
@@ -38,7 +37,6 @@ libraryDependencies ++= Seq(
 
 resolvers ++= Seq(
   Resolver.bintrayRepo("ovotech", "maven"),
-  Resolver.bintrayRepo("cakesolutions", "maven"),
   "confluent-release" at "http://packages.confluent.io/maven/"
 )
 

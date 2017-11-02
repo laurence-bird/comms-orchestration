@@ -92,6 +92,24 @@ trait FakeS3Configuration {
     Thread.sleep(100)
   }
 
+  def uploadPrintOnlyTemplateToFakeS3(region: String, s3Endpoint: String)(commManifest: CommManifest): Unit = {
+    // disable chunked encoding to work around https://github.com/jubos/fake-s3/issues/164
+    val s3clientOptions = S3ClientOptions.builder().setPathStyleAccess(true).disableChunkedEncoding().build()
+
+    val s3: AmazonS3Client = new AmazonS3Client(new BasicAWSCredentials("key", "secret"))
+      .withRegion(Regions.fromName(region))
+
+    s3.setS3ClientOptions(s3clientOptions)
+    s3.setEndpoint(s3Endpoint)
+
+    s3.createBucket("ovo-comms-templates")
+
+    removeExistingTemplateObjects(s3, commManifest)
+    printObjects(commManifest).foreach(s3Object => s3.putObject(s3Object._1, s3Object._2, s3Object._3))
+
+    Thread.sleep(100)
+  }
+
   private def removeExistingTemplateObjects(s3: AmazonS3Client, commManifest: CommManifest) = {
     emailObjects(commManifest).foreach(s3Object => s3.deleteObject(s3Object._1, s3Object._2))
     smsObjects(commManifest).foreach(s3Object => s3.deleteObject(s3Object._1, s3Object._2))

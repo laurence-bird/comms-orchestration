@@ -1,5 +1,7 @@
 package servicetest
 
+import java.time.Instant
+
 import com.ovoenergy.comms.helpers.Kafka
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.testhelpers.KafkaTestHelpers._
@@ -9,9 +11,10 @@ import org.scalatest._
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import servicetest.helpers._
 import shapeless.Coproduct
+
 import scala.concurrent.duration._
 import com.ovoenergy.comms.serialisation.Codecs._
-import com.ovoenergy.orchestration.util.TestUtil.{traceToken, metadataV2}
+import com.ovoenergy.orchestration.util.TestUtil.{metadataV2, traceToken}
 
 class AivenPrintServiceTest
     extends FlatSpec
@@ -30,15 +33,6 @@ class AivenPrintServiceTest
                                              postcode = "W11 3JQ",
                                              country = Some("UK"))
 
-  val invalidPrintContactDetailsTriggered = TriggeredV3(
-    metadata = metadataV2.copy(
-      deliverTo = ContactDetails(None, None, Some(CustomerAddress("line1", Some("line2"), "town", None, "", None)))),
-    templateData = templateData,
-    deliverAt = None,
-    expireAt = None,
-    Some(List(Email))
-  )
-
   val templateData = Map("someKey" -> TemplateData(Coproduct[TemplateData.TD]("someValue")))
 
   val printContactDetailsTriggered = TriggeredV3(
@@ -47,6 +41,16 @@ class AivenPrintServiceTest
     deliverAt = None,
     expireAt = None,
     Some(List(Print))
+  )
+
+  val invalidPrintContactDetailsTriggered = TriggeredV3(
+    metadata = metadataV2.copy(
+      deliverTo = ContactDetails(None, None, None)
+    ),
+    templateData = templateData,
+    deliverAt = None,
+    expireAt = None,
+    Some(List(Email))
   )
 
   override def beforeAll() = {
@@ -95,28 +99,34 @@ class AivenPrintServiceTest
     })
   }
 
-//  it should "raise failure for triggered event with contact details that do not provide details for template channel" in {
-//    val commManifest = CommManifest(Service, "sms-only", "0.1")
-//    val metadata = com.ovoenergy.orchestration.util.TestUtil.metadataV2.copy(
-//      deliverTo = ContactDetails(Some("qatesting@ovoenergy.com"), None),
-//      commManifest = commManifest
-//    )
-//    val triggered = com.ovoenergy.orchestration.util.TestUtil.emailContactDetailsTriggered.copy(metadata = metadata)
-//
-//    uploadSMSOnlyTemplateToFakeS3(region, s3Endpoint)(commManifest)
-//
-//    Kafka.aiven.triggered.v3.publishOnce(triggered)
-//    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
-//
-//    val failures = failedConsumer.pollFor(noOfEventsExpected = 1)
-//    failures.foreach(failure => {
-//      failure.reason should include("No available channels to deliver comm")
-//      failure.errorCode shouldBe OrchestrationError
-//      failure.metadata.traceToken shouldBe com.ovoenergy.orchestration.util.TestUtil.traceToken
-//    })
-//  }
+  it should "raise failure for triggered event with contact details that do not provide details for template channel" in {
+    val commManifest = CommManifest(Service, "print-only", "0.1")
+    val metadata = com.ovoenergy.orchestration.util.TestUtil.metadataV2.copy(
+      deliverTo = ContactDetails(Some("qatesting@ovoenergy.com"), None),
+      commManifest = commManifest
+    )
+    val triggered = com.ovoenergy.orchestration.util.TestUtil.emailContactDetailsTriggered.copy(metadata = metadata)
 
-  // Scheduled letters
+    uploadPrintOnlyTemplateToFakeS3(region, s3Endpoint)(commManifest)
+
+    Kafka.aiven.triggered.v3.publishOnce(triggered)
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
+
+    val failures = failedConsumer.pollFor(noOfEventsExpected = 1)
+    failures.foreach(failure => {
+      failure.reason should include("No available channels to deliver comm")
+      failure.errorCode shouldBe OrchestrationError
+      failure.metadata.traceToken shouldBe com.ovoenergy.orchestration.util.TestUtil.traceToken
+    })
+  }
+
+  it should "support the scheduling of triggered events for print" in {
+    val scheduledPrintevent = printContactDetailsTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(5)))
+    Kafka.aiven.triggered.v3.publishOnce(scheduledPrintevent)
+
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
+    expectOrchestratedPrintEvents(noOfEventsExpected = 1, shouldHaveCustomerProfile = false)
+  }
 
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25000.millisecond,
                                        noOfEventsExpected: Int,
