@@ -156,7 +156,7 @@ class SchedulingServiceTest
     orchestrationStartedConsumer.checkNoMessages(3.second)
     orchestratedEmailConsumer.checkNoMessages(3.second)
 
-    val cancelledComs = cancelledConsumer.pollFor(5.seconds, 2)
+    val cancelledComs = cancelledConsumer.pollFor(noOfEventsExpected = 2)
     cancelledComs.length shouldBe 2
     cancelledComs.map(cc => (cc.metadata.traceToken, cc.cancellationRequested)) should contain allOf (
       (triggered1.metadata.traceToken, cancellationRequested),
@@ -267,7 +267,7 @@ class SchedulingServiceTest
     Kafka.aiven.triggered.v3.publishOnce(triggered)
     orchestratedSMSConsumer.checkNoMessages(1.seconds)
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
-    val orchestratedSMSEvents = orchestratedSMSConsumer.pollFor(5.seconds)
+    val orchestratedSMSEvents = orchestratedSMSConsumer.pollFor(30.seconds)
 
     orchestratedSMSEvents.foreach { ev =>
       ev.recipientPhoneNumber shouldBe "+447985631544"
