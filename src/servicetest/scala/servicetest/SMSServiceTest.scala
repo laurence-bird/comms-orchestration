@@ -49,16 +49,6 @@ class SMSServiceTest
 
   behavior of "SMS Orchestration"
 
-  it should "orchestrate SMS request to send immediately" in {
-    createOKCustomerProfileResponse(mockServerClient)
-    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
-    val triggerSMS = TestUtil.customerTriggered.copy(preferredChannels = Some(List(SMS)))
-    Kafka.aiven.triggered.v3.publishOnce(triggerSMS)
-
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
-    expectSMSOrchestrationEvents(noOfEventsExpected = 1)
-  }
-
   it should "orchestrate multiple SMS" in {
     createOKCustomerProfileResponse(mockServerClient)
 

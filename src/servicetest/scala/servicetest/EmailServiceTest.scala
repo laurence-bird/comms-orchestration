@@ -60,16 +60,6 @@ class EmailServiceTest
 
   // Upload valid template to S3 with both email and SMS templates available
 
-  it should "orchestrate emails request to send immediately" in {
-    withThrowawayConsumerFor(Kafka.aiven.orchestrationStarted.v2, Kafka.aiven.orchestratedEmail.v3) {
-      (orchestrationStartedConsumer, orchestratedEmailConsumer) =>
-        createOKCustomerProfileResponse(mockServerClient)
-        Kafka.aiven.triggered.v3.publishOnce(TestUtil.customerTriggered)
-        expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
-        expectOrchestratedEmailEvents(noOfEventsExpected = 1, consumer = orchestratedEmailConsumer)
-    }
-  }
-
   it should "orchestrate legacy emails request to send immediately" in {
     withThrowawayConsumerFor(Kafka.aiven.orchestrationStarted.v2, Kafka.aiven.orchestratedEmail.v3) {
       (orchestrationStartedConsumer, orchestratedEmailConsumer) =>

@@ -4,13 +4,13 @@ scalaVersion          := "2.11.11"
 scalacOptions         := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
 val circeVersion = "0.7.0"
-val commsKafkaSerialisationVersion = "3.0"
+val commsKafkaSerialisationVersion = "3.4"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka"          %% "akka-stream-kafka"         % "0.12",
   "com.typesafe.akka"          %% "akka-slf4j"                % "2.3.14",
   "net.cakesolutions"          %% "scala-kafka-client"        % "0.10.0.0",
-  "com.ovoenergy"              %% "comms-kafka-messages"      % "1.37",
+  "com.ovoenergy"              %% "comms-kafka-messages"      % "1.38",
   "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-kafka-helpers"       % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-templates"           % "0.12",

@@ -27,12 +27,14 @@ package object domain {
 
   object ContactAddress {
     def fromCustomerAddress(customerAddress: CustomerAddress) = {
-      ContactAddress(customerAddress.line1,
-                     customerAddress.line2,
-                     customerAddress.town,
-                     customerAddress.county,
-                     customerAddress.postcode,
-                     customerAddress.country)
+      ContactAddress(
+        customerAddress.line1,
+        customerAddress.line2.getOrElse(""),
+        customerAddress.town,
+        customerAddress.county.getOrElse(""),
+        customerAddress.postcode,
+        customerAddress.country.getOrElse("")
+      )
     }
   }
 

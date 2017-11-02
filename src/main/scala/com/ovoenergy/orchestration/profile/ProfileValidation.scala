@@ -96,7 +96,7 @@ object ProfileValidation extends LoggingWithMDC {
         case MobilePhoneNumber(sms) => acc.copy(mobileNumber = Some(MobilePhoneNumber(sms)))
         case EmailAddress(email)    => acc.copy(emailAddress = Some(EmailAddress(email)))
         case ContactAddress(l1, l2, town, county, postcode, country) =>
-          acc.copy(postalAddress = Some(CustomerAddress(l1, l2, town, county, postcode, country)))
+          acc.copy(postalAddress = Some(CustomerAddress(l1, Some(l2), town, Some(county), postcode, Some(country))))
       }
     }
   }

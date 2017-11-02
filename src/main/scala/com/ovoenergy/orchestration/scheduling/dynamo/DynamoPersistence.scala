@@ -39,9 +39,6 @@ object DynamoPersistence {
   implicit val instantDynamoFormat =
     DynamoFormat.coercedXmap[Instant, Long, DateTimeException](Instant.ofEpochMilli)(_.toEpochMilli)
 
-  implicit val addressDynamoFormat =
-    DynamoFormat.coercedXmap[Instant, Long, DateTimeException](Instant.ofEpochMilli)(_.toEpochMilli)
-
   implicit val scheduleStatusDynamoFormat = DynamoFormat.coercedXmap[ScheduleStatus, String, MatchError] {
     case "Pending"       => ScheduleStatus.Pending
     case "Orchestrating" => ScheduleStatus.Orchestrating
