@@ -1,5 +1,6 @@
 package com.ovoenergy.orchestration.http
 
+import com.ovoenergy.orchestration.profile.CustomerProfiler.DeserialisationError
 import io.circe.Decoder
 import io.circe.parser._
 
@@ -10,7 +11,7 @@ object JsonDecoding {
   def decodeJson[T: Decoder](jsonBody: String): Try[T] = {
     decode[T](jsonBody) match {
       case Right(data) => Success(data)
-      case Left(error) => Failure(new Exception(s"Invalid JSON: $error"))
+      case Left(error) => Failure(DeserialisationError(s"Invalid JSON: $error"))
     }
   }
 

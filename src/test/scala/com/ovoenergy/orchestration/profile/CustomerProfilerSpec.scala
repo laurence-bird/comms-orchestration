@@ -4,7 +4,6 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
 import com.ovoenergy.comms.model._
-import com.ovoenergy.comms.serialisation.Retry.RetryConfig
 import com.ovoenergy.orchestration.domain.{
   CommunicationPreference,
   ContactProfile,
@@ -13,6 +12,7 @@ import com.ovoenergy.orchestration.domain.{
   EmailAddress,
   MobilePhoneNumber
 }
+import com.ovoenergy.orchestration.http.Retry.RetryConfig
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import okhttp3._
 import org.scalatest.{EitherValues, FlatSpec, Matchers}
@@ -25,7 +25,7 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
   val profileApiKey     = "apiKey"
   val profileHost       = "http://somehost.com"
   val traceToken        = "token"
-  val retryConfig       = RetryConfig(1, 0 second, 0)
+  val retryConfig       = RetryConfig(5, 0 second, 0)
 
   val validResponseJson =
     new String(Files.readAllBytes(Paths.get("src/test/resources/profile_valid_response.json")), StandardCharsets.UTF_8)
@@ -38,10 +38,30 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
                                                                                    canary = false,
                                                                                    traceToken)
 
-    result shouldBe Left(ErrorDetails(s"Failed to retrive customer profile: uh oh", ProfileRetrievalFailed))
+    result shouldBe Left(
+      ErrorDetails(s"Failed to retrieve customer profile after 5 attempt(s): uh oh", ProfileRetrievalFailed))
   }
 
   it should "Fail when response is not a success code" in {
+    val nonOkResponseHttpClient = (request: Request) =>
+      Success(
+        new Response.Builder()
+          .protocol(Protocol.HTTP_1_1)
+          .request(request)
+          .code(500)
+          .body(ResponseBody.create(MediaType.parse("UTF-8"), "Some error message"))
+          .build())
+
+    val result = CustomerProfiler(nonOkResponseHttpClient, profileApiKey, profileHost, retryConfig)("whatever",
+                                                                                                    canary = false,
+                                                                                                    traceToken)
+    result shouldBe Left(
+      ErrorDetails(
+        "Failed to retrieve customer profile after 5 attempt(s): Error response (500) from profile service: Some error message",
+        ProfileRetrievalFailed))
+  }
+
+  it should "Not retry for 4xx responses from the profile service" in {
     val nonOkResponseHttpClient = (request: Request) =>
       Success(
         new Response.Builder()
@@ -55,8 +75,9 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
                                                                                                     canary = false,
                                                                                                     traceToken)
     result shouldBe Left(
-      ErrorDetails("Failed to retrive customer profile: Error response (401) from profile service: Some error message",
-                   ProfileRetrievalFailed))
+      ErrorDetails(
+        "Failed to retrieve customer profile after 1 attempt(s): Error response (401) from profile service: Some error message",
+        ProfileRetrievalFailed))
   }
 
   it should "Fail when response body is invalid" in {
@@ -74,7 +95,7 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
                                                                                                   traceToken)
     result.isLeft shouldBe true
     result.left.value.errorCode shouldBe ProfileRetrievalFailed
-    result.left.value.reason should include("Failed to retrive customer profile: Invalid JSON")
+    result.left.value.reason should include("Failed to retrieve customer profile after 1 attempt(s): Invalid JSON")
   }
 
   it should "Succeed when response is valid" in {

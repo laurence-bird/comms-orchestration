@@ -6,9 +6,10 @@ import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.domain._
 import io.circe.generic.auto._
 import cats.syntax.either._
+import cats.implicits._
 import com.ovoenergy.comms.model.ProfileRetrievalFailed
-import com.ovoenergy.comms.serialisation.Retry
-import com.ovoenergy.comms.serialisation.Retry.{Failed, RetryConfig}
+import com.ovoenergy.orchestration.http.Retry
+import com.ovoenergy.orchestration.http.Retry.RetryConfig
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 
 import scala.util.{Failure, Try}
@@ -18,7 +19,11 @@ object CustomerProfiler extends LoggingWithMDC {
   case class CustomerProfileResponse(name: CustomerProfileName,
                                      emailAddress: Option[String],
                                      phoneNumber: Option[String],
-                                     communicationPreferences: Seq[CommunicationPreference]) {}
+                                     communicationPreferences: Seq[CommunicationPreference])
+
+  private val clientErrorRange = 400 to 499
+  case class ClientError(message: String)          extends Exception(message)
+  case class DeserialisationError(message: String) extends Exception(message)
 
   def apply(httpClient: (Request) => Try[Response],
             profileApiKey: String,
@@ -55,24 +60,43 @@ object CustomerProfiler extends LoggingWithMDC {
       .get()
       .build()
 
+    val processFailure = (e: Throwable) => {
+      e match {
+        case ClientError(message) =>
+          logWarn(traceToken, message)
+          true // do not retry
+        case DeserialisationError(message) =>
+          logError(traceToken, message)
+          true // do not retry
+        case e: Throwable =>
+          logWarn(traceToken, "Failed to retrieve customer profile from profiles service", e)
+          false
+      }
+    }
+
     val result = Retry.retry(
       config = retryConfig,
-      onFailure = e => logWarn(traceToken, "Failed to retrieve customer profile from profiles service", e)
+      shouldStop = processFailure
     ) { () =>
-      httpClient(request).flatMap { response =>
+      httpClient(request).flatMap { (response: Response) =>
         val responseBody = response.body.string
+        val responseCode = response.code()
         if (response.isSuccessful) {
           decodeJson[CustomerProfileResponse](responseBody)
+        } else if (clientErrorRange contains responseCode) {
+          Failure(ClientError(s"Error response ($responseCode) from profile service: $responseBody"))
         } else {
-          Failure(new Exception(s"Error response (${response.code}) from profile service: $responseBody"))
+          Failure(new Exception(s"Error response ($responseCode) from profile service: $responseBody"))
         }
       }
     }
     result
       .map(r => toCustomerProfile(r.result))
-      .leftMap { (err: Failed) =>
-        ErrorDetails(s"Failed to retrive customer profile: ${err.finalException.getMessage}", ProfileRetrievalFailed)
+      .leftMap { (err: Retry.Failed) =>
+        println(err)
+        ErrorDetails(
+          s"Failed to retrieve customer profile after ${err.attemptsMade} attempt(s): ${err.finalException.getMessage}",
+          ProfileRetrievalFailed)
       }
   }
-
 }
