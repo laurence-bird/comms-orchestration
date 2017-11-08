@@ -101,9 +101,9 @@ class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock
   private val log = LoggerFactory.getLogger("Persistence")
 
   def storeSchedule(commSchedule: Schedule): Unit = {
-    log.info(s"persisting schedule: ${commSchedule}")
+    log.debug(s"persisting schedule: ${commSchedule}")
     Scanamo.exec(context.db)(context.table.put(commSchedule))
-    log.info(s"Persisted comm schedule: $commSchedule")
+    log.debug(s"Persisted comm schedule: $commSchedule")
   }
 
   def retrieveSchedule(scheduleId: ScheduleId): Option[Schedule] = {

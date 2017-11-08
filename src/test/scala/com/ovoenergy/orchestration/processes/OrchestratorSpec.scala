@@ -44,6 +44,8 @@ class OrchestratorSpec
     new RecordMetadata(new TopicPartition("comms.orchestrated.email", 1), 1, 1, Record.NO_TIMESTAMP, -1, -1, -1)
   val SMSOrchestratedMetadata =
     new RecordMetadata(new TopicPartition("comms.orchestrated.SMS", 1), 1, 1, Record.NO_TIMESTAMP, -1, -1, -1)
+  val printOrchestratedMetadata =
+    new RecordMetadata(new TopicPartition("comms.orchestrated.print", 1), 1, 1, Record.NO_TIMESTAMP, -1, -1, -1)
 
   object StubEmailOrchestrator extends IssueOrchestratedComm[EmailAddress] {
     override def send(customerProfile: Option[model.CustomerProfile],
@@ -71,7 +73,7 @@ class OrchestratorSpec
                       triggered: TriggeredV3) = {
       orchestratedDetails = Some(customerProfile, contactInfo.toString)
       passedTriggered = Some(triggered)
-      Future.successful(SMSOrchestratedMetadata)
+      Future.successful(printOrchestratedMetadata)
     }
   }
 
