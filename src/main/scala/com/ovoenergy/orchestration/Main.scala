@@ -42,8 +42,7 @@ import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import com.ovoenergy.comms.serialisation.Codecs._
-import com.ovoenergy.comms.serialisation.Retry
-import com.ovoenergy.comms.serialisation.Retry.RetryConfig
+import com.ovoenergy.orchestration.http.Retry.RetryConfig
 
 object Main extends App with LoggingWithMDC {
   Files.readAllLines(new File("banner.txt").toPath).asScala.foreach(println(_))
