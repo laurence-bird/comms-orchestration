@@ -93,7 +93,6 @@ object CustomerProfiler extends LoggingWithMDC {
     result
       .map(r => toCustomerProfile(r.result))
       .leftMap { (err: Retry.Failed) =>
-        println(err)
         ErrorDetails(
           s"Failed to retrieve customer profile after ${err.attemptsMade} attempt(s): ${err.finalException.getMessage}",
           ProfileRetrievalFailed)

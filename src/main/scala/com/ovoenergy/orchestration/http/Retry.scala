@@ -13,9 +13,9 @@ object Retry {
   }
 
   case class Failed(attemptsMade: Int, finalException: Throwable)
-    extends Exception(
-      s"Operation failed after $attemptsMade attempts. The final exception message was: ${finalException.getMessage}",
-      finalException)
+      extends Exception(
+        s"Operation failed after $attemptsMade attempts. The final exception message was: ${finalException.getMessage}",
+        finalException)
 
   case class Succeeded[A](result: A, attempts: Int)
 
@@ -31,7 +31,6 @@ object Retry {
       f() match {
         case Success(result) => Right(Succeeded(result, attempt))
         case Failure(e) =>
-
           if (attempt == config.attempts || shouldStop(e)) {
             Left(Failed(attempt, e))
           } else {
