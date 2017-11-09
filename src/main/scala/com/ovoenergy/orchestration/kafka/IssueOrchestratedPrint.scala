@@ -21,11 +21,11 @@ class IssueOrchestratedPrint(sendEvent: OrchestratedPrint => Future[RecordMetada
       templateData = triggered.templateData,
       expireAt = triggered.expireAt,
       address = CustomerAddress(contactInfo.line1,
-                                Some(contactInfo.line2),
+                                contactInfo.line2,
                                 contactInfo.town,
-                                Some(contactInfo.county),
+                                contactInfo.county,
                                 contactInfo.postcode,
-                                Some(contactInfo.country))
+                                contactInfo.country)
     )
 
     sendEvent(orchestratedPrintEvent)

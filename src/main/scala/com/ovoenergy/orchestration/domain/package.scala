@@ -18,22 +18,22 @@ package object domain {
   case class EmailAddress(address: String) extends ContactInfo
 
   case class ContactAddress(line1: String,
-                            line2: String,
+                            line2: Option[String],
                             town: String,
-                            county: String,
+                            county: Option[String],
                             postcode: String,
-                            country: String)
+                            country: Option[String])
       extends ContactInfo
 
   object ContactAddress {
     def fromCustomerAddress(customerAddress: CustomerAddress) = {
       ContactAddress(
         customerAddress.line1,
-        customerAddress.line2.getOrElse(""),
+        customerAddress.line2,
         customerAddress.town,
-        customerAddress.county.getOrElse(""),
+        customerAddress.county,
         customerAddress.postcode,
-        customerAddress.country.getOrElse("")
+        customerAddress.country
       )
     }
   }
