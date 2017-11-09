@@ -37,7 +37,8 @@ libraryDependencies ++= Seq(
 
 resolvers ++= Seq(
   Resolver.bintrayRepo("ovotech", "maven"),
-  "confluent-release" at "http://packages.confluent.io/maven/"
+  Resolver.bintrayRepo("cakesolutions", "maven"),
+"confluent-release" at "http://packages.confluent.io/maven/"
 )
 
 enablePlugins(JavaServerAppPackaging, DockerPlugin)
