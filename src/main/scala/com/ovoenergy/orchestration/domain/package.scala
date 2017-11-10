@@ -4,31 +4,39 @@ import java.time.{Instant, OffsetDateTime}
 
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
+import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import io.circe.generic.extras.semiauto.deriveEnumerationDecoder
 package object domain {
-
-  private val validUkMobileRegex = """^\+447\d{9}$""".r
-  private val phoneNumberPrefix  = """^(07|447|0{1,2}447)"""
 
   implicit val commTypeDecoder = deriveEnumerationDecoder[CommType]
   implicit val channelDecoder  = deriveEnumerationDecoder[Channel]
 
   sealed trait ContactInfo
 
-  object MobilePhoneNumber {
-    def create(number: String): Either[String, MobilePhoneNumber] = {
-      val strippedPhoneNumber = number.trim
-        .replaceAll("[^0-9]", "")
-        .replaceFirst(phoneNumberPrefix, """+447""")
-      validUkMobileRegex
-        .findFirstIn(strippedPhoneNumber)
-        .map(MobilePhoneNumber(_))
-        .toRight("Invalid phone number provided")
-    }
-  }
   case class MobilePhoneNumber private (number: String) extends ContactInfo
 
   case class EmailAddress(address: String) extends ContactInfo
+
+  case class ContactAddress(line1: String,
+                            line2: Option[String],
+                            town: String,
+                            county: Option[String],
+                            postcode: String,
+                            country: Option[String])
+      extends ContactInfo
+
+  object ContactAddress {
+    def fromCustomerAddress(customerAddress: CustomerAddress) = {
+      ContactAddress(
+        customerAddress.line1,
+        customerAddress.line2,
+        customerAddress.town,
+        customerAddress.county,
+        customerAddress.postcode,
+        customerAddress.country
+      )
+    }
+  }
 
   case class CustomerProfileName(title: Option[String], firstName: String, lastName: String, suffix: Option[String])
 
@@ -36,7 +44,16 @@ package object domain {
 
   case class CommunicationPreference(commType: CommType, channels: Seq[Channel])
 
-  case class ContactProfile(emailAddress: Option[EmailAddress], mobileNumber: Option[MobilePhoneNumber])
+  case class ContactProfile(emailAddress: Option[EmailAddress],
+                            mobileNumber: Option[MobilePhoneNumber],
+                            postalAddress: Option[CustomerAddress])
+
+  object ContactProfile {
+    def fromContactDetails(contactDetails: ContactDetails) =
+      ContactProfile(contactDetails.emailAddress.map(EmailAddress),
+                     contactDetails.phoneNumber.map(MobilePhoneNumber),
+                     contactDetails.postalAddress)
+  }
 
   case class CustomerProfile(name: CustomerProfileName,
                              communicationPreferences: Seq[CommunicationPreference],

@@ -25,33 +25,27 @@ object CustomerProfiler extends LoggingWithMDC {
   case class ClientError(message: String)          extends Exception(message)
   case class DeserialisationError(message: String) extends Exception(message)
 
+  case class ProfileCustomer(customerId: String, canary: Boolean, traceToken: String)
+
   def apply(httpClient: (Request) => Try[Response],
             profileApiKey: String,
             profileHost: String,
-            retryConfig: RetryConfig)(customerId: String,
-                                      canary: Boolean,
-                                      traceToken: String): Either[ErrorDetails, CustomerProfile] = {
+            retryConfig: RetryConfig)(profileCustomer: ProfileCustomer): Either[ErrorDetails, CustomerProfile] = {
 
     def toCustomerProfile(response: CustomerProfileResponse) = {
-      val validNumber = response.phoneNumber.map(MobilePhoneNumber.create) match {
-        case Some(Right(number)) => Some(number)
-        case Some(Left(e)) =>
-          logInfo(traceToken, s"Invalid phone number returned for customer $customerId")
-          None
-        case _ => None
-
-      }
-      CustomerProfile(response.name,
-                      response.communicationPreferences,
-                      ContactProfile(response.emailAddress.map(EmailAddress), validNumber))
+      CustomerProfile(
+        response.name,
+        response.communicationPreferences,
+        ContactProfile(response.emailAddress.map(EmailAddress), response.phoneNumber.map(MobilePhoneNumber), None)
+      ) // TODO: Get customer address
     }
 
     val url = {
       val builder = HttpUrl
-        .parse(s"$profileHost/api/customers/$customerId")
+        .parse(s"$profileHost/api/customers/${profileCustomer.customerId}")
         .newBuilder()
         .addQueryParameter("apikey", profileApiKey)
-      if (canary) builder.addQueryParameter("canary", "true")
+      if (profileCustomer.canary) builder.addQueryParameter("canary", "true")
       builder.build()
     }
 
@@ -63,13 +57,13 @@ object CustomerProfiler extends LoggingWithMDC {
     val processFailure = (e: Throwable) => {
       e match {
         case ClientError(message) =>
-          logWarn(traceToken, message)
+          logWarn(profileCustomer.traceToken, message)
           true // do not retry
         case DeserialisationError(message) =>
-          logError(traceToken, message)
+          logError(profileCustomer.traceToken, message)
           true // do not retry
         case e: Throwable =>
-          logWarn(traceToken, "Failed to retrieve customer profile from profiles service", e)
+          logWarn(profileCustomer.traceToken, "Failed to retrieve customer profile from profiles service", e)
           false
       }
     }

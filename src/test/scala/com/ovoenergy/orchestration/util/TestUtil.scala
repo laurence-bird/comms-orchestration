@@ -2,7 +2,6 @@ package com.ovoenergy.orchestration.util
 
 import java.time.Instant
 import java.util.UUID
-
 import com.ovoenergy.comms.model._
 import shapeless.Coproduct
 
