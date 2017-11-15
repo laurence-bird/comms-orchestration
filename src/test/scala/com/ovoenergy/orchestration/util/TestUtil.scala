@@ -41,14 +41,6 @@ object TestUtil {
     triggerSource = "test-trigger"
   )
 
-  val legacyTriggered = TriggeredV2(
-    metadata = metadata,
-    templateData = templateData,
-    deliverAt = None,
-    expireAt = None,
-    Some(List(Email))
-  )
-
   val customerTriggered = TriggeredV3(
     metadata = metadataV2,
     templateData = templateData,
