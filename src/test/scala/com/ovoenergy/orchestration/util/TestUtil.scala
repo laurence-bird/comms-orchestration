@@ -15,19 +15,6 @@ object TestUtil {
   val templateDataV1      = Map("someKey" -> "someValue")
   val templateData        = Map("someKey" -> TemplateData(Coproduct[TemplateData.TD]("someValue")))
 
-  val metadata = Metadata(
-    createdAt = createdAt,
-    eventId = UUID.randomUUID().toString,
-    customerId = customerId,
-    traceToken = traceToken,
-    friendlyDescription = friendlyDescription,
-    source = "tests",
-    sourceMetadata = None,
-    commManifest = commManifest,
-    canary = false,
-    triggerSource = "test-trigger"
-  )
-
   val metadataV2 = MetadataV2(
     createdAt = Instant.parse(createdAt),
     eventId = UUID.randomUUID().toString,
@@ -39,14 +26,6 @@ object TestUtil {
     commManifest = commManifest,
     canary = false,
     triggerSource = "test-trigger"
-  )
-
-  val legacyTriggered = TriggeredV2(
-    metadata = metadata,
-    templateData = templateData,
-    deliverAt = None,
-    expireAt = None,
-    Some(List(Email))
   )
 
   val customerTriggered = TriggeredV3(

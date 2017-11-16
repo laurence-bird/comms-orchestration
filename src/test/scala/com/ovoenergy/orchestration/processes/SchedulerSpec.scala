@@ -92,8 +92,8 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
 
   it should "capture an appropriate error if removing the schedule from memory fails for a single record" in {
     val cancellationRequested = generate[CancellationRequestedV2]
-    val successfulSchedule    = generate[Schedule].copy(triggeredV3 = Some(TestUtil.customerTriggered), triggered = None)
-    val failedSchedule        = generate[Schedule].copy(triggeredV3 = Some(TestUtil.customerTriggered), triggered = None)
+    val successfulSchedule    = generate[Schedule].copy(triggeredV3 = Some(TestUtil.customerTriggered))
+    val failedSchedule        = generate[Schedule].copy(triggeredV3 = Some(TestUtil.customerTriggered))
     val schedules             = Seq(Right(successfulSchedule), Right(failedSchedule))
 
     val removeFromPersistence = (customerId: CustomerId, commName: CommName) => schedules

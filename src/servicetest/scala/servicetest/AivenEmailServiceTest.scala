@@ -94,7 +94,7 @@ class AivenEmailServiceTest
   }
 
   it should "raise failure for customers with insufficient details to orchestrate emails for" in {
-    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.metadata.commManifest)
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.metadataV2.commManifest)
     createInvalidCustomerProfileResponse(mockServerClient)
     Kafka.aiven.triggered.v3.publishOnce(TestUtil.customerTriggered)
 
@@ -136,7 +136,7 @@ class AivenEmailServiceTest
   }
 
   it should "raise failure for triggered event with contact details with insufficient details" in {
-    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.metadata.commManifest)
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.metadataV2.commManifest)
     Kafka.aiven.triggered.v3.publishOnce(TestUtil.invalidContactDetailsTriggered)
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
 

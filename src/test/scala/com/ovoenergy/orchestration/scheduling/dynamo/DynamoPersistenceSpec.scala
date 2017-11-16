@@ -4,7 +4,7 @@ import java.time.{Clock, Instant, ZoneId}
 
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType._
 import com.gu.scanamo.{Scanamo, Table}
-import com.ovoenergy.comms.model.{TriggeredV2, TriggeredV3}
+import com.ovoenergy.comms.model.TriggeredV3
 import com.ovoenergy.orchestration.scheduling.Persistence.{AlreadyBeingOrchestrated, Successful}
 import com.ovoenergy.orchestration.scheduling._
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence.Context
@@ -14,17 +14,6 @@ import org.scalatest.{FlatSpec, Matchers}
 import org.scalacheck.Shapeless._
 
 import scala.collection.mutable
-
-case class LegacySchedule(
-    scheduleId: ScheduleId,
-    triggered: TriggeredV2,
-    deliverAt: Instant,
-    status: ScheduleStatus,
-    history: Seq[Change],
-    orchestrationExpiry: Instant,
-    customerId: Option[String],
-    commName: String
-)
 
 class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
 
@@ -206,17 +195,4 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
       result.history should contain(Change(now, "Orchestration complete"))
     }
   }
-
-  it should "retrieve legacy schedules into new object" in {
-
-    import DynamoPersistence._
-    import io.circe.shapes._
-    LocalDynamoDB.withTableWithSecondaryIndex(client, tableName)(Seq('scheduleId -> S))(secondaryIndices) {
-      val legacySchedule = generate[LegacySchedule].copy(status = ScheduleStatus.Pending)
-      Scanamo.exec(context.db)(Table[LegacySchedule](tableName).put(legacySchedule))
-      val pending = persistence.listPendingSchedules()
-      pending.head.triggered shouldBe Some(legacySchedule.triggered)
-    }
-  }
-
 }

@@ -33,9 +33,7 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
   }
   val scheduleId = "1234567890A"
   val scheduleWithTriggeredV3 =
-    generate[Schedule].copy(scheduleId = scheduleId, triggered = None, triggeredV3 = Some(TestUtil.customerTriggered))
-  val scheduleWithTriggeredV2 =
-    generate[Schedule].copy(scheduleId = scheduleId, triggered = Some(TestUtil.legacyTriggered), triggeredV3 = None)
+    generate[Schedule].copy(scheduleId = scheduleId, triggeredV3 = Some(TestUtil.customerTriggered))
 
   val recordMetadata      = new RecordMetadata(new TopicPartition("test", 1), 1, 1, Record.NO_TIMESTAMP, -1, -1, -1)
   var triggerOrchestrated = Option.empty[(TriggeredV3, InternalMetadata)]
@@ -266,44 +264,9 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
     scheduleFailedPersist shouldBe Some(scheduleId, "Some error")
   }
 
-  it should "should orchestrate schedule with legacy triggered event" in {
-
-    var scheduleAsComplete = Option.empty[ScheduleId]
-    object Orchestrating extends StubPersistence {
-      override def attemptSetScheduleAsOrchestrating(sId: ScheduleId): SetAsOrchestratingResult = {
-        if (scheduleId == sId) {
-          Successful(scheduleWithTriggeredV2)
-        } else fail("Incorrect scheduleId requested")
-      }
-
-      override def setScheduleAsComplete(sId: ScheduleId): Unit = {
-        scheduleAsComplete = Some(sId)
-      }
-    }
-    val orchestrateTrigger = (triggeredV3: TriggeredV3, internalMetadata: InternalMetadata) => {
-      triggerOrchestrated = Some(triggeredV3, internalMetadata)
-      Right(Future(recordMetadata))
-    }
-
-    TaskExecutor.execute(Orchestrating,
-                         orchestrateTrigger,
-                         sendOrchestrationStartedEvent,
-                         generateTraceToken,
-                         sendFailedEvent)(scheduleId)
-
-    implicit val patienceConfig = PatienceConfig(Span(3, Seconds))
-    eventually {
-      //side effects
-      triggerOrchestrated shouldBe Some(Schedule.triggeredAsV3(scheduleWithTriggeredV2).get,
-                                        InternalMetadata(traceToken))
-      failedEventSent shouldBe None
-      scheduleAsComplete shouldBe Some(scheduleId)
-    }
-  }
-
   it should "fail orchestration if schedule has no triggered events" in {
     val scheduleWithoutTriggered =
-      generate[Schedule].copy(scheduleId = scheduleId, triggered = None, triggeredV3 = None)
+      generate[Schedule].copy(scheduleId = scheduleId, triggeredV3 = None)
     var scheduleFailedPersist = Option.empty[(ScheduleId, String)]
     object Orchestrating extends StubPersistence {
       override def attemptSetScheduleAsOrchestrating(sId: ScheduleId): SetAsOrchestratingResult = {

@@ -30,8 +30,7 @@ class AivenSchedulingServiceTest
     with MockProfileResponses
     with FakeS3Configuration
     with ScalaFutures
-    with BeforeAndAfterAll
-    with KafkaTesting {
+    with BeforeAndAfterAll {
 
   implicit val config = ConfigFactory.load("servicetest.conf")
 

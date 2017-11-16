@@ -39,7 +39,7 @@ object Scheduler extends LoggingWithMDC {
     def removeScheduleFromMemory(schedule: Schedule): Either[ErrorDetails, MetadataV2] = {
       // Filter out failed schedule removals
       if (removeTask(schedule.scheduleId)) {
-        Schedule.triggeredAsV3(schedule) match {
+        schedule.triggeredV3 match {
           case Some(triggered) => Right(triggered.metadata)
           case None =>
             Left(

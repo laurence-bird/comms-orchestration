@@ -22,12 +22,7 @@ import com.ovoenergy.orchestration.ErrorHandling._
 import com.ovoenergy.orchestration.aws.AwsProvider
 import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
-import com.ovoenergy.orchestration.kafka.consumers.{
-  CancellationRequestConsumer,
-  LegacyCancellationRequestConsumer,
-  LegacyTriggeredConsumer,
-  TriggeredConsumer
-}
+import com.ovoenergy.orchestration.kafka.consumers.{CancellationRequestConsumer, TriggeredConsumer}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.processes.{ChannelSelectorWithTemplate, Orchestrator, Scheduler}
@@ -126,22 +121,6 @@ object Main extends App with LoggingWithMDC {
   val removeSchedule = QuartzScheduling.removeSchedule _
   val descheduleComm = Scheduler.descheduleComm(schedulingPersistence.cancelSchedules, removeSchedule) _
 
-  val legacyV3: RunnableGraph[Control] = {
-    TriggeredConsumer(
-      topic = Kafka.legacy.triggered.v3,
-      scheduleTask = scheduleTask,
-      sendFailedEvent = sendFailedTriggerEvent,
-      generateTraceToken = () => UUID.randomUUID().toString
-    )
-  }
-
-  val legacyV2: RunnableGraph[Control] = LegacyTriggeredConsumer(
-    topic = Kafka.legacy.triggered.v2,
-    scheduleTask = scheduleTask,
-    sendFailedEvent = sendFailedTriggerEvent,
-    generateTraceToken = () => UUID.randomUUID().toString
-  )
-
   val aivenV3: RunnableGraph[Control] = {
     TriggeredConsumer(
       topic = Kafka.aiven.triggered.v3,
@@ -160,24 +139,6 @@ object Main extends App with LoggingWithMDC {
       descheduleComm = descheduleComm
     )
   }
-
-  val cancellationRequestGraph: RunnableGraph[Control] = {
-    CancellationRequestConsumer(
-      topic = Kafka.legacy.cancellationRequested.v2,
-      sendFailedCancellationEvent = sendFailedCancellationEvent,
-      sendSuccessfulCancellationEvent = sendCancelledEvent,
-      generateTraceToken = () => UUID.randomUUID().toString,
-      descheduleComm = descheduleComm
-    )
-  }
-
-  val legacyCancellationRequestGraph = LegacyCancellationRequestConsumer(
-    topic = Kafka.legacy.cancellationRequested.v1,
-    sendFailedCancellationEvent = sendFailedCancellationEvent,
-    sendSuccessfulCancellationEvent = sendCancelledEvent,
-    generateTraceToken = () => UUID.randomUUID().toString,
-    descheduleComm = descheduleComm
-  )
 
   QuartzScheduling.init()
 
@@ -218,11 +179,7 @@ object Main extends App with LoggingWithMDC {
     }
   }
 
-  runGraph("scheduling", legacyV3)
   runGraph("aiven scheduling", aivenV3)
-  runGraph("legacy scheduling", legacyV2)
-  runGraph("cancellation", cancellationRequestGraph)
   runGraph("aiven cancellation", aivenCancellationRequestGraph)
-  runGraph("legacy cancellation", legacyCancellationRequestGraph)
   log.info("Orchestration started")
 }

@@ -134,42 +134,7 @@ trait DockerIntegrationTest
     "comms.orchestration.started.v2"
   )
 
-  val legacyTopics = aivenTopics ++ Seq(
-      "comms.triggered.v2",
-      "comms.cancellation.requested"
-    )
-
   // TODO currently no way to set the memory limit on docker containers. Need to make a PR to add support to docker-it-scala. I've checked that the spotify client supports it.
-
-  lazy val legacyZookeeper = DockerContainer("confluentinc/cp-zookeeper:3.1.1", name = Some("legacyZookeeper"))
-    .withPorts(32181 -> Some(32181))
-    .withEnv(
-      "ZOOKEEPER_CLIENT_PORT=32181",
-      "ZOOKEEPER_TICK_TIME=2000",
-      "KAFKA_HEAP_OPTS=-Xmx256M -Xms128M"
-    )
-    .withLogWritingAndReadyChecker("binding to port", "legacyZookeeper")
-
-  lazy val legacyKafka = {
-    // create each topic with 1 partition and replication factor 1
-    val createTopicsString = legacyTopics.map(t => s"$t:1:1").mkString(",")
-
-    val lastTopicName = legacyTopics.last
-
-    DockerContainer("wurstmeister/kafka:0.10.1.0", name = Some("legacyKafka"))
-      .withPorts(29092 -> Some(29092))
-      .withLinks(ContainerLink(legacyZookeeper, "legacyZookeeper"))
-      .withEnv(
-        "KAFKA_BROKER_ID=1",
-        "KAFKA_ZOOKEEPER_CONNECT=legacyZookeeper:32181",
-        "KAFKA_PORT=29092",
-        "KAFKA_ADVERTISED_PORT=29092",
-        s"KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$hostIpAddress:29092",
-        "KAFKA_HEAP_OPTS=-Xmx256M -Xms128M",
-        s"KAFKA_CREATE_TOPICS=$createTopicsString"
-      )
-      .withLogWritingAndReadyChecker(s"""Created topic "$lastTopicName"""", "legacyKafka")
-  }
 
   lazy val aivenZookeeper = DockerContainer("confluentinc/cp-zookeeper:3.1.1", name = Some("aivenZookeeper"))
     .withPorts(32182 -> Some(32182))
@@ -260,7 +225,6 @@ trait DockerIntegrationTest
       Some("PROFILE_SERVICE_API_KEY=someApiKey"),
       Some("PROFILE_SERVICE_HOST=http://profiles:1080"),
       Some("POLL_FOR_EXPIRED_INTERVAL=5 seconds"),
-      Some("KAFKA_HOSTS=legacyKafka:29092"),
       Some("KAFKA_HOSTS_AIVEN=aivenKafka:29093"),
       Some("LOCAL_DYNAMO=http://dynamodb:8000"),
       Some("SCHEMA_REGISTRY_URL=http://schema-registry:8081")
@@ -270,8 +234,6 @@ trait DockerIntegrationTest
                     name = Some("orchestration"))
       .withLinks(
         ContainerLink(profiles, "profiles"),
-        ContainerLink(legacyZookeeper, "legacyZookeeper"),
-        ContainerLink(legacyKafka, "legacyKafka"),
         ContainerLink(aivenZookeeper, "aivenZookeeper"),
         ContainerLink(aivenKafka, "aivenKafka"),
         ContainerLink(schemaRegistry, "schema-registry"),
@@ -284,16 +246,7 @@ trait DockerIntegrationTest
   }
 
   override def dockerContainers =
-    List(legacyZookeeper,
-         legacyKafka,
-         aivenZookeeper,
-         aivenKafka,
-         schemaRegistry,
-         fakes3,
-         fakes3ssl,
-         dynamodb,
-         profiles,
-         orchestration)
+    List(aivenZookeeper, aivenKafka, schemaRegistry, fakes3, fakes3ssl, dynamodb, profiles, orchestration)
 
   def checkCanConsumeFromKafkaTopic(topic: String, bootstrapServers: String, description: String) {
     println(s"Checking we can consume from topic $topic on $description Kafka")
@@ -330,7 +283,6 @@ trait DockerIntegrationTest
       "Starting a whole bunch of Docker containers. This could take a few minutes, but I promise it'll be worth the wait!")
     startAllOrFail()
 
-    legacyTopics.foreach(t => checkCanConsumeFromKafkaTopic(t, "localhost:29092", "legacy"))
     aivenTopics.foreach(t => checkCanConsumeFromKafkaTopic(t, "localhost:29093", "Aiven"))
   }
 
