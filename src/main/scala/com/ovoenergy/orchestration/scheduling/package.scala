@@ -26,7 +26,6 @@ package object scheduling extends LoggingWithMDC {
     def buildFromTrigger(triggeredV3: TriggeredV3, clock: Clock = Clock.systemUTC()) = {
       Schedule(
         scheduleId = DynamoPersistence.generateScheduleId(),
-        triggered = None,
         triggeredV3 = Some(triggeredV3),
         deliverAt = triggeredV3.deliverAt.getOrElse(Instant.now(clock)),
         status = ScheduleStatus.Pending,
@@ -39,25 +38,10 @@ package object scheduling extends LoggingWithMDC {
         history = Seq.empty[Change]
       )
     }
-
-    //TODO - Remove once migrated to V3 and no more schedules in DB
-    def triggeredAsV3(schedule: Schedule): Option[TriggeredV3] = {
-      (schedule.triggered, schedule.triggeredV3) match {
-        case (_, Some(v3)) => Some(v3)
-        case (Some(v2), _) => Some(triggeredV2ToV3(v2))
-        case (None, None) => {
-          log.error(
-            s"Triggered event doesn't exist for schedule with id ${schedule.scheduleId}, commName ${schedule.commName}")
-          None
-        }
-      }
-    }
   }
 
   case class Schedule(
       scheduleId: ScheduleId,
-      //TODO - Remove once migrated to V3 and no more schedules in DB
-      triggered: Option[TriggeredV2],
       triggeredV3: Option[TriggeredV3],
       deliverAt: Instant,
       status: ScheduleStatus,

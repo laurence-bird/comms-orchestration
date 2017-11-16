@@ -134,7 +134,6 @@ trait DockerIntegrationTest
     "comms.orchestration.started.v2"
   )
 
-
   // TODO currently no way to set the memory limit on docker containers. Need to make a PR to add support to docker-it-scala. I've checked that the spotify client supports it.
 
   lazy val aivenZookeeper = DockerContainer("confluentinc/cp-zookeeper:3.1.1", name = Some("aivenZookeeper"))
@@ -247,14 +246,7 @@ trait DockerIntegrationTest
   }
 
   override def dockerContainers =
-    List(aivenZookeeper,
-         aivenKafka,
-         schemaRegistry,
-         fakes3,
-         fakes3ssl,
-         dynamodb,
-         profiles,
-         orchestration)
+    List(aivenZookeeper, aivenKafka, schemaRegistry, fakes3, fakes3ssl, dynamodb, profiles, orchestration)
 
   def checkCanConsumeFromKafkaTopic(topic: String, bootstrapServers: String, description: String) {
     println(s"Checking we can consume from topic $topic on $description Kafka")

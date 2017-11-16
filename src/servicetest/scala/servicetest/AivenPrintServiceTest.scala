@@ -87,7 +87,7 @@ class AivenPrintServiceTest
   }
 
   it should "raise failure for triggered event with contact details with insufficient details" in {
-    uploadTemplateToFakeS3(region, s3Endpoint)(com.ovoenergy.orchestration.util.TestUtil.metadata.commManifest)
+    uploadTemplateToFakeS3(region, s3Endpoint)(com.ovoenergy.orchestration.util.TestUtil.metadataV2.commManifest)
     Kafka.aiven.triggered.v3.publishOnce(invalidPrintContactDetailsTriggered)
     expectOrchestrationStartedEvents(noOfEventsExpected = 1)
 
