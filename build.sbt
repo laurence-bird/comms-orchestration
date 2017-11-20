@@ -1,13 +1,13 @@
 name                  := "orchestration"
 organization          := "com.ovoenergy"
-scalaVersion          := "2.11.11"
+scalaVersion          := "2.12.4"
 scalacOptions         := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
 val circeVersion = "0.7.0"
 val commsKafkaSerialisationVersion = "3.5"
 
 libraryDependencies ++= Seq(
-  "com.typesafe.akka"          %% "akka-slf4j"                % "2.3.14",
+  "com.typesafe.akka"          %% "akka-slf4j"                % "2.4.18",
   "com.ovoenergy"              %% "comms-kafka-messages"      % "1.40"  ,
   "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-kafka-helpers"       % commsKafkaSerialisationVersion,
@@ -27,7 +27,7 @@ libraryDependencies ++= Seq(
   "org.scalacheck"             %% "scalacheck"                % "1.13.4" % Test,
   "org.scalatest"              %% "scalatest"                 % "3.0.3" % Test,
   "com.github.alexarchambault" %% "scalacheck-shapeless_1.13" % "1.1.4" % Test,
-  "org.mock-server"            % "mockserver-client-java"     % "3.10.4" % Test,
+  "org.mock-server"            % "mockserver-client-java"     % "3.12" % Test,
 
   "com.whisk" %% "docker-testkit-scalatest" % "0.9.3" % ServiceTest,
   "com.whisk" %% "docker-testkit-impl-docker-java" % "0.9.3" % ServiceTest,
