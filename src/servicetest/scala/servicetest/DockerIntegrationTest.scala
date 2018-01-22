@@ -110,7 +110,8 @@ trait DockerIntegrationTest
     )
   )
 
-  override val StartContainersTimeout = 2.minutes
+  override val StartContainersTimeout            = 15.minutes
+  override val PullImagesTimeout: FiniteDuration = scaled(30.minutes)
 
   override implicit lazy val dockerExecutionContext: ExecutionContext = {
     // using Math.max to prevent unexpected zero length of docker containers
@@ -119,7 +120,6 @@ trait DockerIntegrationTest
 
   val hostIpAddress = {
     import sys.process._
-//    "10.200.10.1" // TODO revert me
     "./get_ip_address.sh".!!.trim
   }
 
@@ -179,7 +179,7 @@ trait DockerIntegrationTest
     )
     .withLogWritingAndReadyChecker("Server started, listening for requests", "schema-registry")
 
-  lazy val profiles = DockerContainer("jamesdbloom/mockserver:latest", name = Some("profiles"))
+  lazy val profiles = DockerContainer("jamesdbloom/mockserver:mockserver-3.12", name = Some("profiles"))
     .withPorts(1080 -> Some(1080))
     .withLogWritingAndReadyChecker("MockServer proxy started", "profiles")
 

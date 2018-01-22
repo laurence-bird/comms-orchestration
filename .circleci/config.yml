@@ -2,7 +2,8 @@ version: 2
 jobs:
   build:
     working_directory: ~/comms-orchestration
-    machine: true
+    machine:
+      image: circleci/classic:edge
     steps:
       - checkout
 
@@ -10,12 +11,22 @@ jobs:
       - restore_cache:
           keys:
             - "{{ .Environment.CIRCLE_PROJECT_REPONAME }}-credstash"
+      - run:
+          name: Install python-dev, pip
+          command: sudo apt-get update && sudo apt-get install -y libpython2.7-dev python-pip
       - run: pip install credstash
       - save_cache:
           key: "{{ .Environment.CIRCLE_PROJECT_REPONAME }}-credstash"
           paths:
             - /home/circleci/.cache/pip
 
+      - run:
+          name: Logn to AWS as circleci seems to ignore the setting
+          command: |
+            mkdir ~/.aws
+            echo "[default]" >> ~/.aws/credentials
+            echo "aws_access_key_id = $AWS_ACCESS_KEY_ID" >> ~/.aws/credentials
+            echo "aws_secret_access_key = $AWS_SECRET_ACCESS_KEY" >> ~/.aws/credentials
       - restore_cache:
           keys:
             - "{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Branch }}"

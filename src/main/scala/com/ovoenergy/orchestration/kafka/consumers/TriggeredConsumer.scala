@@ -29,7 +29,11 @@ object TriggeredConsumer extends LoggingWithMDC {
             generateTraceToken: () => String)(implicit actorSystem: ActorSystem,
                                               materializer: Materializer): RunnableGraph[Control] = {
 
-    val additionalMdcParams = Map("kafkaHosts" -> topic.kafkaConfig.hosts)
+    def additionalMdcParams(offset: Long, partition: Int, kafkaTopic: String) =
+      Map("kafkaHosts" -> topic.kafkaConfig.hosts,
+          "offset"     -> offset.toString,
+          "partition"  -> partition.toString,
+          "topic"      -> kafkaTopic)
 
     implicit val executionContext = actorSystem.dispatcher
     val decider: Supervision.Decider = {
@@ -47,7 +51,10 @@ object TriggeredConsumer extends LoggingWithMDC {
       .mapAsync(1)(msg => {
         val result: Future[_] = msg.record.value match {
           case Some(triggered: TriggeredV3) =>
-            logInfo(triggered, s"Processing event: ${triggered.loggableString.get}", additionalMdcParams) // Always evaluates to Some, library needs updating
+            logInfo(
+              triggered,
+              s"Processing event: ${triggered.loggableString.get}",
+              additionalMdcParams(msg.record.offset(), msg.record.partition(), msg.record.topic())) // Always evaluates to Some, library needs updating
             scheduleTask(triggered) match {
               case Left(err) =>
                 sendFailedEvent(

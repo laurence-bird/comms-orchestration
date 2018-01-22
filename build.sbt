@@ -5,6 +5,7 @@ scalacOptions         := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
 val circeVersion = "0.7.0"
 val commsKafkaSerialisationVersion = "3.5"
+val dockerTestkitVersion = "0.9.5"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka"          %% "akka-slf4j"                % "2.4.18",
@@ -28,9 +29,9 @@ libraryDependencies ++= Seq(
   "org.scalatest"              %% "scalatest"                 % "3.0.3" % Test,
   "com.github.alexarchambault" %% "scalacheck-shapeless_1.13" % "1.1.4" % Test,
   "org.mock-server"            % "mockserver-client-java"     % "3.12" % Test,
-
-  "com.whisk" %% "docker-testkit-scalatest" % "0.9.3" % ServiceTest,
-  "com.whisk" %% "docker-testkit-impl-docker-java" % "0.9.3" % ServiceTest,
+  "com.whisk" %% "docker-testkit-scalatest" % dockerTestkitVersion % ServiceTest,
+  "com.whisk" %% "docker-testkit-impl-docker-java" % dockerTestkitVersion % ServiceTest,
+  "com.whisk" %% "docker-testkit-core"             % dockerTestkitVersion % ServiceTest,
   "com.ovoenergy" %% "comms-kafka-test-helpers" % commsKafkaSerialisationVersion % ServiceTest,
   "commons-io" % "commons-io" % "2.5" % ServiceTest
 )
