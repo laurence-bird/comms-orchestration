@@ -15,6 +15,7 @@ import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.clients.producer.RecordMetadata
 import com.ovoenergy.comms.serialisation.Codecs._
 import com.ovoenergy.orchestration.ErrorHandling.exitAppOnFailure
+import com.ovoenergy.orchestration.processes.TriggeredDataValidator
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
@@ -55,13 +56,13 @@ object TriggeredConsumer extends LoggingWithMDC {
               triggered,
               s"Processing event: ${triggered.loggableString.get}",
               additionalMdcParams(msg.record.offset(), msg.record.partition(), msg.record.topic())) // Always evaluates to Some, library needs updating
-            scheduleTask(triggered) match {
+            TriggeredDataValidator(triggered) map scheduleTask match {
               case Left(err) =>
                 sendFailedEvent(
                   FailedV2(
                     MetadataV2.fromSourceMetadata("orchestration", triggered.metadata),
                     InternalMetadata(generateTraceToken()),
-                    s"Scheduling of comm failed: ${err.reason}",
+                    err.reason,
                     err.errorCode
                   )
                 )

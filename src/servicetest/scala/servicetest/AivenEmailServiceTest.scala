@@ -13,6 +13,7 @@ import com.ovoenergy.comms.serialisation.Codecs._
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
+import monocle.macros.syntax.lens._
 
 class AivenEmailServiceTest
     extends FlatSpec
@@ -145,6 +146,35 @@ class AivenEmailServiceTest
       failure.reason should include("No contact details found")
       failure.errorCode shouldBe InvalidProfile
       failure.metadata.traceToken shouldBe TestUtil.traceToken
+    })
+  }
+
+  it should "raise failure for triggered event with a list of fields having empty string as their value" in {
+
+    val td = Map(
+      "firstName" -> TemplateData.fromString("Joe"),
+      "lastName"  -> TemplateData.fromString(""),
+      "roles" -> TemplateData.fromSeq(
+        List[TemplateData](TemplateData.fromString("admin"), TemplateData.fromString("")))
+    )
+
+    val emptyTraceToken = TriggeredV3(
+      metadata = TestUtil.metadataV2.lens(_.traceToken).modify(_ => ""),
+      templateData = Map("person" -> TemplateData.fromMap(td)),
+      deliverAt = None,
+      expireAt = None,
+      Some(List(Email))
+    )
+
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.metadataV2.commManifest)
+    Kafka.aiven.triggered.v3.publishOnce(emptyTraceToken)
+
+    val failures = failedConsumer.pollFor(noOfEventsExpected = 1)
+    failures.foreach(failure => {
+      failure.reason should include(
+        "The following fields contain empty string: traceToken, templateData.person.lastName, templateData.person.roles!")
+      failure.errorCode shouldBe OrchestrationError
+      failure.metadata.traceToken shouldBe ""
     })
   }
 
