@@ -172,7 +172,7 @@ class AivenEmailServiceTest
     val failures = failedConsumer.pollFor(noOfEventsExpected = 1)
     failures.foreach(failure => {
       failure.reason should include(
-        "The following fields contain empty string: traceToken, templateData.person.lastName, templateData.person.roles!")
+        "The following fields contain empty string: traceToken, templateData.person.lastName, templateData.person.roles")
       failure.errorCode shouldBe OrchestrationError
       failure.metadata.traceToken shouldBe ""
     })

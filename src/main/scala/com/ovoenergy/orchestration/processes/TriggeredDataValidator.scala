@@ -11,7 +11,7 @@ import shapeless.{Inl, Inr}
 
 object TriggeredDataValidator extends LoggingWithMDC {
 
-  implicit val booleanSemi: Monoid[Boolean] = new Monoid[Boolean]{
+  implicit val booleanMonoid: Monoid[Boolean] = new Monoid[Boolean]{
     override def empty = true
     override def combine(x: Boolean, y: Boolean) = x && y
   }
@@ -34,7 +34,7 @@ object TriggeredDataValidator extends LoggingWithMDC {
       case Valid(_) => Right(triggered)
       case Invalid(emptyFields) =>
         Left(ErrorDetails(
-          s"The following fields contain empty string: ${emptyFields.toList.mkString(", ")}!",
+          s"The following fields contain empty string: ${emptyFields.toList.mkString(", ")}",
           OrchestrationError)
         )
     }
@@ -52,7 +52,7 @@ object TriggeredDataValidator extends LoggingWithMDC {
     case (Inl(stringValue: String)) => checkIfEmpty(stringValue, key)
     case (Inr(Inl(sequence)))       => sequence.toList.foldMap(t => checkTemplateData(key, t))
     case (Inr(Inr(Inl(mapObj))))    => mapObj.map(e => checkTemplateData(s"$key.${e._1}", e._2)).toList.foldMap(identity)
-    case (Inr(Inr(Inr(_))))         => Invalid(NonEmptyList.of("Unable to extract value from template data"))
+    case (Inr(Inr(Inr(_))))         => Invalid(NonEmptyList.of(s"Unable to extract value from templateData.$key"))
   }
 
 }
