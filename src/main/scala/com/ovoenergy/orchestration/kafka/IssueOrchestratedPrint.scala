@@ -2,17 +2,17 @@ package com.ovoenergy.orchestration.kafka
 
 import java.util.UUID
 
+import cats.effect.Async
 import com.ovoenergy.comms.model.print.OrchestratedPrint
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.ContactAddress
-import org.apache.kafka.clients.producer.RecordMetadata
+import com.ovoenergy.orchestration.kafka.producers.Publisher
 
-import scala.concurrent.Future
+class IssueOrchestratedPrint(producer: Publisher[OrchestratedPrint]) extends IssueOrchestratedComm[ContactAddress] {
 
-class IssueOrchestratedPrint(sendEvent: OrchestratedPrint => Future[RecordMetadata])
-    extends IssueOrchestratedComm[ContactAddress] {
-
-  override def send(customerProfile: Option[CustomerProfile], contactInfo: ContactAddress, triggered: TriggeredV3) = {
+  override def send[F[_]: Async](customerProfile: Option[CustomerProfile],
+                                 contactInfo: ContactAddress,
+                                 triggered: TriggeredV3): F[Either[String, Unit]] = {
 
     val orchestratedPrintEvent = OrchestratedPrint(
       metadata = MetadataV2.fromSourceMetadata("orchestration", triggered.metadata),
@@ -28,6 +28,6 @@ class IssueOrchestratedPrint(sendEvent: OrchestratedPrint => Future[RecordMetada
                                 contactInfo.country)
     )
 
-    sendEvent(orchestratedPrintEvent)
+    producer.publish(orchestratedPrintEvent, orchestratedPrintEvent.metadata.eventId)
   }
 }

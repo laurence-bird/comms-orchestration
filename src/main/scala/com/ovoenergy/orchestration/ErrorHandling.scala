@@ -1,11 +1,13 @@
 package com.ovoenergy.orchestration
 
 import akka.actor.ActorSystem
+import cats.effect.Async
 import com.ovoenergy.comms.helpers.{EventLogger, HasCommName, Topic}
+import com.ovoenergy.comms.model.TriggeredV3
 import com.ovoenergy.comms.serialisation.Retry
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.sksamuel.avro4s.{SchemaFor, ToRecord}
-import org.apache.kafka.clients.producer.RecordMetadata
+import org.apache.kafka.clients.producer.{Callback, ProducerRecord, RecordMetadata}
 
 import scala.concurrent.Future
 import scala.reflect.ClassTag
@@ -49,5 +51,4 @@ object ErrorHandling extends LoggingWithMDC {
 
     exitAppOnFailure(topic.retryPublisher, topic.name)
   }
-
 }

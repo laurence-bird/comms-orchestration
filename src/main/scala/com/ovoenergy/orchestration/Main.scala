@@ -7,15 +7,19 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
-import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.Control
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.RunnableGraph
 import cats.Id
+import cats.effect.IO
+import cats.effect.IO.Async
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
 import com.ovoenergy.comms.helpers.Kafka
 import com.ovoenergy.comms.model._
+import com.ovoenergy.comms.model.email.OrchestratedEmailV3
+import com.ovoenergy.comms.model.print.OrchestratedPrint
+import com.ovoenergy.comms.model.sms.OrchestratedSMSV2
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
 import com.ovoenergy.comms.templates.{ErrorsOr, TemplatesRepo}
 import com.ovoenergy.orchestration.ErrorHandling._
@@ -38,6 +42,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import com.ovoenergy.comms.serialisation.Codecs._
 import com.ovoenergy.orchestration.http.Retry.RetryConfig
+import com.ovoenergy.orchestration.kafka.producers.Publisher
 
 object Main extends App with LoggingWithMDC {
   Files.readAllLines(new File("banner.txt").toPath).asScala.foreach(println(_))
@@ -73,15 +78,12 @@ object Main extends App with LoggingWithMDC {
     val topic = Kafka.aiven.failed.v2
     exitAppOnFailure(topic.retryPublisher, topic.name)
   }
-  val sendCancelledEvent = {
-    val topic = Kafka.aiven.cancelled.v2
-    exitAppOnFailure(topic.retryPublisher, topic.name)
-  }
-  val sendFailedCancellationEvent   = retryPublisherFor(Kafka.aiven.failedCancellation.v2)
-  val sendOrchestrationStartedEvent = retryPublisherFor(Kafka.aiven.orchestrationStarted.v2)
-  val sendOrchestratedEmailEvent    = retryPublisherFor(Kafka.aiven.orchestratedEmail.v3)
-  val sendOrchestratedSMSEvent      = retryPublisherFor(Kafka.aiven.orchestratedSMS.v2)
-  val sendOrchestratedPrintEvent    = retryPublisherFor(Kafka.aiven.orchestratedPrint.v1)
+  val sendCancelledEvent            = new Publisher[CancelledV2](???, ???)
+  val sendFailedCancellationEvent   = new Publisher[FailedCancellationV2](???, ???)
+  val sendOrchestrationStartedEvent = new Publisher[OrchestrationStartedV2](???, ???)
+  val sendOrchestratedEmailEvent    = new Publisher[OrchestratedEmailV3](???, ???)
+  val sendOrchestratedSMSEvent      = new Publisher[OrchestratedSMSV2](???, ???)
+  val sendOrchestratedPrintEvent    = new Publisher[OrchestratedPrint](???, ???)
 
   val orchestrateEmail = new IssueOrchestratedEmail(sendOrchestratedEmailEvent)
   val orchestrateSMS   = new IssueOrchestratedSMS(sendOrchestratedSMSEvent)
@@ -102,18 +104,18 @@ object Main extends App with LoggingWithMDC {
     ) _
   }
 
-  val orchestrateComm: (TriggeredV3, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]] = Orchestrator(
-    channelSelector = determineChannel,
-    getValidatedCustomerProfile = ProfileValidation.getValidatedCustomerProfile(profileCustomer),
-    getValidatedContactProfile = ProfileValidation.validateContactProfile,
-    issueOrchestratedEmail = orchestrateEmail,
-    issueOrchestratedSMS = orchestrateSMS,
-    issueOrchestratedPrint = orchestratePrint
-  )
+  val orchestrateComm: (TriggeredV3, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]] = ??? //Orchestrator(
+//    channelSelector = determineChannel,
+//    getValidatedCustomerProfile = ProfileValidation.getValidatedCustomerProfile(profileCustomer),
+//    getValidatedContactProfile = ProfileValidation.validateContactProfile,
+//    issueOrchestratedEmail = orchestrateEmail,
+//    issueOrchestratedSMS = orchestrateSMS,
+//    issueOrchestratedPrint = orchestratePrint
+//  )
 
   val executeScheduledTask = TaskExecutor.execute(schedulingPersistence,
                                                   orchestrateComm,
-                                                  sendOrchestrationStartedEvent,
+                                                  ???, //sendOrchestrationStartedEvent,
                                                   () => UUID.randomUUID.toString,
                                                   sendFailedTriggerEvent) _
   val addSchedule    = QuartzScheduling.addSchedule(executeScheduledTask) _
@@ -121,23 +123,15 @@ object Main extends App with LoggingWithMDC {
   val removeSchedule = QuartzScheduling.removeSchedule _
   val descheduleComm = Scheduler.descheduleComm(schedulingPersistence.cancelSchedules, removeSchedule) _
 
-  val aivenV3: RunnableGraph[Control] = {
-    TriggeredConsumer(
-      topic = Kafka.aiven.triggered.v3,
-      scheduleTask = scheduleTask,
-      sendFailedEvent = sendFailedTriggerEvent,
-      generateTraceToken = () => UUID.randomUUID().toString
-    )
-  }
+  val aivenV3: RunnableGraph[Control] = ???
 
   val aivenCancellationRequestGraph = {
-    CancellationRequestConsumer(
-      topic = Kafka.aiven.cancellationRequested.v2,
+    CancellationRequestConsumer[IO](
       sendFailedCancellationEvent = sendFailedCancellationEvent,
       sendSuccessfulCancellationEvent = sendCancelledEvent,
       generateTraceToken = () => UUID.randomUUID().toString,
       descheduleComm = descheduleComm
-    )
+    ) _
   }
 
   QuartzScheduling.init()
@@ -170,16 +164,5 @@ object Main extends App with LoggingWithMDC {
     }
   }
 
-  def runGraph(graphName: String, graph: RunnableGraph[Consumer.Control]) = {
-    log.debug(s"Starting graph: $graph")
-    val control = graph.run()
-    control.isShutdown.foreach { _ =>
-      log.error(s"ARGH! The Kafka $graphName event source has shut down. Killing the JVM and nuking from orbit.")
-      System.exit(1)
-    }
-  }
-
-  runGraph("aiven scheduling", aivenV3)
-  runGraph("aiven cancellation", aivenCancellationRequestGraph)
   log.info("Orchestration started")
 }

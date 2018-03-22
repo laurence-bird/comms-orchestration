@@ -3,10 +3,12 @@ organization          := "com.ovoenergy"
 scalaVersion          := "2.12.4"
 scalacOptions         := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
-val circeVersion = "0.7.0"
-val commsKafkaSerialisationVersion = "3.5"
+val circeVersion = "0.9.0"
+val commsKafkaSerialisationVersion = "3.12"
 val dockerTestkitVersion = "0.9.5"
 val monocleVersion = "1.5.0"
+val fs2KafkaClientVersion = "0.1.8"
+val fs2Version = "0.10.2"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka"          %% "akka-slf4j"                % "2.4.18",
@@ -17,8 +19,10 @@ libraryDependencies ++= Seq(
   "ch.qos.logback"             % "logback-classic"            % "1.1.7",
   "me.moocar"                  % "logback-gelf"               % "0.2",
   "io.logz.logback"            % "logzio-logback-appender"    % "1.0.11",
-  "org.typelevel"              %% "cats-core"                 % "0.9.0",
+  "org.typelevel"              %% "cats-core"                 % "1.0.1",
   "com.squareup.okhttp3"       % "okhttp"                     % "3.4.2",
+  "co.fs2"                     %% "fs2-core"                  % fs2Version,
+  "com.ovoenergy"              %% "fs2-kafka-client"          % fs2KafkaClientVersion,
   "io.circe"                   %% "circe-core"                % circeVersion,
   "io.circe"                   %% "circe-shapes"              % circeVersion,
   "io.circe"                   %% "circe-generic-extras"      % circeVersion,

@@ -34,7 +34,7 @@ object Scheduler extends LoggingWithMDC {
 
   def descheduleComm(removeFromDb: (CustomerId, CommName) => Seq[Either[ErrorDetails, Schedule]],
                      removeTask: (ScheduleId) => Boolean)(
-      cancellationRequested: CancellationRequestedV2): Seq[Either[ErrorDetails, MetadataV2]] = {
+      cancellationRequested: CancellationRequestedV2): List[Either[ErrorDetails, MetadataV2]] = {
 
     def removeScheduleFromMemory(schedule: Schedule): Either[ErrorDetails, MetadataV2] = {
       // Filter out failed schedule removals
@@ -54,6 +54,6 @@ object Scheduler extends LoggingWithMDC {
     dynamoResult.map { schedule =>
       log.debug(s"Removing schedule from memory: $schedule")
       schedule.flatMap(removeScheduleFromMemory)
-    }
+    }.toList
   }
 }

@@ -2,19 +2,20 @@ package com.ovoenergy.orchestration.kafka
 
 import java.util.UUID
 
+import cats.effect.Async
 import com.ovoenergy.comms.model.email.OrchestratedEmailV3
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.EmailAddress
+import com.ovoenergy.orchestration.kafka.producers.Publisher
 import org.apache.kafka.clients.producer.RecordMetadata
 
 import scala.concurrent.Future
 
-class IssueOrchestratedEmail(sendEvent: OrchestratedEmailV3 => Future[RecordMetadata])
-    extends IssueOrchestratedComm[EmailAddress] {
+class IssueOrchestratedEmail(producer: Publisher[OrchestratedEmailV3]) extends IssueOrchestratedComm[EmailAddress] {
 
-  def send(customerProfile: Option[CustomerProfile],
-           emailAddress: EmailAddress,
-           triggered: TriggeredV3): Future[RecordMetadata] = {
+  def send[F[_]: Async](customerProfile: Option[CustomerProfile],
+                        emailAddress: EmailAddress,
+                        triggered: TriggeredV3): F[Either[String, Unit]] = {
     val orchestratedEmailEvent = OrchestratedEmailV3(
       metadata = MetadataV2.fromSourceMetadata(
         source = "orchestration",
@@ -27,7 +28,7 @@ class IssueOrchestratedEmail(sendEvent: OrchestratedEmailV3 => Future[RecordMeta
       customerProfile = customerProfile
     )
 
-    sendEvent(orchestratedEmailEvent)
+    producer.publish(orchestratedEmailEvent, orchestratedEmailEvent.metadata.eventId)
   }
 
 }
