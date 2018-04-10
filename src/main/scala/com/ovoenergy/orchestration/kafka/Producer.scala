@@ -35,7 +35,7 @@ object Producer {
         SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG    -> Paths.get(ssl.truststore.location).toString,
         SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG        -> "JKS",
         SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG    -> ssl.truststore.password
-      )
+      ) ++ initialSettings
     }
 
     val producerSettings: Map[String, AnyRef] = sslSettings.getOrElse(initialSettings)
