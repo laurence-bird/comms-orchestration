@@ -1,8 +1,10 @@
 package com.ovoenergy.orchestration.kafka
 
 import java.nio.file.Paths
+import java.util.UUID
 
 import cats.effect.Async
+
 import scala.util.control.NonFatal
 import com.ovoenergy.comms.helpers.Topic
 import com.sksamuel.avro4s.{SchemaFor, ToRecord}
@@ -19,7 +21,7 @@ object Producer {
 
     val initialSettings = Map(
       ProducerConfig.BOOTSTRAP_SERVERS_CONFIG  -> topic.kafkaConfig.hosts,
-      ProducerConfig.CLIENT_ID_CONFIG          -> s"comms-http-api-${topic.name}",
+      ProducerConfig.CLIENT_ID_CONFIG          -> s"comms-http-api-${topic.name}-${UUID.randomUUID()}",
       ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> "true",
       ProducerConfig.RETRIES_CONFIG            -> "5",
       ProducerConfig.ACKS_CONFIG               -> "all"
