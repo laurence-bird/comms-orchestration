@@ -19,7 +19,7 @@ object Producer {
 
     val initialSettings = Map(
       ProducerConfig.BOOTSTRAP_SERVERS_CONFIG  -> topic.kafkaConfig.hosts,
-      ProducerConfig.CLIENT_ID_CONFIG          -> "comms-http-api",
+      ProducerConfig.CLIENT_ID_CONFIG          -> s"comms-http-api-${topic.name}",
       ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> "true",
       ProducerConfig.RETRIES_CONFIG            -> "5",
       ProducerConfig.ACKS_CONFIG               -> "all"
