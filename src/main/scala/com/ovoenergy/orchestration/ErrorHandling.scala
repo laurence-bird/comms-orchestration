@@ -1,13 +1,11 @@
 package com.ovoenergy.orchestration
 
-import akka.actor.ActorSystem
+import cats.effect.IO
 import com.ovoenergy.comms.helpers.{EventLogger, HasCommName, Topic}
 import com.ovoenergy.comms.serialisation.Retry
+import com.ovoenergy.orchestration.kafka.Producer
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.sksamuel.avro4s.{SchemaFor, ToRecord}
-import org.apache.kafka.clients.producer.RecordMetadata
-
-import scala.concurrent.Future
 import scala.reflect.ClassTag
 
 object ErrorHandling extends LoggingWithMDC {
@@ -40,14 +38,16 @@ object ErrorHandling extends LoggingWithMDC {
     }
   }
 
-  def retryPublisherFor[E](topic: Topic[E])(implicit schemaFor: SchemaFor[E],
-                                            toRecord: ToRecord[E],
-                                            classTag: ClassTag[E],
-                                            eventLogger: EventLogger[E],
-                                            hasCommName: HasCommName[E],
-                                            actorSystem: ActorSystem): (E) => Future[RecordMetadata] = {
+  def publisherFor[E](topic: Topic[E], key: E => String)(implicit schemaFor: SchemaFor[E],
+                                                         toRecord: ToRecord[E],
+                                                         classTag: ClassTag[E],
+                                                         eventLogger: EventLogger[E],
+                                                         hasCommName: HasCommName[E]) = { (e: E) =>
+    {
+      val producer = exitAppOnFailure(Producer[E](topic), topic.name)
+      log.info(s"Sending event to topic ${topic.name} \n event: $e ")
 
-    exitAppOnFailure(topic.retryPublisher, topic.name)
+      Producer[E, IO](key, producer, topic.name)(e)
+    }
   }
-
 }

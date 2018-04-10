@@ -128,7 +128,7 @@ object ProfileValidation extends LoggingWithMDC {
     def apply(error: ValidationError): ValidationErrors = ValidationErrors(NonEmptyList.of(error))
     implicit val sg = new Semigroup[ValidationErrors] {
       override def combine(x: ValidationErrors, y: ValidationErrors): ValidationErrors =
-        ValidationErrors(x.errors.concat(y.errors))
+        ValidationErrors(x.errors.concatNel(y.errors))
     }
   }
   private type ValidationErrorsOr[A] = Validated[ValidationErrors, A]

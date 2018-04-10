@@ -43,6 +43,8 @@ jobs:
             # TODO docker image cache?
       - run: sbt testWithDynamo
       - run: sbt servicetest:test
+      - store_artifacts:
+                path: /home/circleci/comms-orchestration/target/integration-test-logs
       - deploy:
           name: Deploy if master branch
           command: |

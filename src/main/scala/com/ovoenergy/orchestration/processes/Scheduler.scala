@@ -2,36 +2,47 @@ package com.ovoenergy.orchestration.processes
 
 import java.time.{Clock, Instant}
 
+import cats.effect.Async
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.scheduling.{Schedule, ScheduleId}
 import cats.syntax.either._
+import scala.util.control.NonFatal
 import scala.util.Try
+import cats.syntax.flatMap._
+import cats.syntax.functor._
+import cats.syntax.either._
+import cats.syntax.applicative._
+import cats.syntax.applicativeError._
 
 object Scheduler extends LoggingWithMDC {
   type CustomerId = String
   type CommName   = String
 
-  def scheduleComm(storeInDb: (Schedule) => Unit,
-                   registerTask: (ScheduleId, Instant) => Boolean,
-                   clock: Clock = Clock.systemUTC())(triggered: TriggeredV3): Either[ErrorDetails, Boolean] = {
-    val result = Try {
+  def scheduleComm[F[_]: Async](storeInDb: Schedule => F[Option[Schedule]],
+                                registerTask: (ScheduleId, Instant) => Boolean,
+                                clock: Clock = Clock.systemUTC()): TriggeredV3 => F[Either[ErrorDetails, Boolean]] = {
+    (triggered: TriggeredV3) =>
       log.info(s"Scheduling triggered event: $triggered")
       val schedule        = Schedule.buildFromTrigger(triggered, clock)
       val scheduleInstant = schedule.deliverAt
-      storeInDb(schedule)
-      registerTask(schedule.scheduleId, scheduleInstant)
-    }
 
-    Either
-      .fromTry(result)
-      .leftMap { e =>
-        logWarn(triggered.metadata.traceToken, "failed to schedule comm", e)
-        ErrorDetails("Failed to schedule comm", OrchestrationError)
-      }
+      storeInDb(schedule)
+        .flatMap { s =>
+          Async[F]
+            .delay {
+              registerTask(schedule.scheduleId, scheduleInstant)
+            }
+            .map(task => task.asRight[ErrorDetails])
+        }
+        .recover {
+          case NonFatal(e) =>
+            Left(ErrorDetails("Failed to schedule comm", OrchestrationError))
+        }
   }
 
+  // TODO: make me Async!
   def descheduleComm(removeFromDb: (CustomerId, CommName) => Seq[Either[ErrorDetails, Schedule]],
                      removeTask: (ScheduleId) => Boolean)(
       cancellationRequested: CancellationRequestedV2): Seq[Either[ErrorDetails, MetadataV2]] = {
@@ -49,6 +60,7 @@ object Scheduler extends LoggingWithMDC {
         Left(ErrorDetails(s"Failed to remove ${schedule.scheduleId} schedule(s) from memory", OrchestrationError))
       }
     }
+
     log.debug(s"Processing request: $cancellationRequested")
     val dynamoResult = removeFromDb(cancellationRequested.customerId, cancellationRequested.commName)
     dynamoResult.map { schedule =>

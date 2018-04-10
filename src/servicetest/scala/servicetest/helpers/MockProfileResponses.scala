@@ -3,6 +3,7 @@ package servicetest.helpers
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
+import com.ovoenergy.orchestration.util.TestUtil
 import org.mockserver.client.server.MockServerClient
 import org.mockserver.matchers.Times
 import org.mockserver.model.HttpRequest.request
@@ -40,7 +41,7 @@ trait MockProfileResponses {
       .when(
         request()
           .withMethod("GET")
-          .withPath(s"/api/customers/GT-CUS-994332344")
+          .withPath(s"/api/customers/${TestUtil.customerId}")
           .withQueryStringParameter("apikey", "someApiKey")
       )
       .respond(
@@ -61,7 +62,7 @@ trait MockProfileResponses {
       .when(
         request()
           .withMethod("GET")
-          .withPath(s"/api/customers/GT-CUS-994332344")
+          .withPath(s"/api/customers/${TestUtil.customerId}")
           .withQueryStringParameter("apikey", "someApiKey")
       )
       .respond(
@@ -78,7 +79,7 @@ trait MockProfileResponses {
       .when(
         request()
           .withMethod("GET")
-          .withPath(s"/api/customers/GT-CUS-994332344")
+          .withPath(s"/api/customers/${TestUtil.customerId}")
           .withQueryStringParameter("apikey", "someApiKey")
       )
       .respond(
@@ -102,7 +103,7 @@ trait MockProfileResponses {
       .when(
         request()
           .withMethod("GET")
-          .withPath(s"/api/customers/GT-CUS-994332344")
+          .withPath(s"/api/customers/${TestUtil.customerId}")
           .withQueryStringParameter("apikey", "someApiKey"),
         Times.exactly(3)
       )
@@ -115,7 +116,7 @@ trait MockProfileResponses {
       .when(
         request()
           .withMethod("GET")
-          .withPath(s"/api/customers/GT-CUS-994332344")
+          .withPath(s"/api/customers/${TestUtil.customerId}")
           .withQueryStringParameter("apikey", "someApiKey")
       )
       .respond(

@@ -2,6 +2,7 @@ package com.ovoenergy.orchestration.processes
 
 import java.time.{Clock, Instant, ZoneId}
 
+import cats.effect.IO
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.processes.Scheduler.{CommName, CustomerId}
@@ -17,7 +18,10 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
   val clock = Clock.fixed(now, ZoneId.of("UTC"))
 
   var storedSchedule = Option.empty[Schedule]
-  val storeSchedule  = (schedule: Schedule) => storedSchedule = Some(schedule)
+  val storeSchedule: Schedule => IO[Option[Schedule]] = (schedule: Schedule) => {
+    storedSchedule = Some(schedule)
+    IO.pure(storedSchedule)
+  }
 
   var scheduledId      = Option.empty[ScheduleId]
   var scheduledInstant = Option.empty[Instant]
@@ -31,7 +35,9 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
 
   it should "persist and schedule an immediate comm" in {
     val triggered = TestUtil.customerTriggered.copy(deliverAt = None)
-    Scheduler.scheduleComm(storeSchedule, registerTask, clock)(triggered) shouldBe Right(true)
+    val result    = Scheduler.scheduleComm[IO](storeSchedule, registerTask, clock).apply(triggered)
+
+    result.unsafeRunSync() shouldBe Right(true)
 
     //Side effects
     storedSchedule.get.triggeredV3.get shouldBe triggered
@@ -45,7 +51,7 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
 
   it should "persist and schedule a future comm" in {
     val triggered = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.parse("2036-01-01T12:34:44.000Z")))
-    Scheduler.scheduleComm(storeSchedule, registerTask, clock)(triggered) shouldBe Right(true)
+    Scheduler.scheduleComm(storeSchedule, registerTask, clock).apply(triggered).unsafeRunSync() shouldBe Right(true)
 
     //Side effects
     storedSchedule.get.triggeredV3.get shouldBe triggered
@@ -58,15 +64,18 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
   }
 
   it should "handle exceptions when persisting scheduled comm" in {
-    val storeSchedule = (schedule: Schedule) => throw new RuntimeException("Some error")
-    Scheduler.scheduleComm(storeSchedule, registerTask, clock)(TestUtil.customerTriggered) shouldBe Left(
-      ErrorDetails("Failed to schedule comm", OrchestrationError))
+    val storeSchedule = (schedule: Schedule) => IO.raiseError(new RuntimeException("Failed to schedule comm"))
+    val result        = Scheduler.scheduleComm[IO](storeSchedule, registerTask, clock).apply(TestUtil.customerTriggered)
+
+    result.unsafeRunSync() shouldBe Left(ErrorDetails("Failed to schedule comm", OrchestrationError))
   }
 
   it should "handle exceptions when scheduling task" in {
     val scheduleTask = (scheduleId: ScheduleId, instant: Instant) => throw new RuntimeException("Some error")
-    Scheduler.scheduleComm(storeSchedule, scheduleTask, clock)(TestUtil.customerTriggered) shouldBe Left(
-      ErrorDetails("Failed to schedule comm", OrchestrationError))
+    val result =
+      Scheduler.scheduleComm(storeSchedule, scheduleTask, clock).apply(TestUtil.customerTriggered).unsafeRunSync()
+
+    result shouldBe Left(ErrorDetails("Failed to schedule comm", OrchestrationError))
   }
 
   it should "return successful result if a cancellationRequest is successful" in {

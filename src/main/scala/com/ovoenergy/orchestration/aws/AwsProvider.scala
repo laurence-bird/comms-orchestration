@@ -2,8 +2,14 @@ package com.ovoenergy.orchestration.aws
 
 import com.amazonaws.auth._
 import com.amazonaws.auth.profile.ProfileCredentialsProvider
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.regions.Regions
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient
+import com.amazonaws.services.dynamodbv2.{
+  AmazonDynamoDB,
+  AmazonDynamoDBAsync,
+  AmazonDynamoDBAsyncClientBuilder,
+  AmazonDynamoDBClientBuilder
+}
 import com.ovoenergy.comms.templates.TemplatesContext
 import org.slf4j.LoggerFactory
 
@@ -11,17 +17,36 @@ object AwsProvider {
 
   private val log = LoggerFactory.getLogger("AwsClientProvider")
 
-  def dynamoClient(isRunningInLocalDocker: Boolean, region: Regions): AmazonDynamoDBClient = {
+  case class DbClients(async: AmazonDynamoDBAsync, db: AmazonDynamoDB)
+  def dynamoClients(isRunningInLocalDocker: Boolean, region: Regions): DbClients = {
     if (isRunningInLocalDocker) {
       log.warn("Running in local docker")
       System.setProperty("com.amazonaws.sdk.disableCertChecking", "true")
-      val awsCreds                           = getCreds(isRunningInLocalDocker, region)
-      val dynamoClient: AmazonDynamoDBClient = new AmazonDynamoDBClient(awsCreds).withRegion(region)
-      dynamoClient.setEndpoint(sys.env("LOCAL_DYNAMO"))
-      dynamoClient
+      val awsCreds = getCreds(isRunningInLocalDocker, region)
+      DbClients(
+        async = AmazonDynamoDBAsyncClientBuilder
+          .standard()
+          .withEndpointConfiguration(new EndpointConfiguration(sys.env("LOCAL_DYNAMO"), region.getName))
+          .build(),
+        db = AmazonDynamoDBClientBuilder
+          .standard()
+          .withEndpointConfiguration(new EndpointConfiguration(sys.env("LOCAL_DYNAMO"), region.getName))
+          .build()
+      )
     } else {
       val awsCreds = getCreds(isRunningInLocalDocker, region)
-      new AmazonDynamoDBClient(awsCreds).withRegion(region)
+      DbClients(
+        async = AmazonDynamoDBAsyncClientBuilder
+          .standard()
+          .withCredentials(awsCreds)
+          .withRegion(region)
+          .build(),
+        db = AmazonDynamoDBClientBuilder
+          .standard()
+          .withCredentials(awsCreds)
+          .withRegion(region)
+          .build()
+      )
     }
   }
 

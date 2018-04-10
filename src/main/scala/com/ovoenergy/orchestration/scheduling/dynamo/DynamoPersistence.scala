@@ -3,13 +3,15 @@ package com.ovoenergy.orchestration.scheduling.dynamo
 import java.time.{Clock, DateTimeException, Instant}
 import java.util.{UUID, Map => JMap}
 
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB
+import cats.effect.Async
+import com.amazonaws.services.dynamodbv2.{AmazonDynamoDB, AmazonDynamoDBAsync}
 import com.amazonaws.services.dynamodbv2.model.{AttributeValue, QueryRequest}
 import com.gu.scanamo._
 import com.gu.scanamo.error.{ConditionNotMet, DynamoReadError, TypeCoercionError}
 import com.gu.scanamo.query.{AndCondition, Condition}
 import com.gu.scanamo.syntax._
 import com.ovoenergy.comms.model._
+import com.ovoenergy.orchestration.aws.AwsProvider.DbClients
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.scheduling.Persistence.{
   AlreadyBeingOrchestrated,
@@ -26,95 +28,34 @@ import org.slf4j.LoggerFactory
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext
 
-object DynamoPersistence {
+object DynamoPersistence extends DynamoFormats {
 
   def generateScheduleId(): ScheduleId = {
     UUID.randomUUID().toString
   }
-
-  implicit val uuidDynamoFormat =
-    DynamoFormat.coercedXmap[UUID, String, IllegalArgumentException](UUID.fromString)(_.toString)
-
-  implicit val instantDynamoFormat =
-    DynamoFormat.coercedXmap[Instant, Long, DateTimeException](Instant.ofEpochMilli)(_.toEpochMilli)
-
-  implicit val scheduleStatusDynamoFormat = DynamoFormat.coercedXmap[ScheduleStatus, String, MatchError] {
-    case "Pending"       => ScheduleStatus.Pending
-    case "Orchestrating" => ScheduleStatus.Orchestrating
-    case "Complete"      => ScheduleStatus.Complete
-    case "Failed"        => ScheduleStatus.Failed
-    case "Cancelled"     => ScheduleStatus.Cancelled
-  } {
-    case ScheduleStatus.Pending       => "Pending"
-    case ScheduleStatus.Orchestrating => "Orchestrating"
-    case ScheduleStatus.Complete      => "Complete"
-    case ScheduleStatus.Failed        => "Failed"
-    case ScheduleStatus.Cancelled     => "Cancelled"
-  }
-
-  implicit val commTypeDynamoFormat = DynamoFormat.coercedXmap[CommType, String, MatchError] {
-    case "Service"    => Service
-    case "Regulatory" => Regulatory
-    case "Marketing"  => Marketing
-  } {
-    case Service    => "Service"
-    case Regulatory => "Regulatory"
-    case Marketing  => "Marketing"
-  }
-
-  import io.circe.shapes._
-  implicit val templateDataDecoder: Decoder[TemplateData] = deriveDecoder[TemplateData]
-  implicit val templateDataEncoder: Encoder[TemplateData] = deriveEncoder[TemplateData]
-
-  import cats.syntax.either._
-  implicit val templateDataFormat = DynamoFormat.xmap[TemplateData, String](
-    (string) => {
-      val decodedTemplateData: Either[Error, TemplateData] = for {
-        json         <- parse(string)
-        templateData <- templateDataDecoder.decodeJson(json)
-      } yield templateData
-      decodedTemplateData.leftMap(error => { TypeCoercionError(error) })
-    }
-  )(
-    (templateData) => templateDataEncoder.apply(templateData).spaces2
-  )
-
-  case class Context(db: AmazonDynamoDB, table: Table[Schedule])
+  case class Context(asyncDb: AmazonDynamoDBAsync, db: AmazonDynamoDB, table: Table[Schedule])
 
   object Context {
-    def apply(db: AmazonDynamoDB, tableName: String): Context = {
+    def apply(dbClients: DbClients, tableName: String): Context = {
       Context(
-        db,
+        dbClients.async,
+        dbClients.db,
         Table[Schedule](tableName)
       )
     }
   }
 }
 
-class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock: Clock = Clock.systemUTC())
+class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock: Clock = Clock.systemUTC())(
+    implicit ec: ExecutionContext)
     extends Persistence.Orchestration
     with Persistence.Listing {
 
   import DynamoPersistence._
 
   private val log = LoggerFactory.getLogger("Persistence")
-
-  def storeSchedule(commSchedule: Schedule): Unit = {
-    log.debug(s"persisting schedule: ${commSchedule}")
-    Scanamo.exec(context.db)(context.table.put(commSchedule))
-    log.debug(s"Persisted comm schedule: $commSchedule")
-  }
-
-  def retrieveSchedule(scheduleId: ScheduleId): Option[Schedule] = {
-    Scanamo.get[Schedule](context.db)(context.table.name)('scheduleId -> scheduleId) match {
-      case Some(Left(error)) =>
-        log.warn(s"Problem retrieving schedule: $scheduleId", error)
-        None
-      case Some(Right(schedule: Schedule)) => Some(schedule)
-      case None                            => None
-    }
-  }
 
   def attemptSetScheduleAsOrchestrating(scheduleId: ScheduleId): SetAsOrchestratingResult = {
     val now = Instant.now(clock)

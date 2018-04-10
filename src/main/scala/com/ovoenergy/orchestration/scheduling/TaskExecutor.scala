@@ -1,27 +1,29 @@
 package com.ovoenergy.orchestration.scheduling
 
-import java.util.concurrent.TimeoutException
-
+import cats.effect.IO
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.scheduling.Persistence.{
   AlreadyBeingOrchestrated,
-  Failed => FailedPersistence,
-  Successful
+  Successful,
+  Failed => FailedPersistence
 }
-import scala.concurrent.ExecutionContext.Implicits.global
 import org.apache.kafka.clients.producer.RecordMetadata
+
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.util.control.NonFatal
 
 object TaskExecutor extends LoggingWithMDC {
   def execute(persistence: Persistence.Orchestration,
-              orchestrateTrigger: (TriggeredV3, InternalMetadata) => Either[ErrorDetails, Future[RecordMetadata]],
-              sendOrchestrationStartedEvent: OrchestrationStartedV2 => Future[RecordMetadata],
+              orchestrateTrigger: (TriggeredV3, InternalMetadata) => Either[ErrorDetails, IO[RecordMetadata]],
+              sendOrchestrationStartedEvent: OrchestrationStartedV2 => IO[RecordMetadata],
               generateTraceToken: () => String,
-              sendFailedEvent: FailedV2 => Future[RecordMetadata])(scheduleId: ScheduleId): Unit = {
+              sendFailedEvent: FailedV2 => IO[RecordMetadata],
+              ec: ExecutionContext)(scheduleId: ScheduleId): Unit = {
+
+    implicit val executionContext = ec
 
     def failed(reason: String,
                triggered: TriggeredV3,
@@ -34,7 +36,10 @@ object TaskExecutor extends LoggingWithMDC {
                  reason,
                  errorCode))
       try {
-        Await.result(future, 5.seconds)
+        future.unsafeRunTimed(5.seconds).getOrElse {
+          logWarn(triggered.metadata.traceToken, "Unable to send a failed event")
+
+        }
       } catch {
         case NonFatal(e) => logWarn(triggered.metadata.traceToken, "Unable to send a failed event", e)
       }
@@ -42,16 +47,17 @@ object TaskExecutor extends LoggingWithMDC {
 
     def awaitOrchestrationFuture(triggered: TriggeredV3,
                                  internalMetadata: InternalMetadata,
-                                 f: Future[RecordMetadata]): Unit = {
+                                 f: IO[RecordMetadata]): Unit = {
       try {
-        Await.result(f, 10.seconds)
-        persistence.setScheduleAsComplete(scheduleId)
-      } catch {
-        case e: TimeoutException =>
+        val result = f.unsafeRunTimed(10.seconds)
+        if (result.isDefined)
+          persistence.setScheduleAsComplete(scheduleId)
+        else {
           logWarn(triggered.metadata.traceToken,
-                  "Orchestrating comm timed out, the comm may still get orchestrated, raising failed event",
-                  e)
+                  "Orchestrating comm timed out, the comm may still get orchestrated, raising failed event")
           failed("Orchestrating comm timed out", triggered, OrchestrationError, internalMetadata)
+        }
+      } catch {
         case NonFatal(e) =>
           logWarn(triggered.metadata.traceToken, "Unable to orchestrate comm, raising failed event", e)
           failed(e.getMessage, triggered, OrchestrationError, internalMetadata)
@@ -69,6 +75,7 @@ object TaskExecutor extends LoggingWithMDC {
         schedule.triggeredV3 match {
           case Some(triggered) =>
             sendOrchestrationStartedEvent(OrchestrationStartedV2(triggered.metadata, internalMetadata))
+              .unsafeRunTimed(5.seconds)
             orchestrateTrigger(triggered, internalMetadata) match {
               case Right(f) => awaitOrchestrationFuture(triggered, internalMetadata, f)
               case Left(e)  => failed(e.reason, triggered, e.errorCode, internalMetadata)

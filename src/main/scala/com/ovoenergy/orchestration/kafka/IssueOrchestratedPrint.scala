@@ -2,17 +2,18 @@ package com.ovoenergy.orchestration.kafka
 
 import java.util.UUID
 
+import cats.effect.Async
 import com.ovoenergy.comms.model.print.OrchestratedPrint
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.ContactAddress
 import org.apache.kafka.clients.producer.RecordMetadata
 
-import scala.concurrent.Future
+class IssueOrchestratedPrint[F[_]: Async](sendEvent: OrchestratedPrint => F[RecordMetadata])
+    extends IssueOrchestratedComm[ContactAddress, F] {
 
-class IssueOrchestratedPrint(sendEvent: OrchestratedPrint => Future[RecordMetadata])
-    extends IssueOrchestratedComm[ContactAddress] {
-
-  override def send(customerProfile: Option[CustomerProfile], contactInfo: ContactAddress, triggered: TriggeredV3) = {
+  override def send(customerProfile: Option[CustomerProfile],
+                    contactInfo: ContactAddress,
+                    triggered: TriggeredV3): F[RecordMetadata] = {
 
     val orchestratedPrintEvent = OrchestratedPrint(
       metadata = MetadataV2.fromSourceMetadata("orchestration", triggered.metadata),

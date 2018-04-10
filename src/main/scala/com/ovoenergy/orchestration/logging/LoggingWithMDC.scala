@@ -35,6 +35,17 @@ trait LoggingWithMDC {
     log(Map("traceToken" -> traceToken), () => log.warn(message))
   }
 
+  protected def logWarn(event: Option[LoggableEvent], message: String): Unit = {
+    event match {
+      case Some(event) => log(event.mdcMap, () => log.warn(message))
+      case None        => log(Map.empty, () => log.warn(message))
+    }
+  }
+
+  protected def logWarn(event: LoggableEvent, message: String): Unit = {
+    log(event.mdcMap, () => log.warn(message))
+  }
+
   protected def logWarn(traceToken: String, message: String, error: Throwable): Unit = {
     log(Map("traceToken" -> traceToken), () => log.warn(message, error))
   }
@@ -43,8 +54,16 @@ trait LoggingWithMDC {
     log(event.mdcMap, () => log.warn(message, error))
   }
 
+  protected def logWarn(message: String, error: Throwable): Unit = {
+    log(Map.empty, () => log.warn(message, error))
+  }
+
   protected def logError(traceToken: String, message: String): Unit = {
     log(Map("traceToken" -> traceToken), () => log.error(message))
+  }
+
+  protected def logError(message: String, error: Throwable): Unit = {
+    log(Map.empty, () => log.error(message, error))
   }
 
   protected def logError(traceToken: String, message: String, error: Throwable): Unit = {
@@ -53,6 +72,17 @@ trait LoggingWithMDC {
 
   protected def logError(event: LoggableEvent, message: String, error: Throwable): Unit = {
     log(event.mdcMap, () => log.error(message, error))
+  }
+
+  protected def logError(event: Option[LoggableEvent], message: String): Unit = {
+    event match {
+      case Some(event) => log(event.mdcMap, () => log.error(message))
+      case None        => log(Map.empty, () => log.error(message))
+    }
+  }
+
+  protected def logError(message: String, mdcParams: Map[String, String]): Unit = {
+    log(mdcParams, () => log.error(message))
   }
 
   private def log(mdcMap: Map[String, String], loggingFunction: () => Unit) {

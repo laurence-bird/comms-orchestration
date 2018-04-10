@@ -1,5 +1,6 @@
 package servicetest
 
+import java.net.NetworkInterface
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths, StandardOpenOption}
 import java.time.LocalDateTime
@@ -9,14 +10,12 @@ import java.util.concurrent.Executors
 import cakesolutions.kafka.KafkaConsumer
 import com.github.dockerjava.core.DefaultDockerClientConfig
 import com.github.dockerjava.jaxrs.JerseyDockerCmdExecFactory
-import com.typesafe.config.{Config, ConfigFactory, ConfigParseOptions, ConfigResolveOptions}
 import com.whisk.docker.impl.dockerjava.{Docker, DockerJavaExecutorFactory}
 import com.whisk.docker._
-import kafka.admin.AdminUtils
-import kafka.utils.ZkUtils
 import org.apache.commons.io.input.{Tailer, TailerListenerAdapter}
+import org.apache.kafka.clients.admin.{AdminClient, AdminClientConfig, NewTopic}
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.protocol.Errors
+import org.apache.kafka.common.errors.TopicExistsException
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.scalatest.concurrent.{Eventually, PatienceConfiguration, ScalaFutures}
 import org.scalatest.time.{Seconds, Span}
@@ -118,10 +117,14 @@ trait DockerIntegrationTest
     ExecutionContext.fromExecutor(Executors.newFixedThreadPool(Math.max(1, dockerContainers.length * 4)))
   }
 
-  val hostIpAddress = {
-    import sys.process._
-    "./get_ip_address.sh".!!.trim
-  }
+  import scala.collection.JavaConverters._
+
+  private val hostIpAddress = NetworkInterface.getNetworkInterfaces.asScala
+    .filter(x => x.isUp && !x.isLoopback)
+    .flatMap(_.getInterfaceAddresses.asScala)
+    .map(_.getAddress)
+    .find(_.isSiteLocalAddress)
+    .fold(throw new RuntimeException("Local ip address not found"))(_.getHostAddress)
 
   val aivenTopics = Seq(
     "comms.failed.v2",
@@ -136,7 +139,7 @@ trait DockerIntegrationTest
 
   // TODO currently no way to set the memory limit on docker containers. Need to make a PR to add support to docker-it-scala. I've checked that the spotify client supports it.
 
-  lazy val aivenZookeeper = DockerContainer("confluentinc/cp-zookeeper:3.1.1", name = Some("aivenZookeeper"))
+  lazy val aivenZookeeper = DockerContainer("confluentinc/cp-zookeeper:3.3.1", name = Some("zookeeper"))
     .withPorts(32182 -> Some(32182))
     .withEnv(
       "ZOOKEEPER_CLIENT_PORT=32182",
@@ -151,30 +154,26 @@ trait DockerIntegrationTest
 
     val lastTopicName = aivenTopics.last
 
-    DockerContainer("wurstmeister/kafka:0.10.2.1", name = Some("aivenKafka"))
+    DockerContainer("confluentinc/cp-kafka:3.3.1", name = Some("kafka"))
       .withPorts(29093 -> Some(29093))
-      .withLinks(ContainerLink(aivenZookeeper, "aivenZookeeper"))
+      .withLinks(ContainerLink(aivenZookeeper, "zookeeper"))
       .withEnv(
-        "KAFKA_BROKER_ID=2",
-        "KAFKA_ZOOKEEPER_CONNECT=aivenZookeeper:32182",
-        "KAFKA_PORT=29093",
-        "KAFKA_ADVERTISED_PORT=29093",
+        s"KAFKA_ZOOKEEPER_CONNECT=zookeeper:32182",
+        "KAFKA_BROKER_ID=1",
         s"KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$hostIpAddress:29093",
-        "KAFKA_HEAP_OPTS=-Xmx256M -Xms128M",
-        s"KAFKA_CREATE_TOPICS=$createTopicsString"
+        "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1"
       )
-      .withLogWritingAndReadyChecker(s"""Created topic "$lastTopicName"""", "aivenKafka")
+      .withLogWritingAndReadyChecker(s"""started (kafka.server.KafkaServer)""", "aivenKafka")
   }
 
-  lazy val schemaRegistry = DockerContainer("confluentinc/cp-schema-registry:3.2.2", name = Some("schema-registry"))
+  lazy val schemaRegistry = DockerContainer("confluentinc/cp-schema-registry:3.3.1", name = Some("schema-registry"))
     .withPorts(8081 -> Some(8081))
     .withLinks(
-      ContainerLink(aivenZookeeper, "aivenZookeeper"),
-      ContainerLink(aivenKafka, "aivenKafka")
+      ContainerLink(aivenZookeeper, "zookeeper")
     )
     .withEnv(
       "SCHEMA_REGISTRY_HOST_NAME=schema-registry",
-      "SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL=aivenZookeeper:32182",
+      "SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL=zookeeper:32182",
       s"SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS=PLAINTEXT://$hostIpAddress:29093"
     )
     .withLogWritingAndReadyChecker("Server started, listening for requests", "schema-registry")
@@ -248,8 +247,24 @@ trait DockerIntegrationTest
   override def dockerContainers =
     List(aivenZookeeper, aivenKafka, schemaRegistry, fakes3, fakes3ssl, dynamodb, profiles, orchestration)
 
-  def checkCanConsumeFromKafkaTopic(topic: String, bootstrapServers: String, description: String) {
-    println(s"Checking we can consume from topic $topic on $description Kafka")
+  def createTopics(topics: Iterable[String], bootstrapServers: String) {
+    println(s"Creating kafka topics")
+    import scala.collection.JavaConverters._
+
+    val adminClient =
+      AdminClient.create(Map[String, AnyRef](AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG -> bootstrapServers).asJava)
+    try {
+      val r = adminClient.createTopics(topics.map(t => new NewTopic(t, 1, 1)).asJavaCollection)
+      r.all().get()
+    } catch {
+      case e: java.util.concurrent.ExecutionException => ()
+    } finally {
+      adminClient.close()
+    }
+  }
+
+  def checkCanConsumeFromKafkaTopic(topic: String, bootstrapServers: String) {
+    println(s"Checking we can consume from topic $topic")
     import cakesolutions.kafka.KafkaConsumer._
     import scala.collection.JavaConverters._
     val consumer = KafkaConsumer(
@@ -282,13 +297,13 @@ trait DockerIntegrationTest
     println(
       "Starting a whole bunch of Docker containers. This could take a few minutes, but I promise it'll be worth the wait!")
     startAllOrFail()
-
-    aivenTopics.foreach(t => checkCanConsumeFromKafkaTopic(t, "localhost:29093", "Aiven"))
+    val bootstrapServers = "localhost:29093"
+    createTopics(aivenTopics, bootstrapServers)
+    aivenTopics.foreach(t => checkCanConsumeFromKafkaTopic(t, bootstrapServers))
   }
 
   abstract override def afterAll(): Unit = {
     stopAllQuietly()
-
     super.afterAll()
   }
 

@@ -8,6 +8,7 @@ import com.ovoenergy.comms.helpers.Kafka
 import com.ovoenergy.comms.testhelpers.KafkaTestHelpers._
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
+import com.ovoenergy.comms.model.email.OrchestratedEmailV3
 import com.ovoenergy.orchestration.util.TestUtil
 import com.typesafe.config.ConfigFactory
 import org.mockserver.client.server.MockServerClient
@@ -16,18 +17,16 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import servicetest.helpers._
 
 import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
-
-// Implicits
 import com.ovoenergy.comms.serialisation.Codecs._
+import org.apache.kafka.clients.consumer.KafkaConsumer
 
-class AivenSchedulingServiceTest
+class SchedulingServiceTest
     extends FlatSpec
     with DockerIntegrationTest
     with Matchers
     with MockProfileResponses
+    with KafkaConsumerExtensions
     with FakeS3Configuration
     with ScalaFutures
     with BeforeAndAfterAll {
@@ -40,38 +39,21 @@ class AivenSchedulingServiceTest
 
   val uploadTemplate: (CommManifest) => Unit = uploadTemplateToFakeS3(region, s3Endpoint)
 
-  lazy val orchestrationStartedConsumer = Kafka.aiven.orchestrationStarted.v2.consumer()
-  lazy val orchestratedEmailConsumer    = Kafka.aiven.orchestratedEmail.v3.consumer()
-  lazy val cancelledConsumer            = Kafka.aiven.cancelled.v2.consumer()
-  lazy val orchestratedSMSConsumer      = Kafka.aiven.orchestratedSMS.v2.consumer()
-  lazy val failedCancellationConsumer   = Kafka.aiven.failedCancellation.v2.consumer()
-
-  private def allKafkaConsumers() = {
-    Seq(orchestrationStartedConsumer,
-        orchestratedEmailConsumer,
-        cancelledConsumer,
-        orchestratedSMSConsumer,
-        failedCancellationConsumer)
-  }
-
   override def beforeAll() = {
     super.beforeAll()
-    allKafkaConsumers().foreach(_.poll(5))
     uploadFragmentsToFakeS3(region, s3Endpoint)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
   }
 
-  override def afterAll() = {
-    allKafkaConsumers().foreach(_.close())
-    super.afterAll()
-  }
-
   behavior of "Aiven comms scheduling"
 
-  it should "deschedule comms and generate cancelled events" in { //****//
+  it should "deschedule comms and generate cancelled events" in withMultipleThrowawayConsumerFor(
+    Kafka.aiven.orchestrationStarted.v2,
+    Kafka.aiven.orchestratedEmail.v3,
+    Kafka.aiven.cancelled.v2) { (orchestrationStartedConsumer, orchestratedEmailConsumer, cancelledConsumer) =>
     createOKCustomerProfileResponse(mockServerClient)
-    val triggered1 = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(20)))
-    val triggered2 = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(21)),
+    val triggered1 = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(60)))
+    val triggered2 = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(60)),
                                                      metadata = triggered1.metadata.copy(traceToken = "testTrace123"))
 
     // 2 trigger events for the same customer and comm
@@ -104,8 +86,11 @@ class AivenSchedulingServiceTest
     )
   }
 
-  it should "generate a cancellationFailed event if unable to deschedule a comm" in {
-    val triggered = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(15)))
+  it should "generate a cancellationFailed event if unable to deschedule a comm" in withMultipleThrowawayConsumerFor(
+    Kafka.aiven.failedCancellation.v2,
+    Kafka.aiven.orchestratedEmail.v3,
+    Kafka.aiven.cancelled.v2) { (failedCancellationConsumer, orchestratedEmailConsumer, cancelledConsumer) =>
+    val triggered = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(60)))
     val commName  = triggered.metadata.commManifest.name
 
     // Create an invalid schedule record
@@ -141,27 +126,29 @@ class AivenSchedulingServiceTest
     orchestratedEmailConsumer.checkNoMessages()
   }
 
-  it should "orchestrate emails requested to be sent in the future" in { //****//
+  it should "orchestrate emails requested to be sent in the future" in withThrowawayConsumerFor(
+    Kafka.aiven.orchestrationStarted.v2,
+    Kafka.aiven.orchestratedEmail.v3) { (orchestrationStartedConsumer, orchestratedEmailConsumer) =>
     createOKCustomerProfileResponse(mockServerClient)
-    val triggered = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(7)))
+    val triggered = TestUtil.customerTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(2)))
     Kafka.aiven.triggered.v3.publishOnce(triggered)
 
-    orchestratedEmailConsumer.checkNoMessages(500.millisecond)
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
-    expectOrchestratedEmailEvents(noOfEventsExpected = 1)
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
+    expectOrchestratedEmailEvents(noOfEventsExpected = 1, consumer = orchestratedEmailConsumer)
   }
 
-  it should "orchestrate sms requested to be sent in the future" in { //****//
+  it should "orchestrate sms requested to be sent in the future" in withThrowawayConsumerFor(
+    Kafka.aiven.orchestrationStarted.v2,
+    Kafka.aiven.orchestratedSMS.v2) { (orchestrationStartedConsumer, orchestratedSMSConsumer) =>
     createOKCustomerProfileResponse(mockServerClient)
     val triggered = TestUtil.customerTriggered.copy(
-      deliverAt = Some(Instant.now().plusSeconds(5)),
+      deliverAt = Some(Instant.now().plusSeconds(1)),
       preferredChannels = Some(List(SMS))
     )
 
     Kafka.aiven.triggered.v3.publishOnce(triggered)
 
-    orchestratedSMSConsumer.checkNoMessages()
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
     val orchestratedSMSEvents = orchestratedSMSConsumer.pollFor(
       noOfEventsExpected = 1
     )
@@ -175,9 +162,10 @@ class AivenSchedulingServiceTest
 
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25.seconds,
                                        noOfEventsExpected: Int,
-                                       shouldCheckTraceToken: Boolean = true) = {
+                                       shouldCheckTraceToken: Boolean = true,
+                                       consumer: KafkaConsumer[String, Option[OrchestrationStartedV2]]) = {
     val orchestrationStartedEvents =
-      orchestrationStartedConsumer.pollFor(noOfEventsExpected = noOfEventsExpected)
+      consumer.pollFor(noOfEventsExpected = noOfEventsExpected)
 
     orchestrationStartedEvents.foreach { o =>
       if (shouldCheckTraceToken) o.metadata.traceToken shouldBe TestUtil.traceToken
@@ -187,9 +175,10 @@ class AivenSchedulingServiceTest
 
   def expectOrchestratedEmailEvents(pollTime: FiniteDuration = 25.seconds,
                                     noOfEventsExpected: Int,
-                                    shouldCheckTraceToken: Boolean = true) = {
+                                    shouldCheckTraceToken: Boolean = true,
+                                    consumer: KafkaConsumer[String, Option[OrchestratedEmailV3]]) = {
     val orchestratedEmails =
-      orchestratedEmailConsumer.pollFor(noOfEventsExpected = noOfEventsExpected)
+      consumer.pollFor(noOfEventsExpected = noOfEventsExpected)
 
     orchestratedEmails.map { orchestratedEmail =>
       orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"

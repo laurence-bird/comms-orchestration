@@ -4,6 +4,8 @@ import java.time.Instant
 
 import com.ovoenergy.comms.helpers.Kafka
 import com.ovoenergy.comms.model._
+import com.ovoenergy.comms.model.email.OrchestratedEmailV3
+import com.ovoenergy.comms.model.print.OrchestratedPrint
 import com.ovoenergy.comms.testhelpers.KafkaTestHelpers._
 import com.typesafe.config.{Config, ConfigFactory}
 import org.mockserver.client.server.MockServerClient
@@ -15,8 +17,9 @@ import shapeless.Coproduct
 import scala.concurrent.duration._
 import com.ovoenergy.comms.serialisation.Codecs._
 import com.ovoenergy.orchestration.util.TestUtil.{metadataV2, traceToken}
+import org.apache.kafka.clients.consumer.KafkaConsumer
 
-class AivenPrintServiceTest
+class PrintServiceTest
     extends FlatSpec
     with DockerIntegrationTest
     with Matchers
@@ -55,13 +58,11 @@ class AivenPrintServiceTest
 
   override def beforeAll() = {
     super.beforeAll()
-    allKafkaConsumers().foreach(_.poll(5))
     uploadFragmentsToFakeS3(region, s3Endpoint)
     uploadTemplateToFakeS3(region, s3Endpoint)(printContactDetailsTriggered.metadata.commManifest)
   }
 
   override def afterAll() = {
-    allKafkaConsumers().foreach(_.close())
     super.afterAll()
   }
 
@@ -71,25 +72,25 @@ class AivenPrintServiceTest
   val region           = config.getString("aws.region")
   val s3Endpoint       = "http://localhost:4569"
 
-  lazy val failedConsumer               = Kafka.aiven.failed.v2.consumer()
-  lazy val orchestratedPrintConsumer    = Kafka.aiven.orchestratedPrint.v1.consumer()
-  lazy val orchestrationStartedConsumer = Kafka.aiven.orchestrationStarted.v2.consumer()
-
-  private def allKafkaConsumers() = Seq(failedConsumer, orchestratedPrintConsumer, orchestrationStartedConsumer)
-
   behavior of "Aiven Print Orchestration"
 
-  it should "orchestrate a triggered event with valid print contact details" in {
+  it should "orchestrate a triggered event with valid print contact details" in withThrowawayConsumerFor(
+    Kafka.aiven.orchestrationStarted.v2,
+    Kafka.aiven.orchestratedPrint.v1) { (orchestrationStartedConsumer, orchestratedPrintConsumer) =>
     Kafka.aiven.triggered.v3.publishOnce(printContactDetailsTriggered)
 
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
-    expectOrchestratedPrintEvents(noOfEventsExpected = 1, shouldHaveCustomerProfile = false)
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
+    expectOrchestratedPrintEvents(noOfEventsExpected = 1,
+                                  shouldHaveCustomerProfile = false,
+                                  consumer = orchestratedPrintConsumer)
   }
 
-  it should "raise failure for triggered event with contact details with insufficient details" in {
+  it should "raise failure for triggered event with contact details with insufficient details" in withThrowawayConsumerFor(
+    Kafka.aiven.orchestrationStarted.v2,
+    Kafka.aiven.failed.v2) { (orchestrationStartedConsumer, failedConsumer) =>
     uploadTemplateToFakeS3(region, s3Endpoint)(com.ovoenergy.orchestration.util.TestUtil.metadataV2.commManifest)
     Kafka.aiven.triggered.v3.publishOnce(invalidPrintContactDetailsTriggered)
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
 
     val failures = failedConsumer.pollFor(noOfEventsExpected = 1)
     failures.foreach(failure => {
@@ -99,7 +100,9 @@ class AivenPrintServiceTest
     })
   }
 
-  it should "raise failure for triggered event with contact details that do not provide details for template channel" in {
+  it should "raise failure for triggered event with contact details that do not provide details for template channel" in withThrowawayConsumerFor(
+    Kafka.aiven.orchestrationStarted.v2,
+    Kafka.aiven.failed.v2) { (orchestrationStartedConsumer, failedConsumer) =>
     val commManifest = CommManifest(Service, "print-only", "0.1")
     val metadata = com.ovoenergy.orchestration.util.TestUtil.metadataV2.copy(
       deliverTo = ContactDetails(Some("qatesting@ovoenergy.com"), None),
@@ -110,7 +113,7 @@ class AivenPrintServiceTest
     uploadPrintOnlyTemplateToFakeS3(region, s3Endpoint)(commManifest)
 
     Kafka.aiven.triggered.v3.publishOnce(triggered)
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
 
     val failures = failedConsumer.pollFor(noOfEventsExpected = 1)
     failures.foreach(failure => {
@@ -120,19 +123,24 @@ class AivenPrintServiceTest
     })
   }
 
-  it should "support the scheduling of triggered events for print" in {
+  it should "support the scheduling of triggered events for print" in withThrowawayConsumerFor(
+    Kafka.aiven.orchestrationStarted.v2,
+    Kafka.aiven.orchestratedPrint.v1) { (orchestrationStartedConsumer, orchestratedPrintConsumer) =>
     val scheduledPrintevent = printContactDetailsTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(5)))
     Kafka.aiven.triggered.v3.publishOnce(scheduledPrintevent)
 
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1)
-    expectOrchestratedPrintEvents(noOfEventsExpected = 1, shouldHaveCustomerProfile = false)
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
+    expectOrchestratedPrintEvents(noOfEventsExpected = 1,
+                                  shouldHaveCustomerProfile = false,
+                                  consumer = orchestratedPrintConsumer)
   }
 
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25000.millisecond,
                                        noOfEventsExpected: Int,
-                                       shouldCheckTraceToken: Boolean = true) = {
+                                       shouldCheckTraceToken: Boolean = true,
+                                       consumer: KafkaConsumer[String, Option[OrchestrationStartedV2]]) = {
 
-    val orchestrationStartedEvents = orchestrationStartedConsumer.pollFor(noOfEventsExpected = noOfEventsExpected)
+    val orchestrationStartedEvents = consumer.pollFor(noOfEventsExpected = noOfEventsExpected)
 
     orchestrationStartedEvents.foreach { o =>
       if (shouldCheckTraceToken) o.metadata.traceToken shouldBe com.ovoenergy.orchestration.util.TestUtil.traceToken
@@ -144,8 +152,9 @@ class AivenPrintServiceTest
                                     noOfEventsExpected: Int,
                                     shouldCheckTraceToken: Boolean = true,
                                     useMagicByte: Boolean = true,
-                                    shouldHaveCustomerProfile: Boolean = true) = {
-    val orchestratedPrintEvents = orchestratedPrintConsumer.pollFor(noOfEventsExpected = noOfEventsExpected)
+                                    shouldHaveCustomerProfile: Boolean = true,
+                                    consumer: KafkaConsumer[String, Option[OrchestratedPrint]]) = {
+    val orchestratedPrintEvents = consumer.pollFor(noOfEventsExpected = noOfEventsExpected)
 
     orchestratedPrintEvents.map { orchestratedPrint =>
       orchestratedPrint.address shouldBe validCustomerAddress

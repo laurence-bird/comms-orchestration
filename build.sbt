@@ -3,29 +3,34 @@ organization          := "com.ovoenergy"
 scalaVersion          := "2.12.4"
 scalacOptions         := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
-val circeVersion = "0.7.0"
-val commsKafkaSerialisationVersion = "3.5"
+val circeVersion = "0.9.0"
+val commsKafkaSerialisationVersion = "3.13"
 val dockerTestkitVersion = "0.9.5"
 val monocleVersion = "1.5.0"
+val fs2KafkaClientVersion = "0.1.9"
+val fs2Version = "0.10.3"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka"          %% "akka-slf4j"                % "2.4.18",
   "com.ovoenergy"              %% "comms-kafka-messages"      % "1.40"  ,
   "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-kafka-helpers"       % commsKafkaSerialisationVersion,
-  "com.ovoenergy"              %% "comms-templates"           % "0.14",
+  "com.ovoenergy"              %% "comms-templates"           % "0.17",
   "ch.qos.logback"             % "logback-classic"            % "1.1.7",
   "me.moocar"                  % "logback-gelf"               % "0.2",
   "io.logz.logback"            % "logzio-logback-appender"    % "1.0.11",
-  "org.typelevel"              %% "cats-core"                 % "0.9.0",
+  "org.typelevel"              %% "cats-core"                 % "1.0.1",
   "com.squareup.okhttp3"       % "okhttp"                     % "3.4.2",
+  "org.typelevel"              %% "cats-effect"               % "0.10",
+  "co.fs2"                     %% "fs2-core"                  % fs2Version,
+  "com.ovoenergy"              %% "fs2-kafka-client"          % fs2KafkaClientVersion,
   "io.circe"                   %% "circe-core"                % circeVersion,
   "io.circe"                   %% "circe-shapes"              % circeVersion,
   "io.circe"                   %% "circe-generic-extras"      % circeVersion,
   "io.circe"                   %% "circe-parser"              % circeVersion,
   "io.circe"                   %% "circe-generic"             % circeVersion,
   "org.quartz-scheduler"       % "quartz"                     % "2.2.3",
-  "com.gu"                     %% "scanamo"                   % "0.9.1",
+  "com.gu"                     %% "scanamo"                   % "1.0.0-M3",
   "org.scalacheck"             %% "scalacheck"                % "1.13.4" % Test,
   "org.scalatest"              %% "scalatest"                 % "3.0.3" % Test,
   "com.github.alexarchambault" %% "scalacheck-shapeless_1.13" % "1.1.4" % Test,
@@ -49,6 +54,7 @@ resolvers ++= Seq(
 enablePlugins(JavaServerAppPackaging, DockerPlugin)
 
 commsPackagingMaxMetaspaceSize := 256
+
 commsPackagingHeapSize := 512
 
 test in Test := (test in Test).dependsOn(startDynamoDBLocal).value

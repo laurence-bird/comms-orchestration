@@ -1,6 +1,8 @@
 package com.ovoenergy.orchestration.scheduling
 
+import cats.effect.IO
 import com.ovoenergy.comms.model._
+import com.ovoenergy.orchestration.ExecutionContexts
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.scheduling.Persistence.{
   AlreadyBeingOrchestrated,
@@ -18,9 +20,15 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.time.{Second, Seconds, Span}
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
-class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest with ArbGenerator with Eventually {
+class TaskExecutorSpec
+    extends FlatSpec
+    with Matchers
+    with OneInstancePerTest
+    with ArbGenerator
+    with Eventually
+    with ExecutionContexts {
 
   trait StubPersistence extends Persistence.Orchestration {
     override def attemptSetScheduleAsOrchestrating(sId: ScheduleId): SetAsOrchestratingResult = {
@@ -28,21 +36,23 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
         Successful(scheduleWithTriggeredV3)
       } else fail("Incorrect scheduleId requested")
     }
-    override def setScheduleAsFailed(scheduleId: ScheduleId, reason: String): Unit = fail("Incorrectly invoked")
-    override def setScheduleAsComplete(scheduleId: ScheduleId): Unit               = fail("Incorrectly invoked")
+    override def setScheduleAsFailed(scheduleId: ScheduleId, reason: String): Unit =
+      fail("Set schedule as failed incorrectly invoked")
+    override def setScheduleAsComplete(scheduleId: ScheduleId): Unit =
+      fail("Set schedule as complete Incorrectly invoked")
   }
   val scheduleId = "1234567890A"
   val scheduleWithTriggeredV3 =
     generate[Schedule].copy(scheduleId = scheduleId, triggeredV3 = Some(TestUtil.customerTriggered))
 
-  val recordMetadata      = new RecordMetadata(new TopicPartition("test", 1), 1, 1, Record.NO_TIMESTAMP, -1, -1, -1)
+  val recordMetadata      = new RecordMetadata(new TopicPartition("test", 1), 1, 1, 100l, -1, -1, -1)
   var triggerOrchestrated = Option.empty[(TriggeredV3, InternalMetadata)]
   val orchestrateTrigger = (triggeredV3: TriggeredV3, internalMetadata: InternalMetadata) => {
     triggerOrchestrated = Some(triggeredV3, internalMetadata)
-    Right(Future.successful(recordMetadata))
+    Right(IO.pure(recordMetadata))
   }
 
-  val sendOrchestrationStartedEvent = (orchStarted: OrchestrationStartedV2) => Future.successful(recordMetadata)
+  val sendOrchestrationStartedEvent = (orchStarted: OrchestrationStartedV2) => IO.pure(recordMetadata)
 
   val traceToken         = "ssfifjsof"
   val generateTraceToken = () => traceToken
@@ -51,7 +61,7 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
   val sendFailedEvent =
     (failed: FailedV2) => {
       failedEventSent = Some(failed)
-      Future(recordMetadata)
+      IO.pure(recordMetadata)
     }
 
   behavior of "TaskExecutor"
@@ -68,7 +78,8 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFailedEvent)(scheduleId)
+                         sendFailedEvent,
+                         globalExecutionContext)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe None
@@ -87,7 +98,8 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFailedEvent)(scheduleId)
+                         sendFailedEvent,
+                         globalExecutionContext)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe None
@@ -115,7 +127,8 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFailedEvent)(scheduleId)
+                         sendFailedEvent,
+                         globalExecutionContext)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV3.get, InternalMetadata(traceToken))
@@ -138,15 +151,16 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
     }
     val orchestrateTrigger = (triggeredV3: TriggeredV3, internalMetadata: InternalMetadata) => {
       triggerOrchestrated = Some(triggeredV3, internalMetadata)
-      val future = Future[RecordMetadata] { Thread.sleep(11000); recordMetadata }
-      Right(future)
+      val future = Future[RecordMetadata] { Thread.sleep(22000); recordMetadata }
+      Right(IO.fromFuture(IO(future)))
     }
 
     TaskExecutor.execute(Orchestrating,
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFailedEvent)(scheduleId)
+                         sendFailedEvent,
+                         globalExecutionContext)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV3.get, InternalMetadata(traceToken))
@@ -172,14 +186,15 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
     }
     val orchestrateTrigger = (triggeredV3: TriggeredV3, internalMetadata: InternalMetadata) => {
       triggerOrchestrated = Some(triggeredV3, internalMetadata)
-      Right(Future(recordMetadata))
+      Right(IO.pure(recordMetadata))
     }
 
     TaskExecutor.execute(Orchestrating,
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFailedEvent)(scheduleId)
+                         sendFailedEvent,
+                         globalExecutionContext)(scheduleId)
 
     implicit val patienceConfig = PatienceConfig(Span(3, Seconds))
     eventually {
@@ -208,17 +223,19 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
     }
 
     var sendFailedEventInvoked = false
-    val timedOutSendFailedEvent: (FailedV2) => Future[RecordMetadata] =
+    val timedOutSendFailedEvent: (FailedV2) => IO[RecordMetadata] =
       (failed: FailedV2) => {
         sendFailedEventInvoked = true
-        Future { Thread.sleep(6000); recordMetadata }
+        val f = Future { Thread.sleep(6000); recordMetadata }
+        IO.fromFuture(IO(f))
       }
 
     TaskExecutor.execute(Orchestrating,
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         timedOutSendFailedEvent)(scheduleId)
+                         timedOutSendFailedEvent,
+                         globalExecutionContext)(scheduleId)
 
     //side effects
     implicit val patienceConfig = PatienceConfig(Span(6, Seconds))
@@ -249,14 +266,15 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
     val sendFailedEvent =
       (failed: FailedV2) => {
         sendFailedEventInvoked = true
-        Future { throw new RuntimeException("failing the future"); null }
+        IO.raiseError(new RuntimeException("failing the future"))
       }
 
     TaskExecutor.execute(Orchestrating,
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFailedEvent)(scheduleId)
+                         sendFailedEvent,
+                         globalExecutionContext)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV3.get, InternalMetadata(traceToken))
@@ -282,7 +300,8 @@ class TaskExecutorSpec extends FlatSpec with Matchers with OneInstancePerTest wi
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFailedEvent)(scheduleId)
+                         sendFailedEvent,
+                         globalExecutionContext)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe None
