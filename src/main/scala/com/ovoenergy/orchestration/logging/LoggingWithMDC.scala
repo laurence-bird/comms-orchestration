@@ -31,6 +31,10 @@ trait LoggingWithMDC {
     log(Monoid.combine(event.mdcMap, mdcParams), () => log.info(message))
   }
 
+  protected def logInfo(message: String, mdcParams: Map[String, String]): Unit = {
+    log(mdcParams, () => log.info(message))
+  }
+
   protected def logWarn(traceToken: String, message: String): Unit = {
     log(Map("traceToken" -> traceToken), () => log.warn(message))
   }
