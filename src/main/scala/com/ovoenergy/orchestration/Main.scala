@@ -219,17 +219,24 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
     // TODO: Improve error handling here
     def recordProcessor[T, Result](consume: T => IO[Result]): Record[T] => IO[Unit] = { record: Record[T] =>
       record.value() match {
-        case Some(r) => consume(r).map(_ => ())
+        case Some(r) =>
+          IO(
+            logInfo("Consumed Kafka Message",
+                    Map(
+                      "kafkaOffset"    -> record.offset().toString,
+                      "kafkaPartition" -> record.partition().toString,
+                      "kafkaTopic"     -> record.topic()
+                    ))) >> consume(r) >> IO.pure(())
         case None =>
-          logError(
-            s"Skipping event: $record, failed to parse",
-            Map(
-              "offset"    -> record.offset().toString,
-              "partition" -> record.partition().toString,
-              "topic"     -> record.topic()
-            )
-          )
-          IO.pure(())
+          IO(
+            logError(
+              s"Skipping event: $record, failed to parse",
+              Map(
+                "kafkaOffset"    -> record.offset().toString,
+                "kafkaPartition" -> record.partition().toString,
+                "kafkaTopic"     -> record.topic()
+              )
+            ))
       }
     }
 
