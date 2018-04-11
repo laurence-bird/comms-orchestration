@@ -9,10 +9,12 @@ import java.util.concurrent.TimeUnit
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import cats.Id
-import cats.effect.{Async, IO}
+import cats.effect.IO
 import cats.syntax.all._
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.{AmazonDynamoDBException, ProvisionedThroughputExceededException}
+
+import com.ovoenergy.orchestration.ErrorHandling.publisherFor
 import com.ovoenergy.comms.helpers.{Kafka, Topic}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.model.email.OrchestratedEmailV3
@@ -20,7 +22,7 @@ import com.ovoenergy.comms.model.print.OrchestratedPrint
 import com.ovoenergy.comms.model.sms.OrchestratedSMSV2
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
 import com.ovoenergy.comms.templates.{ErrorsOr, TemplatesRepo}
-import com.ovoenergy.orchestration.ErrorHandling._
+
 import com.ovoenergy.orchestration.aws.AwsProvider
 import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
@@ -32,7 +34,7 @@ import com.ovoenergy.orchestration.profile.{CustomerProfiler, ProfileValidation}
 import com.ovoenergy.orchestration.scheduling.dynamo.{AsyncPersistence, DynamoPersistence}
 import com.ovoenergy.orchestration.scheduling.{QuartzScheduling, Restore, TaskExecutor}
 import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.kafka.clients.producer.RecordMetadata
+import org.apache.kafka.clients.producer.{KafkaProducer, RecordMetadata}
 import fs2._
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
@@ -40,8 +42,10 @@ import com.ovoenergy.comms.serialisation.Codecs._
 import com.ovoenergy.orchestration.http.Retry.RetryConfig
 import com.ovoenergy.orchestration.kafka.consumers.KafkaConsumer.Record
 import com.ovoenergy.orchestration.util.Retry
+import com.sksamuel.avro4s.{SchemaFor, ToRecord}
 import fs2.StreamApp
 
+import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
@@ -139,7 +143,7 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
                                                   sendOrchestrationStartedEvent,
                                                   () => UUID.randomUUID.toString,
                                                   sendFailedTriggerEvent,
-                                                  blockingExecutionContext) _
+                                                  globalExecutionContext) _
   val addSchedule = QuartzScheduling.addSchedule(executeScheduledTask) _
 
   def scheduleTask = { t: TriggeredV3 =>
