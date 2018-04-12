@@ -143,7 +143,7 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
                                                   sendOrchestrationStartedEvent,
                                                   () => UUID.randomUUID.toString,
                                                   sendFailedTriggerEvent,
-                                                  globalExecutionContext) _
+                                                  blockingExecutionContext) _
   val addSchedule = QuartzScheduling.addSchedule(executeScheduledTask) _
 
   def scheduleTask = { t: TriggeredV3 =>
