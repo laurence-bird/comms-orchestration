@@ -16,7 +16,7 @@ object QuartzScheduling {
   private val quartzProperties = {
     val properties = new Properties()
     properties.put("org.quartz.scheduler.instanceName", "CommsScheduler")
-    properties.put("org.quartz.threadPool.threadCount", "1")
+    properties.put("org.quartz.threadPool.threadCount", "20")
     properties.put("org.quartz.jobStore.class", "org.quartz.simpl.RAMJobStore")
     properties
   }

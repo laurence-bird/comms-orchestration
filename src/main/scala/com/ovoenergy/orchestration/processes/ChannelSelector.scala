@@ -103,7 +103,7 @@ class ChannelSelectorWithTemplate(retrieveTemplate: CommManifest => ErrorsOr[Com
           InvalidTemplate
         )
       case Invalid(errors) => {
-        logInfo(triggeredV3.metadata.traceToken, s"Invalid template retrieved: ${errors.toList.mkString(", ")}")
+        logInfo(triggeredV3, s"Invalid template retrieved: ${errors.toList.mkString(", ")}")
         Left(
           ErrorDetails(
             s"Invalid template: ${errors.toList.mkString(", ")}",

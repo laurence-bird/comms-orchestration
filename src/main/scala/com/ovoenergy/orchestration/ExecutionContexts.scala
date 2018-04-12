@@ -6,7 +6,7 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 trait ExecutionContexts {
 
   val globalExecutionContext   = scala.concurrent.ExecutionContext.global
-  val blockingExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(10))
+  val blockingExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(20))
   val akkaExecutionContext     = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(10))
 
 }

@@ -15,7 +15,6 @@ object TriggeredConsumer extends LoggingWithMDC {
                          sendFailedEvent: FailedV2 => F[Unit],
                          generateTraceToken: () => String)(implicit ec: ExecutionContext): TriggeredV3 => F[Unit] = {
     triggeredV3: TriggeredV3 =>
-      logInfo(triggeredV3, "Scheduling comm")
 
       def scheduleOrFail(triggeredV3: TriggeredV3) = {
         scheduleTask(triggeredV3) flatMap {
