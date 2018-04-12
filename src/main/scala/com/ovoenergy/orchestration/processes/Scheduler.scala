@@ -24,9 +24,9 @@ object Scheduler extends LoggingWithMDC {
                                 registerTask: (ScheduleId, Instant) => Boolean,
                                 clock: Clock = Clock.systemUTC()): TriggeredV3 => F[Either[ErrorDetails, Boolean]] = {
     (triggered: TriggeredV3) =>
-      log.info(s"Scheduling triggered event: $triggered")
-      val schedule        = Schedule.buildFromTrigger(triggered, clock)
+      val schedule: Schedule = Schedule.buildFromTrigger(triggered, clock)
       val scheduleInstant = schedule.deliverAt
+      logInfo(schedule, "Scheduling comm")
 
       storeInDb(schedule)
         .flatMap { s =>
@@ -38,6 +38,7 @@ object Scheduler extends LoggingWithMDC {
         }
         .recover {
           case NonFatal(e) =>
+            logError(schedule, "Failed to schedule comm", e)
             Left(ErrorDetails("Failed to schedule comm", OrchestrationError))
         }
   }
