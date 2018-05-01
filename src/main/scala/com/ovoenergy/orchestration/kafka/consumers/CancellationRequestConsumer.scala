@@ -19,11 +19,11 @@ object CancellationRequestConsumer extends LoggingWithMDC {
     cancellationRequest: CancellationRequestedV2 =>
       {
 
-        logInfo(cancellationRequest, s"Event recieved: ${cancellationRequest.loggableString}")
+        info(cancellationRequest)(s"Event received: ${cancellationRequest.loggableString}")
 
         val result: Seq[F[RecordMetadata]] = descheduleComm(cancellationRequest).map {
           case Left(err) =>
-            logWarn(cancellationRequest.metadata.traceToken, s"Cancellation request failed with error $err")
+            warn(cancellationRequest)(s"Cancellation request failed with error $err")
             sendFailedCancellationEvent(
               FailedCancellationV2(
                 GenericMetadataV2.fromSourceGenericMetadata("orchestration", cancellationRequest.metadata),

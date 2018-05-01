@@ -25,8 +25,8 @@ object Scheduler extends LoggingWithMDC {
                                 clock: Clock = Clock.systemUTC()): TriggeredV3 => F[Either[ErrorDetails, Boolean]] = {
     (triggered: TriggeredV3) =>
       val schedule: Schedule = Schedule.buildFromTrigger(triggered, clock)
-      val scheduleInstant = schedule.deliverAt
-      logInfo(schedule, "Scheduling comm")
+      val scheduleInstant    = schedule.deliverAt
+      info(schedule)("Storing comm in schedule")
 
       storeInDb(schedule)
         .flatMap { s =>
@@ -38,7 +38,7 @@ object Scheduler extends LoggingWithMDC {
         }
         .recover {
           case NonFatal(e) =>
-            logError(schedule, "Failed to schedule comm", e)
+            failWithException(schedule)("Failed to schedule comm")(e)
             Left(ErrorDetails("Failed to schedule comm", OrchestrationError))
         }
   }
@@ -62,11 +62,17 @@ object Scheduler extends LoggingWithMDC {
       }
     }
 
-    log.debug(s"Processing request: $cancellationRequested")
+    debug(cancellationRequested)(s"Processing request: $cancellationRequested")
     val dynamoResult = removeFromDb(cancellationRequested.customerId, cancellationRequested.commName)
-    dynamoResult.map { schedule =>
-      log.debug(s"Removing schedule from memory: $schedule")
-      schedule.flatMap(removeScheduleFromMemory)
+    dynamoResult.map {
+      case Left(err) => {
+        fail(err)(s"Failed to remove schedule from db: ${err.reason}")
+        Left(err)
+      }
+      case Right(schedule) => {
+        debug(schedule)("Removing sschedule from memory")
+        removeScheduleFromMemory(schedule)
+      }
     }
   }
 }

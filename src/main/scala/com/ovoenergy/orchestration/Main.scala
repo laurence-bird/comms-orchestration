@@ -13,7 +13,6 @@ import cats.effect.IO
 import cats.syntax.all._
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.{AmazonDynamoDBException, ProvisionedThroughputExceededException}
-
 import com.ovoenergy.orchestration.ErrorHandling.publisherFor
 import com.ovoenergy.comms.helpers.{Kafka, Topic}
 import com.ovoenergy.comms.model._
@@ -22,12 +21,10 @@ import com.ovoenergy.comms.model.print.OrchestratedPrint
 import com.ovoenergy.comms.model.sms.OrchestratedSMSV2
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
 import com.ovoenergy.comms.templates.{ErrorsOr, TemplatesRepo}
-
 import com.ovoenergy.orchestration.aws.AwsProvider
-import com.ovoenergy.orchestration.http.HttpClient
 import com.ovoenergy.orchestration.kafka._
 import com.ovoenergy.orchestration.kafka.consumers.{CancellationRequestConsumer, KafkaConsumer, TriggeredConsumer}
-import com.ovoenergy.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.processes.{ChannelSelectorWithTemplate, Orchestrator, Scheduler}
 import com.ovoenergy.orchestration.profile.{CustomerProfiler, ProfileValidation}
@@ -36,16 +33,17 @@ import com.ovoenergy.orchestration.scheduling.{QuartzScheduling, Restore, TaskEx
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.kafka.clients.producer.{KafkaProducer, RecordMetadata}
 import fs2._
+
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import com.ovoenergy.comms.serialisation.Codecs._
-import com.ovoenergy.orchestration.http.Retry.RetryConfig
 import com.ovoenergy.orchestration.kafka.consumers.KafkaConsumer.Record
 import com.ovoenergy.orchestration.util.Retry
-import com.sksamuel.avro4s.{SchemaFor, ToRecord}
 import fs2.StreamApp
+import org.http4s.Uri
+import org.http4s.client.Client
+import org.http4s.client.blaze.Http1Client
 
-import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
@@ -55,7 +53,7 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
     def toFiniteDuration: FiniteDuration = FiniteDuration.apply(duration.toNanos, TimeUnit.NANOSECONDS)
   }
 
-  implicit val ec = globalExecutionContext
+  implicit val ec = executionContext
 
   implicit val config: Config = ConfigFactory.load()
   implicit val actorSystem    = ActorSystem()
@@ -96,12 +94,11 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
   val retrieveTemplate: (CommManifest) => ErrorsOr[CommTemplate[Id]] = TemplatesRepo.getTemplate(templatesContext, _)
   val determineChannel                                               = new ChannelSelectorWithTemplate(retrieveTemplate)
 
-  // TODO: Confirm the partition key with the guys
-  val sendFailedTriggerEvent = publisherFor[FailedV2](Kafka.aiven.failed.v2, _.metadata.eventId)
-  val sendCancelledEvent     = publisherFor[CancelledV2](Kafka.aiven.cancelled.v2, _.metadata.eventId)
+  val sendFailedEvent    = publisherFor[FailedV2](Kafka.aiven.failed.v2, _.metadata.eventId)
+  val sendCancelledEvent = publisherFor[CancelledV2](Kafka.aiven.cancelled.v2, _.metadata.eventId)
   val sendFailedCancellationEvent =
     publisherFor[FailedCancellationV2](Kafka.aiven.failedCancellation.v2, _.metadata.eventId)
-  val sendOrchestrationStartedEvent =
+  val sendOrchestrationStartedEvent: OrchestrationStartedV2 => IO[RecordMetadata] =
     publisherFor[OrchestrationStartedV2](Kafka.aiven.orchestrationStarted.v2, _.metadata.eventId)
   val sendOrchestratedEmailEvent =
     publisherFor[OrchestratedEmailV3](Kafka.aiven.orchestratedEmail.v3, _.metadata.eventId)
@@ -114,22 +111,20 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
   val orchestrateSMS   = new IssueOrchestratedSMS(sendOrchestratedSMSEvent)
   val orchestratePrint = new IssueOrchestratedPrint(sendOrchestratedPrintEvent)
 
-  val profileCustomer = {
-    val retryConfig = RetryConfig(
-      attempts = config.getInt("profile.http.retry.attempts"),
-      initialInterval = config.getDuration("profile.http.retry.initialInterval").toFiniteDuration,
-      exponent = config.getDouble("profile.http.retry.exponent")
-    )
+  private val httpClient: Client[IO] = Http1Client[IO]().unsafeRunSync
 
-    CustomerProfiler(
-      httpClient = HttpClient.apply,
-      profileApiKey = config.getString("profile.service.apiKey"),
-      profileHost = config.getString("profile.service.host"),
-      retryConfig = retryConfig
-    ) _
-  }
+  val profileCustomer = CustomerProfiler[IO](
+    client = httpClient,
+    uri = Uri.unsafeFromString(config.getString("profile.service.host")),
+    retry = Retry.backOff(
+      config.getInt("profile.http.retry.attempts"),
+      config.getDuration("profile.http.retry.initialInterval").toFiniteDuration,
+      config.getDouble("profile.http.retry.exponent")
+    ),
+    apiKey = config.getString("profile.service.apiKey")
+  )
 
-  val orchestrateComm: (TriggeredV3, InternalMetadata) => Either[ErrorDetails, IO[RecordMetadata]] = Orchestrator[IO](
+  val orchestrateComm: (TriggeredV3, InternalMetadata) => IO[Either[ErrorDetails, RecordMetadata]] = Orchestrator[IO](
     channelSelector = determineChannel,
     getValidatedCustomerProfile = ProfileValidation.getValidatedCustomerProfile(profileCustomer),
     getValidatedContactProfile = ProfileValidation.validateContactProfile,
@@ -142,26 +137,25 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
                                                   orchestrateComm,
                                                   sendOrchestrationStartedEvent,
                                                   () => UUID.randomUUID.toString,
-                                                  sendFailedTriggerEvent,
-                                                  blockingExecutionContext) _
+                                                  sendFailedEvent) _
   val addSchedule = QuartzScheduling.addSchedule(executeScheduledTask) _
 
-  def scheduleTask = { t: TriggeredV3 =>
+  val scheduleTask: TriggeredV3 => IO[Either[ErrorDetails, Boolean]] = { t: TriggeredV3 =>
     val res = Scheduler.scheduleComm(consumerSchedulingPersistence.storeSchedule[IO], addSchedule).apply(t)
     retry(
       res,
       _.isInstanceOf[ProvisionedThroughputExceededException]
     ).recoverWith {
       case e: ProvisionedThroughputExceededException =>
-        logError("Failed to write Kafka record to DynamoDb, failing the stream", e)
+        failWithException("Failed to write Kafka record to DynamoDb, failing the stream")(e)
         IO.raiseError(e)
 
       case e: AmazonDynamoDBException if e.getErrorCode == "ValidationException" =>
-        logWarn("Failed to write Kafka record to DynamoDb, skipping the record", e)
+        warnWithException("Failed to write Kafka record to DynamoDb, skipping the record")(e)
         IO.pure(Left(ErrorDetails("Failed to write schedule to dynamoDB", OrchestrationError)))
 
       case NonFatal(e) =>
-        logError("Failed to write Kafka record to DynamoDb, failing the stream", e)
+        warnWithException("Failed to write Kafka record to DynamoDb, failing the stream")(e)
         IO.raiseError(e)
     }
   }
@@ -171,9 +165,11 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
 
   val triggeredConsumer = {
     TriggeredConsumer[IO](
+      orchestrateComm = orchestrateComm,
       scheduleTask = scheduleTask,
-      sendFailedEvent = sendFailedTriggerEvent.andThen(_.map(_ => ())),
-      generateTraceToken = () => UUID.randomUUID().toString
+      sendFailedEvent = sendFailedEvent.andThen(_.map(_ => ())),
+      generateTraceToken = () => UUID.randomUUID().toString,
+      sendOrchestrationStartedEvent = sendOrchestrationStartedEvent
     )
   }
 
@@ -224,23 +220,9 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
     def recordProcessor[T, Result](consume: T => IO[Result]): Record[T] => IO[Unit] = { record: Record[T] =>
       record.value() match {
         case Some(r) =>
-          IO(
-            logInfo("Consumed Kafka Message",
-                    Map(
-                      "kafkaOffset"    -> record.offset().toString,
-                      "kafkaPartition" -> record.partition().toString,
-                      "kafkaTopic"     -> record.topic()
-                    ))) >> consume(r) >> IO.pure(())
+          IO(info(record)("Consumed Kafka Message")) >> consume(r) >> IO.pure(())
         case None =>
-          IO(
-            logError(
-              s"Skipping event: $record, failed to parse",
-              Map(
-                "kafkaOffset"    -> record.offset().toString,
-                "kafkaPartition" -> record.partition().toString,
-                "kafkaTopic"     -> record.topic()
-              )
-            ))
+          IO(fail(record)(s"Skipping event: $record, failed to parse"))
       }
     }
 
@@ -248,7 +230,7 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
     val cancellationRequestStream =
       KafkaConsumer[IO](topic = cancellationRequestedTopic)(f = recordProcessor(cancellationRequestConsumer))
 
-    val s = Stream.eval(IO(log.info("Orchestration started"))) >>
+    val s = Stream.eval(IO(info("Orchestration started"))) >>
         triggeredStream.mergeHaltBoth(cancellationRequestStream)
 
     s.drain.covaryOutput[StreamApp.ExitCode] ++ Stream.emit(StreamApp.ExitCode.Error)

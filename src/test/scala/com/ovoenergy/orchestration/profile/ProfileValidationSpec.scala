@@ -1,5 +1,6 @@
 package com.ovoenergy.orchestration.profile
 
+import cats.effect.IO
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.{
   ContactProfile,
@@ -37,7 +38,7 @@ class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues wit
                     ContactProfile(validEmail, validPhoneNumber, validAddress)))
 
   def buildProfileRetriever(response: Either[ErrorDetails, CustomerProfile]) = { (profileCustomer: ProfileCustomer) =>
-    response
+    IO.pure(response)
   }
 
   val customerProfile = generate[CustomerProfile]
@@ -74,7 +75,9 @@ class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues wit
     val triggered        = generate[TriggeredV3]
     val customer         = generate[Customer]
 
-    ProfileValidation.getValidatedCustomerProfile(profileRetriever)(triggered, customer) shouldBe errorResponse
+    ProfileValidation
+      .getValidatedCustomerProfile(profileRetriever)(triggered, customer)
+      .unsafeRunSync() shouldBe errorResponse
   }
 
   it should "return appropriate error message if customer name fails validation checks" in {
@@ -84,7 +87,7 @@ class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues wit
     val triggered        = generate[TriggeredV3]
     val customer         = generate[Customer]
 
-    ProfileValidation.getValidatedCustomerProfile(profileRetriever)(triggered, customer) shouldBe Left(
+    ProfileValidation.getValidatedCustomerProfile(profileRetriever)(triggered, customer).unsafeRunSync() shouldBe Left(
       ErrorDetails("Customer has no first name, Customer has no last name", InvalidProfile))
   }
 
@@ -93,7 +96,9 @@ class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues wit
     val triggered        = generate[TriggeredV3]
     val customer         = generate[Customer]
 
-    ProfileValidation.getValidatedCustomerProfile(profileRetriever)(triggered, customer) shouldBe validCustomerProfile
+    ProfileValidation
+      .getValidatedCustomerProfile(profileRetriever)(triggered, customer)
+      .unsafeRunSync() shouldBe validCustomerProfile
   }
 
 }

@@ -1,12 +1,12 @@
 package com.ovoenergy.orchestration
 
 import java.util.concurrent.Executors
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
+
+import scala.concurrent.ExecutionContext
 
 trait ExecutionContexts {
 
-  val globalExecutionContext   = scala.concurrent.ExecutionContext.global
-  val blockingExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(20))
-  val akkaExecutionContext     = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(10))
+  val executionContext     = ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
+  val akkaExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(5))
 
 }

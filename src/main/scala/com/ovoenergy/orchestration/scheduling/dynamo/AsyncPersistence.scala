@@ -4,16 +4,16 @@ import java.time.Clock
 
 import cats.effect.Async
 import com.gu.scanamo.ScanamoAsync
-import com.gu.scanamo.error.DynamoReadError
+import com.gu.scanamo.error.{DynamoReadError, ScanamoError}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.scheduling.{Schedule, ScheduleId}
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence.Context
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import com.gu.scanamo._
-import com.gu.scanamo.error.{ConditionNotMet, DynamoReadError, TypeCoercionError}
 import com.gu.scanamo.query.{AndCondition, Condition}
 import com.gu.scanamo.syntax._
+
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
@@ -23,13 +23,13 @@ class AsyncPersistence(orchestrationExpiryMinutes: Int, context: Context, clock:
     with DynamoFormats {
 
   def storeSchedule[F[_]: Async]: Schedule => F[Option[Schedule]] = { commSchedule: Schedule =>
-    log.debug(s"persisting schedule: ${commSchedule}")
+    debug(commSchedule)(s"persisting schedule")
     val ops    = context.table.put(commSchedule)
     val future = ScanamoAsync.exec(context.asyncDb)(ops)
 
     liftAsync(future).flatMap {
       case Some(Right(x)) => {
-        log.debug(s"Persisted comm schedule: $commSchedule")
+        debug(commSchedule)(s"Persisted comm schedule")
         Async[F].pure(Some(x))
       }
       case Some(Left(e)) =>
@@ -44,8 +44,8 @@ class AsyncPersistence(orchestrationExpiryMinutes: Int, context: Context, clock:
       ScanamoAsync.get[Schedule](context.asyncDb)(context.table.name)('scheduleId -> scheduleId)
 
     liftAsync(future).flatMap {
-      case Some(Left(error)) =>
-        log.warn(s"Problem retrieving schedule: $scheduleId", error)
+      case Some(Left(error: DynamoReadError)) =>
+        warn(s"Problem retrieving schedule: $scheduleId, ${DynamoReadError.describe(error)}")
         Async[F].raiseError(new RuntimeException(s"Problem retrieving schedule: $scheduleId"))
       case Some(Right(schedule: Schedule)) => Async[F].pure(Some(schedule))
       case None                            => Async[F].pure(None)

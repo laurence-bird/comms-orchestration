@@ -15,7 +15,7 @@ import scala.concurrent.duration._
 import monocle.macros.syntax.lens._
 import com.ovoenergy.comms.serialisation.Codecs._
 import org.apache.kafka.clients.consumer.KafkaConsumer
-
+import scala.collection.JavaConverters._
 class EmailServiceTest
     extends FlatSpec
     with DockerIntegrationTest
@@ -84,31 +84,18 @@ class EmailServiceTest
   it should "raise failure for customers with insufficient details to orchestrate emails for" in withThrowawayConsumerFor(
     Kafka.aiven.orchestrationStarted.v2,
     Kafka.aiven.failed.v2) { (orchestrationStartedConsumer, failedConsumer) =>
+    failedConsumer.checkNoMessages(5.second)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.metadataV2.commManifest)
     createInvalidCustomerProfileResponse(mockServerClient)
     Kafka.aiven.triggered.v3.publishOnce(TestUtil.customerTriggered)
 
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
-    val failures = failedConsumer.pollFor(noOfEventsExpected = 1)
+    withClue("No orchestration started events")(
+      expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer))
+    val failures = withClue("No failed events")(failedConsumer.pollFor(pollTime = 120.seconds, noOfEventsExpected = 1))
     failures.foreach(failure => {
       failure.reason should include("No contact details found")
       failure.errorCode shouldBe InvalidProfile
       failure.metadata.traceToken shouldBe TestUtil.traceToken
-    })
-  }
-
-  it should "raise failure when customer profiler fails" in withThrowawayConsumerFor(
-    Kafka.aiven.orchestrationStarted.v2,
-    Kafka.aiven.failed.v2) { (orchestrationStartedConsumer, failedConsumer) =>
-    createBadCustomerProfileResponse(mockServerClient)
-    Kafka.aiven.triggered.v3.publishOnce(TestUtil.customerTriggered)
-
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
-    val failures = failedConsumer.pollFor(noOfEventsExpected = 1)
-    failures.foreach(failure => {
-      failure.reason should include("Error response (500) from profile service: Some error")
-      failure.metadata.traceToken shouldBe TestUtil.traceToken
-      failure.errorCode shouldBe ProfileRetrievalFailed
     })
   }
 

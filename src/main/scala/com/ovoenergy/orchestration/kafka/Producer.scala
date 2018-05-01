@@ -3,7 +3,8 @@ package com.ovoenergy.orchestration.kafka
 import java.nio.file.Paths
 import java.util.UUID
 
-import cats.effect.Async
+import akka.dispatch.ExecutionContexts
+import cats.effect.{Async, IO, Timer}
 
 import scala.util.control.NonFatal
 import com.ovoenergy.comms.helpers.Topic
@@ -13,10 +14,16 @@ import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.producer.{Callback, KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.config.SslConfigs
 import org.apache.kafka.common.serialization.StringSerializer
+import cats.syntax.flatMap._
+import cats.syntax.functor._
+import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext
 
 object Producer {
+
+  private val log = LoggerFactory.getLogger(getClass)
 
   def apply[E: SchemaFor: ToRecord](topic: Topic[E]): Either[Retry.Failed, KafkaProducer[String, E]] = {
 
@@ -49,7 +56,8 @@ object Producer {
       }
   }
 
-  def publisher[E, F[_]: Async](getKey: E => String, producer: KafkaProducer[String, E], topicName: String)(t: E) = {
+  def publisher[E](getKey: E => String, producer: KafkaProducer[String, E], topicName: String)(t: E)(
+      implicit ec: ExecutionContext = ExecutionContext.global) = {
 
     val record = new ProducerRecord[String, E](
       topicName,
@@ -57,7 +65,7 @@ object Producer {
       t
     )
 
-    Async[F].async[RecordMetadata] { cb =>
+    val produce = IO.async[RecordMetadata] { cb =>
       producer.send(
         record,
         new Callback {
@@ -67,5 +75,10 @@ object Producer {
         }
       )
     }
+
+    for {
+      rm <- produce
+      _  <- IO.shift(Timer[IO])
+    } yield rm
   }
 }

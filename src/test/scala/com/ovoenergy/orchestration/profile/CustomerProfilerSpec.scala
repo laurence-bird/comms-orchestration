@@ -3,116 +3,135 @@ package com.ovoenergy.orchestration.profile
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
+import cats.effect.IO
+import com.github.tomakehurst.wiremock.WireMockServer
+import com.github.tomakehurst.wiremock.client.{MappingBuilder, WireMock}
 import com.ovoenergy.comms.model._
+import org.http4s.client.Client
+import org.http4s.client.blaze.Http1Client
+import org.scalatest._
+import WireMock.{get, _}
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration._
+import com.github.tomakehurst.wiremock.http.UniformDistribution
+import com.github.tomakehurst.wiremock.matching.{EqualToPattern, StringValuePattern}
+import com.ovoenergy.orchestration.domain.{CustomerProfile => CProfile}
 import com.ovoenergy.orchestration.domain.{
   CommunicationPreference,
   ContactProfile,
-  CustomerProfile,
   CustomerProfileName,
   EmailAddress,
   MobilePhoneNumber
 }
-import com.ovoenergy.orchestration.http.Retry.RetryConfig
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.profile.CustomerProfiler.ProfileCustomer
-import okhttp3._
-import org.scalatest.{EitherValues, FlatSpec, Matchers}
-
-import scala.util.{Failure, Success}
+import com.ovoenergy.orchestration.profile.CustomerProfiler.{ServerErrorException, ProfileCustomer}
+import com.ovoenergy.orchestration.util.Retry
+import org.http4s.{InvalidMessageBodyFailure, Uri}
 import scala.concurrent.duration._
-class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
+import scala.util.{Failure, Try}
 
-  val failureHttpClient = (request: Request) => Failure(new Exception("uh oh"))
-  val profileApiKey     = "apiKey"
-  val profileHost       = "http://somehost.com"
-  val traceToken        = "token"
-  val retryConfig       = RetryConfig(5, 0 second, 0)
+class CustomerProfilerSpec
+    extends FlatSpec
+    with Matchers
+    with EitherValues
+    with BeforeAndAfterEach
+    with BeforeAndAfterAll
+    with TryValues
+    with Assertions {
 
+  val profileApiKey = "apiKey"
+  val profileHost   = "http://somehost.com"
+  val traceToken    = "token"
+  val retry: Retry  = Retry.fixed(4, 10.millisecond)
+  lazy val uri      = Uri.unsafeFromString(s"http://localhost:${wireMockServer.port()}/yolo")
+  val customerId    = "whatever"
+  val path          = s"/yolo/api/customers/$customerId"
   val validResponseJson =
     new String(Files.readAllBytes(Paths.get("src/test/resources/profile_valid_response.json")), StandardCharsets.UTF_8)
 
+  implicit lazy val ec = scala.concurrent.ExecutionContext.Implicits.global
+
   behavior of "Customer Profiler"
 
-  it should "Fail when request fails" in {
+  private val httpClient: Client[IO] = Http1Client[IO]().unsafeRunSync
+  val wireMockServer: WireMockServer = new WireMockServer(wireMockConfig().dynamicPort())
+
+  it should "Return an appropriate error code for 4xx (non-recoverable errors), without retry" in {
+    stubFor(
+      get(urlPathEqualTo(path))
+        .withQueryParam("apikey", equalTo(profileApiKey))
+        .willReturn(
+          aResponse()
+            .withRandomDelay(new UniformDistribution(300, 5000))
+            .withBody("You're not allowed here")
+            .withStatus(401)))
+
     val result =
-      CustomerProfiler(failureHttpClient, profileApiKey, profileHost, retryConfig)(
+      CustomerProfiler(httpClient, uri, retry, profileApiKey).apply(
         ProfileCustomer("whatever", canary = false, traceToken))
 
-    result shouldBe Left(
-      ErrorDetails(s"Failed to retrieve customer profile after 5 attempt(s): uh oh", ProfileRetrievalFailed))
+    result.unsafeRunSync().left.value shouldBe ErrorDetails(
+      "Error response (401) retrieving customer profile: You're not allowed here",
+      OrchestrationError)
+    verify(1,
+           getRequestedFor(urlPathEqualTo(path))
+             .withQueryParam("apikey", equalTo(profileApiKey)))
   }
 
-  it should "Fail when response is not a success code" in {
-    val nonOkResponseHttpClient = (request: Request) =>
-      Success(
-        new Response.Builder()
-          .protocol(Protocol.HTTP_1_1)
-          .request(request)
-          .code(500)
-          .body(ResponseBody.create(MediaType.parse("UTF-8"), "Some error message"))
-          .build())
+  it should "Fail when response is not a success code, with retries" in {
+    stubFor(
+      get(urlPathEqualTo(path))
+        .withQueryParam("apikey", equalTo(profileApiKey))
+        .willReturn(
+          aResponse()
+            .withRandomDelay(new UniformDistribution(300, 5000))
+            .withBody(s"Profile service is dead")
+            .withStatus(500)))
 
-    val result = CustomerProfiler(nonOkResponseHttpClient, profileApiKey, profileHost, retryConfig)(
-      ProfileCustomer("whatever", canary = false, traceToken))
-    result shouldBe Left(
-      ErrorDetails(
-        "Failed to retrieve customer profile after 5 attempt(s): Error response (500) from profile service: Some error message",
-        ProfileRetrievalFailed))
-  }
+    val resultIo =
+      CustomerProfiler(httpClient, uri, retry, profileApiKey).apply(
+        ProfileCustomer("whatever", canary = false, traceToken))
 
-  it should "Not retry for 4xx responses from the profile service" in {
-    val nonOkResponseHttpClient = (request: Request) =>
-      Success(
-        new Response.Builder()
-          .protocol(Protocol.HTTP_1_1)
-          .request(request)
-          .code(401)
-          .body(ResponseBody.create(MediaType.parse("UTF-8"), "Some error message"))
-          .build())
+    val result = Try(resultIo.unsafeRunSync())
+    verify(5,
+           getRequestedFor(urlPathEqualTo(path))
+             .withQueryParam("apikey", equalTo(profileApiKey)))
 
-    val result = CustomerProfiler(nonOkResponseHttpClient, profileApiKey, profileHost, retryConfig)(
-      ProfileCustomer("whatever", canary = false, traceToken))
-    result shouldBe Left(
-      ErrorDetails(
-        "Failed to retrieve customer profile after 1 attempt(s): Error response (401) from profile service: Some error message",
-        ProfileRetrievalFailed))
+    result.failure.exception.isInstanceOf[ServerErrorException]
   }
 
   it should "Fail when response body is invalid" in {
-    val badResponseHttpClient = (request: Request) =>
-      Success(
-        new Response.Builder()
-          .protocol(Protocol.HTTP_1_1)
-          .request(request)
-          .code(200)
-          .body(ResponseBody.create(MediaType.parse("UTF-8"), "{\"some\":\"value\"}"))
-          .build())
+    stubFor(
+      get(urlPathEqualTo(path))
+        .withQueryParam("apikey", equalTo(profileApiKey))
+        .willReturn(
+          aResponse()
+            .withRandomDelay(new UniformDistribution(300, 5000))
+            .withBody(s"""{\"some\":\"value\"}""")
+            .withStatus(200)))
 
-    val result = CustomerProfiler(badResponseHttpClient, profileApiKey, profileHost, retryConfig)(
-      ProfileCustomer("whatever", canary = false, traceToken))
-    result.isLeft shouldBe true
-    result.left.value.errorCode shouldBe ProfileRetrievalFailed
-    result.left.value.reason should include("Failed to retrieve customer profile after 1 attempt(s): Invalid JSON")
+    val resultIo =
+      CustomerProfiler(httpClient, uri, retry, profileApiKey).apply(
+        ProfileCustomer("whatever", canary = false, traceToken))
+
+    assertThrows[InvalidMessageBodyFailure](resultIo.unsafeRunSync())
   }
 
   it should "Succeed when response is valid" in {
-    val okResponseHttpClient = (request: Request) => {
-      request.url.toString shouldBe s"$profileHost/api/customers/whatever?apikey=$profileApiKey"
-      request.method shouldBe "GET"
+    stubFor(
+      get(urlPathEqualTo(path))
+        .withQueryParam("apikey", equalTo(profileApiKey))
+        .willReturn(
+          aResponse()
+            .withRandomDelay(new UniformDistribution(300, 5000))
+            .withBody(validResponseJson)
+            .withStatus(200)))
 
-      Success(
-        new Response.Builder()
-          .protocol(Protocol.HTTP_1_1)
-          .request(request)
-          .code(200)
-          .body(ResponseBody.create(MediaType.parse("UTF-8"), validResponseJson))
-          .build())
-    }
+    val resultIo =
+      CustomerProfiler(httpClient, uri, retry, profileApiKey).apply(
+        ProfileCustomer("whatever", canary = false, traceToken))
 
-    val result = CustomerProfiler(okResponseHttpClient, profileApiKey, profileHost, retryConfig)(
-      ProfileCustomer("whatever", canary = false, traceToken))
-    result shouldBe Right(
-      CustomerProfile(
+    resultIo.unsafeRunSync() shouldBe Right(
+      CProfile(
         name = CustomerProfileName(
           title = Some("Mr"),
           firstName = "John",
@@ -135,21 +154,20 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
   }
 
   it should "Ask the profiles service for the canary when requested" in {
-    val httpClient = (request: Request) => {
-      request.url.queryParameter("canary") shouldBe "true"
-      request.method shouldBe "GET"
+    stubFor(
+      get(urlPathEqualTo(path))
+        .withQueryParam("canary", equalTo("true"))
+        .withQueryParam("apikey", equalTo(profileApiKey))
+        .willReturn(
+          aResponse()
+            .withRandomDelay(new UniformDistribution(300, 5000))
+            .withBody(validResponseJson)
+            .withStatus(200)))
 
-      Success(
-        new Response.Builder()
-          .protocol(Protocol.HTTP_1_1)
-          .request(request)
-          .code(200)
-          .body(ResponseBody.create(MediaType.parse("UTF-8"), validResponseJson))
-          .build())
-    }
-    val result =
-      CustomerProfiler(httpClient, profileApiKey, profileHost, retryConfig)(
+    val resultIo =
+      CustomerProfiler(httpClient, uri, retry, profileApiKey).apply(
         ProfileCustomer("whatever", canary = true, traceToken))
+    val result = resultIo.unsafeRunSync()
     result match {
       case Right(customerProfile) =>
       // ok
@@ -158,4 +176,24 @@ class CustomerProfilerSpec extends FlatSpec with Matchers with EitherValues {
     }
   }
 
+  override protected def beforeEach(): Unit = {
+    super.beforeEach()
+    wireMockServer.resetAll()
+    WireMock.configureFor(wireMockServer.port())
+  }
+
+  override protected def afterEach(): Unit = {
+    wireMockServer.resetAll()
+    super.afterEach()
+  }
+
+  override protected def beforeAll(): Unit = {
+    super.beforeAll()
+    wireMockServer.start()
+  }
+
+  override protected def afterAll(): Unit = {
+    wireMockServer.shutdown()
+    super.afterAll()
+  }
 }

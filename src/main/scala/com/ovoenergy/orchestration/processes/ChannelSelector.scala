@@ -61,7 +61,11 @@ class ChannelSelectorWithTemplate(retrieveTemplate: CommManifest => ErrorsOr[Com
       channelsWithTemplates      <- findChannelsWithTemplates(retrieveTemplate, triggered)
       availableChannels          <- findAvailableChannels(channelsWithTemplates, channelsWithContactDetails)
       acceptableChannels         <- filterByCustomerPreferences(availableChannels, customerPrefs)
-    } yield determinePrioritisedChannel(acceptableChannels, triggered.preferredChannels)
+    } yield {
+      val res = determinePrioritisedChannel(acceptableChannels, triggered.preferredChannels)
+      info(triggered)(s"Channel determined for comm: $res")
+      res
+    }
   }
 
   private def findAvailableChannels(
@@ -103,7 +107,7 @@ class ChannelSelectorWithTemplate(retrieveTemplate: CommManifest => ErrorsOr[Com
           InvalidTemplate
         )
       case Invalid(errors) => {
-        logInfo(triggeredV3, s"Invalid template retrieved: ${errors.toList.mkString(", ")}")
+        info(triggeredV3)(s"Invalid template retrieved: ${errors.toList.mkString(", ")}")
         Left(
           ErrorDetails(
             s"Invalid template: ${errors.toList.mkString(", ")}",

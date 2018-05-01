@@ -12,6 +12,7 @@ import com.gu.scanamo.query.{AndCondition, Condition}
 import com.gu.scanamo.syntax._
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.aws.AwsProvider.DbClients
+import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.scheduling.Persistence.{
   AlreadyBeingOrchestrated,
@@ -30,7 +31,7 @@ import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 
-object DynamoPersistence extends DynamoFormats {
+object DynamoPersistence extends DynamoFormats with LoggingWithMDC {
 
   def generateScheduleId(): ScheduleId = {
     UUID.randomUUID().toString

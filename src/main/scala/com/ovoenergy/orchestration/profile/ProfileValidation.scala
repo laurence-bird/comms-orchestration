@@ -1,7 +1,8 @@
 package com.ovoenergy.orchestration.profile
 
 import cats.data.Validated.{Invalid, Valid}
-import cats.data.{NonEmptyList, Validated}
+import cats.data.{EitherT, NonEmptyList, Validated}
+import cats.effect.Async
 import cats.{Apply, Monoid, Semigroup}
 import cats.implicits._
 import com.ovoenergy.comms.model._
@@ -21,15 +22,21 @@ import com.ovoenergy.orchestration.profile.CustomerProfiler.ProfileCustomer
 
 object ProfileValidation extends LoggingWithMDC {
 
-  def getValidatedCustomerProfile(retrieveCustomerProfile: ProfileCustomer => Either[ErrorDetails, CustomerProfile])(
+  def getValidatedCustomerProfile[F[_]: Async](
+      retrieveCustomerProfile: ProfileCustomer => F[Either[ErrorDetails, CustomerProfile]])(
       triggered: TriggeredV3,
-      customer: Customer): Either[ErrorDetails, domain.CustomerProfile] = {
-    for {
-      customerProfile <- retrieveCustomerProfile(
-        ProfileCustomer(customer.customerId, triggered.metadata.canary, triggered.metadata.traceToken))
-      _ <- validateProfileName(customerProfile.name)
-      _ <- validateContactProfile(customerProfile.contactProfile)
-    } yield customerProfile
+      customer: Customer): F[Either[ErrorDetails, domain.CustomerProfile]] = {
+
+    val customerProfileF = retrieveCustomerProfile(
+      ProfileCustomer(customer.customerId, triggered.metadata.canary, triggered.metadata.traceToken))
+
+    customerProfileF.map { cp =>
+      for {
+        customerProfile <- cp
+        _               <- validateProfileName(customerProfile.name)
+        _               <- validateContactProfile(customerProfile.contactProfile)
+      } yield customerProfile
+    }
   }
 
   private val validUkMobileRegex = """^\+447\d{9}$""".r

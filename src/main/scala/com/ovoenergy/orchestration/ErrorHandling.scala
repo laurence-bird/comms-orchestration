@@ -1,11 +1,12 @@
 package com.ovoenergy.orchestration
 
 import cats.effect.{Async, IO}
+import cats.syntax.flatMap._
 import com.ovoenergy.comms.helpers.{EventLogger, HasCommName, Topic}
+import com.ovoenergy.comms.model.LoggableEvent
 import com.ovoenergy.comms.serialisation.Retry
-import com.ovoenergy.orchestration.Main.log
 import com.ovoenergy.orchestration.kafka.Producer
-import com.ovoenergy.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
 import com.sksamuel.avro4s.{SchemaFor, ToRecord}
 import org.apache.kafka.clients.producer.{KafkaProducer, RecordMetadata}
 
@@ -41,14 +42,15 @@ object ErrorHandling extends LoggingWithMDC {
     }
   }
 
-  def publisherFor[E](topic: Topic[E], key: E => String)(implicit schemaFor: SchemaFor[E],
-                                                         toRecord: ToRecord[E],
-                                                         classTag: ClassTag[E]): E => IO[RecordMetadata] = {
+  def publisherFor[E <: LoggableEvent](topic: Topic[E], key: E => String)(
+      implicit schemaFor: SchemaFor[E],
+      toRecord: ToRecord[E],
+      classTag: ClassTag[E]): E => IO[RecordMetadata] = {
     val producer: KafkaProducer[String, E] = exitAppOnFailure(Producer[E](topic), topic.name)
     val publisher = { e: E =>
-      log.info(s"Sending event to topic ${topic.name} \n event: $e ")
-
-      Producer.publisher[E, IO](key, producer, topic.name)(e)
+      Producer
+        .publisher[E](key, producer, topic.name)(e)
+        .flatMap((rm: RecordMetadata) => IO(info(rm)(s"Sent event to ${topic.name}")) >> IO.pure(rm))
     }
 
     publisher
