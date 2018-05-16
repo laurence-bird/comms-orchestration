@@ -29,7 +29,7 @@ object Producer {
 
     val initialSettings = Map(
       ProducerConfig.BOOTSTRAP_SERVERS_CONFIG  -> topic.kafkaConfig.hosts,
-      ProducerConfig.CLIENT_ID_CONFIG          -> s"comms-http-api-${topic.name}-${UUID.randomUUID()}",
+      ProducerConfig.CLIENT_ID_CONFIG          -> s"comms-orchestrator-${topic.name}-${UUID.randomUUID()}",
       // TODO Enable idempotency back when https://issues.apache.org/jira/browse/KAFKA-6817 is solved
       ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> "false",
       ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION -> "1",
