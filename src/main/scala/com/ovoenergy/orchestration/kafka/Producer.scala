@@ -28,13 +28,13 @@ object Producer {
   def apply[E: SchemaFor: ToRecord](topic: Topic[E]): Either[Retry.Failed, KafkaProducer[String, E]] = {
 
     val initialSettings = Map(
-      ProducerConfig.BOOTSTRAP_SERVERS_CONFIG  -> topic.kafkaConfig.hosts,
-      ProducerConfig.CLIENT_ID_CONFIG          -> s"comms-orchestrator-${topic.name}-${UUID.randomUUID()}",
+      ProducerConfig.BOOTSTRAP_SERVERS_CONFIG -> topic.kafkaConfig.hosts,
+      ProducerConfig.CLIENT_ID_CONFIG         -> s"comms-orchestrator-${topic.name}-${UUID.randomUUID()}",
       // TODO Enable idempotency back when https://issues.apache.org/jira/browse/KAFKA-6817 is solved
-      ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> "false",
+      ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG             -> "false",
       ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION -> "1",
-      ProducerConfig.RETRIES_CONFIG            -> "5",
-      ProducerConfig.ACKS_CONFIG               -> "all"
+      ProducerConfig.RETRIES_CONFIG                        -> "5",
+      ProducerConfig.ACKS_CONFIG                           -> "all"
     )
 
     val sslSettings = topic.kafkaConfig.ssl.map { ssl =>

@@ -3,37 +3,40 @@ package servicetest.helpers
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.{AmazonS3Client, S3ClientOptions}
-import com.ovoenergy.comms.model.CommManifest
+import com.ovoenergy.comms.model.{CommManifest, TemplateManifest}
+import com.ovoenergy.comms.templates.s3.S3Prefix
+import com.ovoenergy.comms.templates.util.Hash
 
 trait FakeS3Configuration {
 
+  private def getPrefix(name: String, version: String) = {
+    S3Prefix.fromTemplateManifest(TemplateManifest(Hash(name), version))
+  }
+
   private val fragmentObjects = List(
-    ("ovo-comms-templates", "service/fragments/email/html/header.html", "HTML HEADER"),
-    ("ovo-comms-templates", "service/fragments/email/txt/header.txt", "TEXT HEADER"),
-    ("ovo-comms-templates", "service/fragments/sms/txt/header.txt", "SMS HEADER")
+    ("ovo-comms-templates", "fragments/email/html/header.html", "HTML HEADER"),
+    ("ovo-comms-templates", "fragments/email/txt/header.txt", "TEXT HEADER"),
+    ("ovo-comms-templates", "fragments/sms/txt/header.txt", "SMS HEADER")
   )
 
-  private def emailObjects(commManifest: CommManifest) = List(
-    ("ovo-comms-templates",
-     s"service/${commManifest.name}/${commManifest.version}/email/subject.txt",
-     "SUBJECT {{profile.firstName}}"),
-    ("ovo-comms-templates",
-     s"service/${commManifest.name}/${commManifest.version}/email/body.html",
-     "{{> header}} HTML BODY {{amount}}"),
-    ("ovo-comms-templates",
-     s"service/${commManifest.name}/${commManifest.version}/email/body.txt",
-     "{{> header}} TEXT BODY {{amount}}")
-  )
+  private def emailObjects(commManifest: CommManifest) = {
+    val prefix = getPrefix(commManifest.name, commManifest.version)
+    List(
+      ("ovo-comms-templates", s"$prefix/email/subject.txt", "SUBJECT {{profile.firstName}}"),
+      ("ovo-comms-templates", s"$prefix/email/body.html", "{{> header}} HTML BODY {{amount}}"),
+      ("ovo-comms-templates", s"$prefix/email/body.txt", "{{> header}} TEXT BODY {{amount}}")
+    )
+  }
 
   private def printObjects(commManifest: CommManifest) = List(
     ("ovo-comms-templates",
-     s"service/${commManifest.name}/${commManifest.version}/print/body.html",
+     s"${getPrefix(commManifest.name, commManifest.version)}/print/body.html",
      "Hello, this is a letter. Give me {{amount}} plz")
   )
 
   private def smsObjects(commManifest: CommManifest) = List(
     ("ovo-comms-templates",
-     s"service/${commManifest.name}/${commManifest.version}/sms/body.txt",
+     s"${getPrefix(commManifest.name, commManifest.version)}/sms/body.txt",
      "{{> header}} SMS BODY {{amount}}")
   )
 
