@@ -4,6 +4,7 @@ import java.time.{Clock, Instant, OffsetDateTime}
 
 import com.ovoenergy.orchestration.domain._
 import com.ovoenergy.comms.model._
+import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence
 
@@ -59,5 +60,41 @@ package object scheduling extends LoggingWithMDC {
     ) ++
       customerId.map(cId => Map("customerId" -> cId)).getOrElse(Map.empty) ++
       triggeredV3.map(_.mdcMap).getOrElse(Map.empty)
+  }
+
+  object ScheduleNew {
+    def buildFromOld(old: Schedule) = {
+      ScheduleNew(
+        scheduleId = old.scheduleId,
+        triggeredV4 = old.triggeredV3,
+        deliverAt = old.deliverAt,
+        status = old.status,
+        customerId = old.customerId,
+        templateId = Hash(old.commName),
+        orchestrationExpiry = old.orchestrationExpiry,
+        history = old.history
+      )
+    }
+  }
+
+  case class ScheduleNew(
+                          scheduleId: ScheduleId,
+                          triggeredV4: Option[TriggeredV4],
+                          deliverAt: Instant,
+                          status: ScheduleStatus,
+                          history: Seq[Change],
+                          orchestrationExpiry: Instant,
+                          customerId: Option[String],
+                          templateId: String
+  ) extends LoggableEvent{
+    override def loggableString: Option[String] = None
+    override def mdcMap: Map[String, String] = Map(
+      "scheduleId" -> scheduleId,
+      "deliverAt" -> deliverAt.toString,
+      "status" -> status.toString,
+      "templateId" -> templateId,
+    ) ++
+      customerId.map(cId => Map("customerId" -> cId)).getOrElse(Map.empty) ++
+      triggeredV4.map(_.mdcMap).getOrElse(Map.empty)
   }
 }
