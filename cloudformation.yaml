@@ -103,7 +103,7 @@ Resources:
         Projection:
           ProjectionType: ALL
         ProvisionedThroughput:
-          ReadCapacityUnits: 5
+          ReadCapacityUnits: 500
           WriteCapacityUnits: 10
       - IndexName: status-orchestrationExpiry-index
         KeySchema:
@@ -114,7 +114,7 @@ Resources:
         Projection:
           ProjectionType: ALL
         ProvisionedThroughput:
-          ReadCapacityUnits: 5
+          ReadCapacityUnits: 500
           WriteCapacityUnits: 10
 
   SchedulingTableReadCapacityAlarm:
@@ -254,8 +254,8 @@ Resources:
       - AttributeName: scheduleId
         KeyType: HASH
       ProvisionedThroughput:
-        ReadCapacityUnits: 5
-        WriteCapacityUnits: 10
+        ReadCapacityUnits: 500
+        WriteCapacityUnits: 1000
       GlobalSecondaryIndexes:
       - IndexName: customerId-templateId-index
         KeySchema:
@@ -267,7 +267,7 @@ Resources:
           ProjectionType: ALL
         ProvisionedThroughput:
           ReadCapacityUnits: 5
-          WriteCapacityUnits: 10
+          WriteCapacityUnits: 1000
       - IndexName: status-orchestrationExpiry-index
         KeySchema:
         - AttributeName: status
@@ -278,7 +278,7 @@ Resources:
           ProjectionType: ALL
         ProvisionedThroughput:
           ReadCapacityUnits: 5
-          WriteCapacityUnits: 10
+          WriteCapacityUnits: 1000
 
   SchedulingTableV2ReadCapacityAlarm:
     Type: "AWS::CloudWatch::Alarm"

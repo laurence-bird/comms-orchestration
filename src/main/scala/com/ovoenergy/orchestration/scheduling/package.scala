@@ -7,6 +7,7 @@ import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence
+import com.ovoenergy.orchestration.kafka.consumers.EventConverter._
 
 package object scheduling extends LoggingWithMDC {
 
@@ -62,11 +63,14 @@ package object scheduling extends LoggingWithMDC {
       triggeredV3.map(_.mdcMap).getOrElse(Map.empty)
   }
 
+  var counter = 1
   object ScheduleNew {
     def buildFromOld(old: Schedule) = {
+      println(s"$counter: ${old.commName} - ${Hash(old.commName)}")
+      counter += 1
       ScheduleNew(
         scheduleId = old.scheduleId,
-        triggeredV4 = old.triggeredV3,
+        triggeredV4 = old.triggeredV3.map(_.toV4),
         deliverAt = old.deliverAt,
         status = old.status,
         customerId = old.customerId,
