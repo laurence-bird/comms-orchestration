@@ -13,7 +13,7 @@ val http4sVersion = "0.18.9"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka"          %% "akka-slf4j"                % "2.4.18",
-  "com.ovoenergy"              %% "comms-kafka-messages"      % "1.40"  ,
+  "com.ovoenergy"              %% "comms-kafka-messages"      % "1.68"  ,
   "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-kafka-helpers"       % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-templates"           % "0.22",

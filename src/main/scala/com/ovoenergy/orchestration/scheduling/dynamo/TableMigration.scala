@@ -3,8 +3,9 @@ package com.ovoenergy.orchestration.scheduling.dynamo
 import java.time.{Instant, LocalDateTime, ZoneOffset}
 import java.time.format.DateTimeFormatter
 
+import cats.data.Kleisli
 import com.amazonaws.regions.Regions
-import com.amazonaws.services.dynamodbv2.model.BatchWriteItemResult
+import com.amazonaws.services.dynamodbv2.model.{BatchWriteItemResult, ScanRequest}
 import com.gu.scanamo.error.DynamoReadError
 import com.gu.scanamo.{Scanamo, ScanamoAsync, Table}
 import com.ovoenergy.orchestration.aws.AwsProvider
@@ -14,6 +15,10 @@ import cats.implicits._
 import scala.collection.immutable
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import fs2._
+import cats.effect.IO
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync
+import com.ovoenergy.orchestration.util.Retry
 
 object TableMigration extends App with DynamoFormats {
 
@@ -30,13 +35,32 @@ object TableMigration extends App with DynamoFormats {
 
   var counter = 1
 
+  def migrateWithFs2(oldTable: Table[Schedule], newTable: Table[ScheduleNew]): Unit = {
+
+    val retry = Retry.backOff()
+
+    val source = Stream.eval(ScanamoFs2.scan[IO].apply(oldTable).run(dbClient.async)).flatMap(identity)
+
+    source
+      .map(ScheduleNew.buildFromOld)
+      .segmentN(750)
+      .evalMap{xs =>
+        val toInsert = xs.force.toVector.toSet
+        retry(ScanamoF.exec[IO](dbClient.async)(newTable.putAll(toInsert))) >> IO(println(s"Inserted ${toInsert.size} record")) >> IO(counter += toInsert.size)
+      }
+      .compile
+      .last
+      .map(_ => ())
+      .unsafeRunSync()
+  }
+
   def migrateAsync(oldTable: Table[Schedule], newTable: Table[ScheduleNew]) =
     Scanamo
       .exec(dbClient.db)(oldTable.scan())
       .map(_.right.get)
       .map(ScheduleNew.buildFromOld)
       .map(n => ScanamoAsync.exec(dbClient.async)(newTable.put(n)))
-      .map(r => r.map(n =>{
+      .map(r => r.map(n => {
         println(s"$counter: ${n}")
         counter += 1
         1
@@ -71,10 +95,11 @@ object TableMigration extends App with DynamoFormats {
   }
 
   val batchSize = 500
+
   def slice(input: List[ScheduleNew]): List[List[ScheduleNew]] = {
 
     def sliceHelper(original: List[ScheduleNew], result: List[List[ScheduleNew]]): List[List[ScheduleNew]] = {
-      if(original.size < batchSize) {
+      if (original.size < batchSize) {
         return original :: result
       } else {
         sliceHelper(original.drop(batchSize), original.take(batchSize) :: result)
@@ -84,7 +109,7 @@ object TableMigration extends App with DynamoFormats {
     sliceHelper(input, List[List[ScheduleNew]]())
   }
 
-  val totalMigrated = migrate(oldUAT, newUAT)
+  val totalMigrated = migrateWithFs2(oldUAT, newUAT)
 
   println(s"Total migrated: $totalMigrated")
   println(s"finished at ${Instant.now}")

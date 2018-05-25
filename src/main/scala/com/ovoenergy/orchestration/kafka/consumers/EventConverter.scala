@@ -40,7 +40,10 @@ object EventConverter {
         source              = v2.source,
         canary              = v2.canary,
         sourceMetadata      = v2.sourceMetadata.map(_.toV3),
-        triggerSource       = v2.triggerSource
+        triggerSource       = v2.triggerSource,
+        commType            = v2.commManifest.commType,
+        commName            = v2.commManifest.name,
+        brand               = Brand.Ovo
       )
   }
 
