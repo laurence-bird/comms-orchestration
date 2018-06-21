@@ -35,7 +35,6 @@ class RetrySpec extends WordSpec with Matchers with ScalaFutures with BeforeAndA
         val r = Retry(maxRetries = 3, delay = 10.milliseconds)(IO.raiseError(expectedFailure)).attempt
           .unsafeToFuture()
           .futureValue
-        println(s"result RESULT YOOO: $r")
         r shouldBe Left(expectedFailure)
       }
     }
@@ -48,9 +47,7 @@ class RetrySpec extends WordSpec with Matchers with ScalaFutures with BeforeAndA
 
           def task = IO {
             val c = counter.getAndIncrement()
-            print(s"Counter at: $c")
             if (c > 3) {
-              print("Counter happy!")
               expectedResult
             } else throw new RuntimeException
           }

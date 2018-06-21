@@ -72,7 +72,7 @@ class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues wit
   it should "return appropriate error message if call to profiles service fails" in {
     val errorResponse    = Left(ErrorDetails("Oh no it failed!", ProfileRetrievalFailed))
     val profileRetriever = buildProfileRetriever(errorResponse)
-    val triggered        = generate[TriggeredV3]
+    val triggered        = generate[TriggeredV4]
     val customer         = generate[Customer]
 
     ProfileValidation
@@ -84,7 +84,7 @@ class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues wit
     val invalidNameProfile =
       validCustomerProfile.right.map(p => p.copy(name = CustomerProfileName(None, "", "", None)))
     val profileRetriever = buildProfileRetriever(invalidNameProfile)
-    val triggered        = generate[TriggeredV3]
+    val triggered        = generate[TriggeredV4]
     val customer         = generate[Customer]
 
     ProfileValidation.getValidatedCustomerProfile(profileRetriever)(triggered, customer).unsafeRunSync() shouldBe Left(
@@ -93,7 +93,7 @@ class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues wit
 
   it should "return a valid profile if all retrieval and profile validation is successful" in {
     val profileRetriever = buildProfileRetriever(validCustomerProfile)
-    val triggered        = generate[TriggeredV3]
+    val triggered        = generate[TriggeredV4]
     val customer         = generate[Customer]
 
     ProfileValidation

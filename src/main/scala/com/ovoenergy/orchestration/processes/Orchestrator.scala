@@ -33,21 +33,21 @@ object Orchestrator extends LoggingWithMDC {
     }
   }
 
-  def apply[F[_]: Async](channelSelector: ChannelSelector,
-                         getValidatedCustomerProfile: (TriggeredV3, Customer) => F[Either[
+  def apply[F[_]: Async](channelSelector: ChannelSelector[F],
+                         getValidatedCustomerProfile: (TriggeredV4, Customer) => F[Either[
                            ErrorDetails,
                            domain.CustomerProfile]], // TODO: Handle this throwing naughty exceptions
                          getValidatedContactProfile: ContactProfile => Either[ErrorDetails, ContactProfile],
                          issueOrchestratedEmail: IssueOrchestratedComm[EmailAddress, F],
                          issueOrchestratedSMS: IssueOrchestratedComm[MobilePhoneNumber, F],
                          issueOrchestratedPrint: IssueOrchestratedComm[ContactAddress, F])(
-      triggered: TriggeredV3,
+      triggered: TriggeredV4,
       internalMetadata: InternalMetadata)(implicit ec: ExecutionContext): F[Either[ErrorDetails, RecordMetadata]] = {
 
     def issueOrchestratedComm(customerProfile: Option[model.CustomerProfile],
                               channel: Channel,
-                              contactProfile: domain.ContactProfile): Either[ErrorDetails, F[RecordMetadata]] = {
-      channel match {
+                              contactProfile: domain.ContactProfile): F[Either[ErrorDetails, RecordMetadata]] = {
+      val result: Either[ErrorDetails, F[RecordMetadata]] = channel match {
         case Email =>
           contactProfile.emailAddress
             .map(issueOrchestratedEmail.send(customerProfile, _, triggered))
@@ -75,15 +75,17 @@ object Orchestrator extends LoggingWithMDC {
 
         case _ => Left(ErrorDetails(s"Unsupported channel selected $channel", OrchestrationError))
       }
+
+      result.traverse(identity)
     }
 
-    def orchestrate(triggeredV3: TriggeredV3,
+    def orchestrate(triggeredV4: TriggeredV4,
                     contactProfile: domain.ContactProfile,
                     customerPreferences: Seq[CommunicationPreference],
-                    customerProfile: Option[model.CustomerProfile]): Either[ErrorDetails, F[RecordMetadata]] = {
+                    customerProfile: Option[model.CustomerProfile]): EitherT[F, ErrorDetails, RecordMetadata] = {
       for {
-        channel <- channelSelector.determineChannel(contactProfile, customerPreferences, triggeredV3)
-        res     <- issueOrchestratedComm(customerProfile, channel, contactProfile)
+        channel <- EitherT(channelSelector.determineChannel(contactProfile, customerPreferences, triggeredV4))
+        res     <- EitherT(issueOrchestratedComm(customerProfile, channel, contactProfile))
       } yield res
     }
 
@@ -91,24 +93,17 @@ object Orchestrator extends LoggingWithMDC {
       case customer @ Customer(_) => {
         for {
           customerProfile <- EitherT(getValidatedCustomerProfile(triggered, customer))
-          orchestrationResult <- {
-            val res = orchestrate(triggered,
-                                  customerProfile.contactProfile,
-                                  customerProfile.communicationPreferences,
-                                  Some(customerProfile.toModel))
-
-            EitherT(res.traverse(identity))
-          }
+          orchestrationResult <- orchestrate(triggered,
+                                             customerProfile.contactProfile,
+                                             customerProfile.communicationPreferences,
+                                             Some(customerProfile.toModel))
         } yield orchestrationResult
       }
       case contactDetails @ ContactDetails(_, _, _) => {
         for {
           contactProfile <- EitherT(
             Async[F].delay(getValidatedContactProfile(ContactProfile.fromContactDetails(contactDetails))))
-          orchestrationResult <- {
-            val res = orchestrate(triggered, contactProfile, Nil, None)
-            EitherT(res.traverse(identity))
-          }
+          orchestrationResult <- orchestrate(triggered, contactProfile, Nil, None)
         } yield orchestrationResult
       }
     }

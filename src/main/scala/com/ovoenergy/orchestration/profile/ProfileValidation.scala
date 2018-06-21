@@ -24,7 +24,7 @@ object ProfileValidation extends LoggingWithMDC {
 
   def getValidatedCustomerProfile[F[_]: Async](
       retrieveCustomerProfile: ProfileCustomer => F[Either[ErrorDetails, CustomerProfile]])(
-      triggered: TriggeredV3,
+      triggered: TriggeredV4,
       customer: Customer): F[Either[ErrorDetails, domain.CustomerProfile]] = {
 
     val customerProfileF = retrieveCustomerProfile(

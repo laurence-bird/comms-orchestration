@@ -71,29 +71,34 @@ object CustomerProfiler extends LoggingWithMDC {
 
       val req = ProfileCustomerRequest(profileCustomer, fullUri)
 
-      val response: F[Either[ErrorDetails, CustomerProfile]] = Async[F].delay(
-          info(req)(s"Requesting customer profile")) >> client.fetch(GET(fullUri)) { response: Response[F] =>
-        Async[F].delay(info("Received response")) >>
-          (if (response.status.isSuccess) {
-             response.as[CustomerProfileResponse].map(c => Right(toCustomerProfile(c)))
-           } else {
-             response.as[String].flatMap { str =>
-               response.status.responseClass match {
-                 case ServerError =>
-                   Async[F].delay(
-                     warn(req)(s"Error response (${response.status.code}), from profile service $str")
-                   ) >>
-                     Async[F].raiseError(
-                       ServerErrorException(s"Error response (${response.status.code}), from profile service $str"))
-                 case _ =>
-                   Async[F].delay(warn(req)(s"Error response (${response.status.code}), from profile service $str")) >>
-                     Async[F].delay(
-                       Left(ErrorDetails(s"Error response (${response.status.code}) retrieving customer profile: $str",
-                                         OrchestrationError)))
-               }
-             }
-           })
-      }
+      val response: F[Either[ErrorDetails, CustomerProfile]] =
+        Async[F].delay(info(req)(s"Requesting customer profile")) >> client.fetch(GET(fullUri)) {
+          response: Response[F] =>
+            {
+              Async[F].delay(info("Received response")) >>
+                (if (response.status.isSuccess) {
+                   response.as[CustomerProfileResponse].map(c => Right(toCustomerProfile(c)))
+                 } else {
+                   response.as[String].flatMap { str =>
+                     response.status.responseClass match {
+                       case ServerError =>
+                         Async[F].delay(
+                           warn(req)(s"Error response (${response.status.code}), from profile service $str")
+                         ) >>
+                           Async[F].raiseError(ServerErrorException(
+                             s"Error response (${response.status.code}), from profile service $str"))
+                       case _ =>
+                         Async[F].delay(
+                           warn(req)(s"Error response (${response.status.code}), from profile service $str")) >>
+                           Async[F].delay(
+                             Left(ErrorDetails(
+                               s"Error response (${response.status.code}) retrieving customer profile: $str",
+                               OrchestrationError)))
+                     }
+                   }
+                 })
+            }
+        }
 
       retry(response, _.isInstanceOf[ServerErrorException]).onError {
         case NonFatal(e) =>

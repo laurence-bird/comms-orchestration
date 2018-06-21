@@ -133,19 +133,19 @@ class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock
     }
   }
 
-  def cancelSchedules(customerId: String, commName: String): Seq[Either[ErrorDetails, Schedule]] = {
-    log.info(s"Removing schedule for $customerId, $commName")
+  def cancelSchedules(customerId: String, templateId: String): Seq[Either[ErrorDetails, Schedule]] = {
+    log.info(s"Removing schedule for $customerId, $templateId")
     val now       = Instant.now(clock)
     val db        = context.db
     val tableName = context.table.name
     val query = new QueryRequest()
       .withTableName(tableName)
-      .withIndexName("customerId-commName-index")
+      .withIndexName("customerId-templateId-index")
       .addExpressionAttributeNamesEntry("#customerId", "customerId")
       .addExpressionAttributeValuesEntry(":customerId", new AttributeValue(customerId))
-      .addExpressionAttributeNamesEntry("#commName", "commName")
-      .addExpressionAttributeValuesEntry(":commName", new AttributeValue(commName))
-      .withKeyConditionExpression("#customerId = :customerId and #commName = :commName")
+      .addExpressionAttributeNamesEntry("#templateId", "templateId")
+      .addExpressionAttributeValuesEntry(":templateId", new AttributeValue(templateId))
+      .withKeyConditionExpression("#customerId = :customerId and #templateId = :templateId")
       .addExpressionAttributeNamesEntry("#status", "status")
       .addExpressionAttributeNamesEntry("#expiry", "orchestrationExpiry")
       .addExpressionAttributeValuesEntry(":pending", scheduleStatusDynamoFormat.write(ScheduleStatus.Pending))

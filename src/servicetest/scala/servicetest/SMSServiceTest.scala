@@ -3,7 +3,7 @@ package servicetest
 import com.ovoenergy.comms.helpers.Kafka
 import com.ovoenergy.comms.testhelpers.KafkaTestHelpers._
 import com.ovoenergy.comms.model._
-import com.ovoenergy.comms.model.sms.OrchestratedSMSV2
+import com.ovoenergy.comms.model.sms.{OrchestratedSMSV2, OrchestratedSMSV3}
 import com.ovoenergy.orchestration.util.TestUtil
 import com.typesafe.config.{Config, ConfigFactory}
 import org.mockserver.client.server.MockServerClient
@@ -23,6 +23,7 @@ class SMSServiceTest
     with BeforeAndAfterAll
     with IntegrationPatience
     with MockProfileResponses
+    with DynamoTesting
     with FakeS3Configuration {
 
   val mockServerClient = new MockServerClient("localhost", 1080)
@@ -35,32 +36,33 @@ class SMSServiceTest
   override def beforeAll() = {
     super.beforeAll()
     uploadFragmentsToFakeS3(region, s3Endpoint)
-    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggeredV4.metadata.templateManifest)
   }
 
   behavior of "SMS Orchestration"
 
   it should "orchestrate SMS request to send immediately" in withThrowawayConsumerFor(
-    Kafka.aiven.orchestrationStarted.v2,
-    Kafka.aiven.orchestratedSMS.v2) { (orchestrationStartedConsumer, orchestratedSMSConsumer) =>
+    Kafka.aiven.orchestrationStarted.v3,
+    Kafka.aiven.orchestratedSMS.v3) { (orchestrationStartedConsumer, orchestratedSMSConsumer) =>
     createOKCustomerProfileResponse(mockServerClient)
-    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
-    val triggerSMS = TestUtil.customerTriggered.copy(preferredChannels = Some(List(SMS)))
-    Kafka.aiven.triggered.v3.publishOnce(triggerSMS)
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggeredV4.metadata.templateManifest)
+    val triggerSMS = TestUtil.customerTriggeredV4.copy(preferredChannels = Some(List(SMS)))
+    populateTemplateSummaryTable(triggerSMS.metadata.templateManifest)
+    Kafka.aiven.triggered.v4.publishOnce(triggerSMS)
 
     expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
     expectSMSOrchestrationEvents(noOfEventsExpected = 1, consumer = orchestratedSMSConsumer)
   }
 
-  it should "orchestrate multiple SMS" in withThrowawayConsumerFor(Kafka.aiven.orchestrationStarted.v2,
-                                                                   Kafka.aiven.orchestratedSMS.v2) {
+  it should "orchestrate multiple SMS" in withThrowawayConsumerFor(Kafka.aiven.orchestrationStarted.v3,
+                                                                   Kafka.aiven.orchestratedSMS.v3) {
     (orchestrationStartedConsumer, orchestratedSMSConsumer) =>
       createOKCustomerProfileResponse(mockServerClient)
+      val triggerSMS = TestUtil.customerTriggeredV4.copy(preferredChannels = Some(List(SMS)))
+      populateTemplateSummaryTable(triggerSMS.metadata.templateManifest)
       (1 to 10).foreach(counter => {
-        val triggered = TestUtil.customerTriggered.copy(metadata =
-                                                          TestUtil.metadataV2.copy(traceToken = counter.toString),
-                                                        preferredChannels = Some(List(SMS)))
-        Kafka.aiven.triggered.v3.publishOnce(triggered, 10.seconds)
+        val triggered = triggerSMS.copy(metadata = TestUtil.metadataV3.copy(traceToken = counter.toString))
+        Kafka.aiven.triggered.v4.publishOnce(triggered, 10.seconds)
       })
 
       val deadline = 15.seconds
@@ -85,12 +87,13 @@ class SMSServiceTest
   }
 
   it should "orchestrate triggered event with sms contact details" in withThrowawayConsumerFor(
-    Kafka.aiven.orchestrationStarted.v2,
-    Kafka.aiven.orchestratedSMS.v2) { (orchestrationStartedConsumer, orchestratedSMSConsumer) =>
+    Kafka.aiven.orchestrationStarted.v3,
+    Kafka.aiven.orchestratedSMS.v3) { (orchestrationStartedConsumer, orchestratedSMSConsumer) =>
     createOKCustomerProfileResponse(mockServerClient)
-    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggered.metadata.commManifest)
+    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggeredV4.metadata.templateManifest)
     val triggerSMS = TestUtil.smsContactDetailsTriggered
-    Kafka.aiven.triggered.v3.publishOnce(triggerSMS)
+    populateTemplateSummaryTable(triggerSMS.metadata.templateManifest)
+    Kafka.aiven.triggered.v4.publishOnce(triggerSMS)
 
     expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
     expectSMSOrchestrationEvents(pollTime = 120.seconds,
@@ -102,7 +105,7 @@ class SMSServiceTest
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25.seconds,
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true,
-                                       consumer: KafkaConsumer[String, Option[OrchestrationStartedV2]]) = {
+                                       consumer: KafkaConsumer[String, Option[OrchestrationStartedV3]]) = {
     val orchestrationStartedEvents =
       consumer.pollFor(pollTime = pollTime, noOfEventsExpected = noOfEventsExpected)
 
@@ -116,7 +119,7 @@ class SMSServiceTest
                                    noOfEventsExpected: Int,
                                    shouldCheckTraceToken: Boolean = true,
                                    shouldHaveCustomerProfile: Boolean = true,
-                                   consumer: KafkaConsumer[String, Option[OrchestratedSMSV2]]) = {
+                                   consumer: KafkaConsumer[String, Option[OrchestratedSMSV3]]) = {
 
     val orchestratedSMS = consumer.pollFor(pollTime = pollTime, noOfEventsExpected = noOfEventsExpected)
 

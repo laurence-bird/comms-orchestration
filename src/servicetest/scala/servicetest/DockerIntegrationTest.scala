@@ -127,14 +127,15 @@ trait DockerIntegrationTest
     .fold(throw new RuntimeException("Local ip address not found"))(_.getHostAddress)
 
   val aivenTopics = Seq(
-    "comms.failed.v2",
+    "comms.failed.v3",
     "comms.triggered.v3",
-    "comms.cancellation.requested.v2",
-    "comms.cancelled.v2",
-    "comms.failed.cancellation.v2",
-    "comms.orchestrated.email.v3",
-    "comms.orchestrated.sms.v2",
-    "comms.orchestration.started.v2"
+    "comms.triggered.v4",
+    "comms.cancellation.requested.v3",
+    "comms.cancelled.v3",
+    "comms.failed.cancellation.v3",
+    "comms.orchestrated.email.v4",
+    "comms.orchestrated.sms.v3",
+    "comms.orchestration.started.v3"
   )
 
   // TODO currently no way to set the memory limit on docker containers. Need to make a PR to add support to docker-it-scala. I've checked that the spotify client supports it.
@@ -198,16 +199,17 @@ trait DockerIntegrationTest
   lazy val dynamodb = DockerContainer("forty8bit/dynamodb-local:latest", name = Some("dynamodb"))
     .withPorts(8000 -> Some(8000))
     .withCommand("-sharedDb")
-//    .withCommand("java",
-//                 "-Xmx256M",
-//                 "-Xms128M",
-//                 "-Djava.library.path=./DynamoDBLocal_lib",
-//                 "-jar",
-//                 "DynamoDBLocal.jar",
-//                 "-sharedDb") // TODO we need to override the entrypoint, not pass a command. This will need a PR against docker-it-scala.
+    //    .withCommand("java",
+    //                 "-Xmx256M",
+    //                 "-Xms128M",
+    //                 "-Djava.library.path=./DynamoDBLocal_lib",
+    //                 "-jar",
+    //                 "DynamoDBLocal.jar",
+    //                 "-sharedDb") // TODO we need to override the entrypoint, not pass a command. This will need a PR against docker-it-scala.
     .withLogWritingAndReadyChecker("Initializing DynamoDB Local", "dynamodb", onReady = () => {
       println("Creating Dynamo table")
       createTable()
+      createTemplateSummaryTable()
     })
 
   lazy val orchestration = {
@@ -237,7 +239,7 @@ trait DockerIntegrationTest
         ContainerLink(aivenKafka, "aivenKafka"),
         ContainerLink(schemaRegistry, "schema-registry"),
         ContainerLink(dynamodb, "dynamodb"),
-        ContainerLink(fakes3ssl, "ovo-comms-templates.s3-eu-west-1.amazonaws.com")
+        ContainerLink(fakes3ssl, "ovo-comms-templates.s3.eu-west-1.amazonaws.com") // NB: This used to be ovo-comms-templates.s3-eu-west-1.amazonaws.com :rage:
       )
       .withEnv(envVars: _*)
       .withVolumes(List(VolumeMapping(host = s"${sys.env("HOME")}/.aws", container = "/sbin/.aws"))) // share AWS creds so that credstash works
@@ -306,5 +308,4 @@ trait DockerIntegrationTest
     stopAllQuietly()
     super.afterAll()
   }
-
 }

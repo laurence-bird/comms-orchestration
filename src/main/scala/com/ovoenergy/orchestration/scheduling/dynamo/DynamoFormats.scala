@@ -2,17 +2,17 @@ package com.ovoenergy.orchestration.scheduling.dynamo
 
 import java.time.{DateTimeException, Instant}
 import java.util.UUID
-
 import com.gu.scanamo.DynamoFormat
 import com.gu.scanamo.error.TypeCoercionError
 import com.ovoenergy.comms.model._
+import com.ovoenergy.comms.templates.TemplateMetadataDynamoFormats
 import com.ovoenergy.orchestration.scheduling.ScheduleStatus
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.parser.parse
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.{Decoder, Encoder, Error}
-trait DynamoFormats {
+trait DynamoFormats extends TemplateMetadataDynamoFormats {
 
   implicit val uuidDynamoFormat =
     DynamoFormat.coercedXmap[UUID, String, IllegalArgumentException](UUID.fromString)(_.toString)

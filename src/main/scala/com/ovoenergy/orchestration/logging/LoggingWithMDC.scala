@@ -5,6 +5,7 @@ import cats.syntax.all._
 import com.gu.scanamo.error.{DynamoReadError, ScanamoError}
 import com.ovoenergy.comms.model.{CommManifest, LoggableEvent}
 import com.ovoenergy.orchestration.kafka.consumers.KafkaConsumer
+import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.slf4j.{Logger, LoggerFactory, MDC}
 

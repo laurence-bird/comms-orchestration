@@ -11,12 +11,12 @@ import scala.concurrent.{ExecutionContext, Future}
 object CancellationRequestConsumer extends LoggingWithMDC {
 
   def apply[F[_]: Async](
-      sendFailedCancellationEvent: (FailedCancellationV2) => F[RecordMetadata],
-      sendSuccessfulCancellationEvent: (CancelledV2 => F[RecordMetadata]),
-      descheduleComm: CancellationRequestedV2 => Seq[Either[ErrorDetails, MetadataV2]],
-      generateTraceToken: () => String)(implicit ec: ExecutionContext): CancellationRequestedV2 => F[Unit] = {
+      sendFailedCancellationEvent: (FailedCancellationV3) => F[RecordMetadata],
+      sendSuccessfulCancellationEvent: (CancelledV3 => F[RecordMetadata]),
+      descheduleComm: CancellationRequestedV3 => Seq[Either[ErrorDetails, MetadataV3]],
+      generateTraceToken: () => String)(implicit ec: ExecutionContext): CancellationRequestedV3 => F[Unit] = {
 
-    cancellationRequest: CancellationRequestedV2 =>
+    cancellationRequest: CancellationRequestedV3 =>
       {
 
         info(cancellationRequest)(s"Event received: ${cancellationRequest.loggableString}")
@@ -25,14 +25,14 @@ object CancellationRequestConsumer extends LoggingWithMDC {
           case Left(err) =>
             warn(cancellationRequest)(s"Cancellation request failed with error $err")
             sendFailedCancellationEvent(
-              FailedCancellationV2(
-                GenericMetadataV2.fromSourceGenericMetadata("orchestration", cancellationRequest.metadata),
+              FailedCancellationV3(
+                GenericMetadataV3.fromSourceGenericMetadata("orchestration", cancellationRequest.metadata),
                 cancellationRequest,
                 s"Cancellation of scheduled comm failed: ${err.reason}"
               ))
           case Right(metadata) =>
             sendSuccessfulCancellationEvent(
-              CancelledV2(MetadataV2.fromSourceMetadata("orchestration", metadata), cancellationRequest))
+              CancelledV3(MetadataV3.fromSourceMetadata("orchestration", metadata), cancellationRequest))
         }
 
         import cats.implicits._

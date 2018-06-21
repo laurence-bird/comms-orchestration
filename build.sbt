@@ -4,7 +4,7 @@ scalaVersion          := "2.12.4"
 scalacOptions         := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
 val circeVersion = "0.9.0"
-val commsKafkaSerialisationVersion = "3.13"
+val commsKafkaSerialisationVersion = "3.15"
 val dockerTestkitVersion = "0.9.5"
 val monocleVersion = "1.5.0"
 val fs2KafkaClientVersion = "0.1.9"
@@ -13,12 +13,13 @@ val http4sVersion = "0.18.9"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka"          %% "akka-slf4j"                % "2.4.18",
-  "com.ovoenergy"              %% "comms-kafka-messages"      % "1.40"  ,
+  "com.ovoenergy"              %% "comms-kafka-messages"      % "1.71"  ,
   "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-kafka-helpers"       % commsKafkaSerialisationVersion,
-  "com.ovoenergy"              %% "comms-templates"           % "0.22",
+  "com.ovoenergy"              %% "comms-templates"           % "0.25",
   "ch.qos.logback"             % "logback-classic"            % "1.1.7",
   "me.moocar"                  % "logback-gelf"               % "0.2",
+  "org.slf4j"                  % "jcl-over-slf4j"             % "1.7.25",
   "io.logz.logback"            % "logzio-logback-appender"    % "1.0.11",
   "org.typelevel"              %% "cats-core"                 % "1.0.1",
   "org.typelevel"              %% "cats-effect"               % "0.10",
@@ -47,7 +48,7 @@ libraryDependencies ++= Seq(
   "com.whisk" %% "docker-testkit-core"             % dockerTestkitVersion % ServiceTest,
   "com.ovoenergy" %% "comms-kafka-test-helpers" % commsKafkaSerialisationVersion % ServiceTest,
   "commons-io" % "commons-io" % "2.5" % ServiceTest
-)
+).map(_.exclude("commons-logging", "commons-logging"))
 
 resolvers ++= Seq(
   Resolver.bintrayRepo("ovotech", "maven"),

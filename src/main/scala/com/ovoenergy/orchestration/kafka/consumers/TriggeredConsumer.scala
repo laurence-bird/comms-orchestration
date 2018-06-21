@@ -14,14 +14,14 @@ import scala.concurrent.{ExecutionContext}
 
 object TriggeredConsumer extends LoggingWithMDC {
 
-  def apply[F[_]: Async](scheduleTask: (TriggeredV3) => F[Either[ErrorDetails, Boolean]],
-                         sendFailedEvent: FailedV2 => F[Unit],
-                         sendOrchestrationStartedEvent: OrchestrationStartedV2 => F[RecordMetadata],
+  def apply[F[_]: Async](scheduleTask: TriggeredV4 => F[Either[ErrorDetails, Boolean]],
+                         sendFailedEvent: FailedV3 => F[Unit],
+                         sendOrchestrationStartedEvent: OrchestrationStartedV3 => F[RecordMetadata],
                          generateTraceToken: () => String,
-                         orchestrateComm: (TriggeredV3, InternalMetadata) => F[Either[ErrorDetails, RecordMetadata]])(
-      implicit ec: ExecutionContext): TriggeredV3 => F[Unit] = { triggeredV3: TriggeredV3 =>
-    def scheduleOrFail(triggeredV3: TriggeredV3) = {
-      scheduleTask(triggeredV3) flatMap {
+                         orchestrateComm: (TriggeredV4, InternalMetadata) => F[Either[ErrorDetails, RecordMetadata]])(
+      implicit ec: ExecutionContext): TriggeredV4 => F[Unit] = { triggeredV4: TriggeredV4 =>
+    def scheduleOrFail(triggeredV4: TriggeredV4) = {
+      scheduleTask(triggeredV4) flatMap {
         case Right(r)  => Async[F].pure(())
         case Left(err) => sendFailedEvent(failedEventFromErr(err))
       }
@@ -29,36 +29,36 @@ object TriggeredConsumer extends LoggingWithMDC {
 
     def handleOrchestrationResult(either: Either[ErrorDetails, RecordMetadata]): F[Unit] = either match {
       case Left(err) =>
-        warn(triggeredV3)(s"Error orchestrating comm: ${err.reason}")
+        warn(triggeredV4)(s"Error orchestrating comm: ${err.reason}")
         sendFailedEvent(failedEventFromErr(err))
       case Right(_) => Async[F].pure(())
     }
 
-    def orchestrateOrFail(triggeredV3: TriggeredV3): F[Unit] = {
+    def orchestrateOrFail(triggeredV4: TriggeredV4): F[Unit] = {
       val internalMetadata = buildInternalMetadata()
       for {
-        _          <- sendOrchestrationStartedEvent(OrchestrationStartedV2(triggeredV3.metadata, internalMetadata))
-        orchResult <- orchestrateComm(triggeredV3, internalMetadata)
+        _          <- sendOrchestrationStartedEvent(OrchestrationStartedV3(triggeredV4.metadata, internalMetadata))
+        orchResult <- orchestrateComm(triggeredV4, internalMetadata)
         _          <- handleOrchestrationResult(orchResult)
       } yield ()
     }
 
     def buildInternalMetadata() = InternalMetadata(generateTraceToken())
 
-    def failedEventFromErr(err: ErrorDetails): FailedV2 = {
-      FailedV2(
-        MetadataV2.fromSourceMetadata("orchestration", triggeredV3.metadata),
+    def failedEventFromErr(err: ErrorDetails): FailedV3 = {
+      FailedV3(
+        MetadataV3.fromSourceMetadata("orchestration", triggeredV4.metadata),
         buildInternalMetadata(),
         err.reason,
         err.errorCode
       )
     }
 
-    def isScheduled(triggeredV3: TriggeredV3) = triggeredV3.deliverAt.isDefined
+    def isScheduled(triggeredV4: TriggeredV4) = triggeredV4.deliverAt.isDefined
 
-    val validatedTriggeredV3 = TriggeredDataValidator(triggeredV3)
+    val validatedTriggeredV4 = TriggeredDataValidator(triggeredV4)
 
-    validatedTriggeredV3 match {
+    validatedTriggeredV4 match {
       case Left(err) => sendFailedEvent(failedEventFromErr(err))
       case Right(t) if isScheduled(t) =>
         scheduleOrFail(t)

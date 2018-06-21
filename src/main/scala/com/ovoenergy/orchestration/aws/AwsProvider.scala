@@ -10,6 +10,7 @@ import com.amazonaws.services.dynamodbv2.{
   AmazonDynamoDBAsyncClientBuilder,
   AmazonDynamoDBClientBuilder
 }
+import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
 import com.ovoenergy.comms.templates.TemplatesContext
 import org.slf4j.LoggerFactory
 
@@ -51,14 +52,15 @@ object AwsProvider {
   }
 
   def templatesContext(isRunningInLocalDocker: Boolean, region: Regions) = {
-    val awsCreds = getCreds(isRunningInLocalDocker, region)
-    TemplatesContext.cachingContext(awsCreds)
+    val s3Credentials = getCreds(isRunningInLocalDocker, region)
+    TemplatesContext.cachingContext(s3Credentials)
   }
 
   private def getCreds(isRunningInLocalDocker: Boolean, region: Regions): AWSCredentialsProvider = {
-    if (isRunningInLocalDocker)
+    if (isRunningInLocalDocker) {
+      log.info("Running in docker, assoigning static credentials")
       new AWSStaticCredentialsProvider(new BasicAWSCredentials("key", "secret"))
-    else
+    } else
       new AWSCredentialsProviderChain(
         new ContainerCredentialsProvider(),
         new ProfileCredentialsProvider()

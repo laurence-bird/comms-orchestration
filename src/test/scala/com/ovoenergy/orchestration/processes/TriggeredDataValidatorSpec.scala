@@ -1,6 +1,6 @@
 package com.ovoenergy.orchestration.processes
 
-import com.ovoenergy.comms.model.{OrchestrationError, TemplateData, TriggeredV3}
+import com.ovoenergy.comms.model.{OrchestrationError, TemplateData, TriggeredV3, TriggeredV4}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.util.ArbGenerator
 import org.scalatest.{Matchers, WordSpec}
@@ -9,15 +9,45 @@ import monocle.macros.syntax.lens._
 
 class TriggeredDataValidatorSpec extends WordSpec with Matchers with ArbGenerator {
 
+  val triggeredV4 = generate[TriggeredV4]
+
+  "EventDataValidator" should {
+
+    "return the same triggeredV4 event" in {
+      TriggeredDataValidator(triggeredV4) shouldBe Right(triggeredV4)
+    }
+
+    "reject triggeredV4 event" when {
+
+      "templateId is empty" in {
+        val empty = triggeredV4.lens(_.metadata.templateManifest.id).modify(_ => "")
+        TriggeredDataValidator(empty) shouldBe Left(
+          ErrorDetails("The following fields contain empty string: templateId", OrchestrationError))
+      }
+
+      "templateVersion is empty" in {
+        val empty = triggeredV4.lens(_.metadata.templateManifest.version).modify(_ => "")
+        TriggeredDataValidator(empty) shouldBe Left(
+          ErrorDetails("The following fields contain empty string: templateVersion", OrchestrationError))
+      }
+
+      "commId is empty" in {
+        val empty = triggeredV4.lens(_.metadata.commId).modify(_ => "")
+        TriggeredDataValidator(empty) shouldBe Left(
+          ErrorDetails("The following fields contain empty string: commId", OrchestrationError))
+      }
+    }
+  }
+
   val triggeredV3 = generate[TriggeredV3]
 
   "EventDataValidator" should {
 
-    "return the same triggered event" in {
+    "return the same triggeredV3 event" in {
       TriggeredDataValidator(triggeredV3) shouldBe Right(triggeredV3)
     }
 
-    "reject triggered event" when {
+    "reject triggeredV3 event" when {
 
       "traceToken is empty" in {
         val empty = triggeredV3.lens(_.metadata.traceToken).modify(_ => "")
@@ -84,7 +114,7 @@ class TriggeredDataValidatorSpec extends WordSpec with Matchers with ArbGenerato
         ))
       }
 
-      "template data contains emtpy field" in {
+      "template data contains empty field" in {
 
         val td = TemplateData.fromMap(
           Map(

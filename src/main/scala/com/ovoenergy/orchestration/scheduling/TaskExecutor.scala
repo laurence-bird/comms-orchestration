@@ -18,23 +18,23 @@ import scala.util.control.NonFatal
 
 object TaskExecutor extends LoggingWithMDC {
   def execute(persistence: Persistence.Orchestration,
-              orchestrateTrigger: (TriggeredV3, InternalMetadata) => IO[Either[ErrorDetails, RecordMetadata]],
-              sendOrchestrationStartedEvent: OrchestrationStartedV2 => IO[RecordMetadata],
+              orchestrateTrigger: (TriggeredV4, InternalMetadata) => IO[Either[ErrorDetails, RecordMetadata]],
+              sendOrchestrationStartedEvent: OrchestrationStartedV3 => IO[RecordMetadata],
               generateTraceToken: () => String,
-              sendFailedEvent: FailedV2 => IO[RecordMetadata])(scheduleId: ScheduleId): Unit = {
+              sendFailedEvent: FailedV3 => IO[RecordMetadata])(scheduleId: ScheduleId): Unit = {
 
     def buildAndSendFailedEvent(reason: String,
-                                triggered: TriggeredV3,
+                                triggered: TriggeredV4,
                                 errorCode: ErrorCode,
                                 internalMetadata: InternalMetadata): IO[RecordMetadata] = {
       sendFailedEvent(
-        FailedV2(MetadataV2.fromSourceMetadata("orchestration", triggered.metadata),
+        FailedV3(MetadataV3.fromSourceMetadata("orchestration", triggered.metadata),
                  internalMetadata,
                  reason,
                  errorCode))
     }
 
-    def awaitOrchestrationFuture(triggered: TriggeredV3,
+    def awaitOrchestrationFuture(triggered: TriggeredV4,
                                  internalMetadata: InternalMetadata,
                                  f: IO[Either[ErrorDetails, _]]): Unit = {
       try {
@@ -42,6 +42,7 @@ object TaskExecutor extends LoggingWithMDC {
           case Right(r) =>
             IO(persistence.setScheduleAsComplete(scheduleId))
           case Left(err) => {
+            warn(triggered)(s"Failed to orchestrate comm: ${err.reason}")
             IO(persistence.setScheduleAsFailed(scheduleId, err.reason))
               .flatMap(_ => buildAndSendFailedEvent(err.reason, triggered, err.errorCode, internalMetadata))
               .map(_ => ())
@@ -63,7 +64,7 @@ object TaskExecutor extends LoggingWithMDC {
       }
     }
 
-    log.debug(s"Orchestrating commm (scheduleId: $scheduleId)")
+    log.debug(s"Orchestrating comm (scheduleId: $scheduleId)")
     val internalMetadata = InternalMetadata(generateTraceToken())
     persistence.attemptSetScheduleAsOrchestrating(scheduleId) match {
       case AlreadyBeingOrchestrated => ()
@@ -71,10 +72,10 @@ object TaskExecutor extends LoggingWithMDC {
         log.error(
           s"Unable to orchestrate scheduleId: $scheduleId, failed to mark as orchestrating in persistence. Unable to raise a failed event.")
       case Successful(schedule: Schedule) =>
-        schedule.triggeredV3 match {
+        schedule.triggeredV4 match {
           case Some(triggered) => {
             val orchResult: IO[Either[ErrorDetails, RecordMetadata]] = for {
-              _   <- sendOrchestrationStartedEvent(OrchestrationStartedV2(triggered.metadata, internalMetadata))
+              _   <- sendOrchestrationStartedEvent(OrchestrationStartedV3(triggered.metadata, internalMetadata))
               res <- orchestrateTrigger(triggered, internalMetadata)
             } yield res
 

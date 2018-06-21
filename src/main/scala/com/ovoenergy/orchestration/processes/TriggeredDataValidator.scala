@@ -4,15 +4,15 @@ import cats.Monoid
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
-import com.ovoenergy.comms.model.{OrchestrationError, TemplateData, TriggeredV3}
+import com.ovoenergy.comms.model.{OrchestrationError, TemplateData, TriggeredV3, TriggeredV4}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import shapeless.{Inl, Inr}
 
 object TriggeredDataValidator extends LoggingWithMDC {
 
-  implicit val booleanMonoid: Monoid[Boolean] = new Monoid[Boolean]{
-    override def empty = true
+  implicit val booleanMonoid: Monoid[Boolean] = new Monoid[Boolean] {
+    override def empty                           = true
     override def combine(x: Boolean, y: Boolean) = x && y
   }
 
@@ -30,19 +30,43 @@ object TriggeredDataValidator extends LoggingWithMDC {
 
     val templateData = triggered.templateData.map(entry => checkTemplateData(s"templateData.${entry._1}", entry._2))
 
-    fields ++ templateData foldMap(identity) match {
+    fields ++ templateData foldMap (identity) match {
       case Valid(_) => Right(triggered)
       case Invalid(emptyFields) =>
-        Left(ErrorDetails(
-          s"The following fields contain empty string: ${emptyFields.toList.mkString(", ")}",
-          OrchestrationError)
-        )
+        Left(
+          ErrorDetails(s"The following fields contain empty string: ${emptyFields.toList.mkString(", ")}",
+                       OrchestrationError))
+    }
+
+  }
+
+  def apply(triggered: TriggeredV4): Either[ErrorDetails, TriggeredV4] = {
+
+    val fields = List(
+      checkIfEmpty(triggered.metadata.traceToken, "traceToken"),
+      checkIfEmpty(triggered.metadata.eventId, "eventId"),
+      checkIfEmpty(triggered.metadata.friendlyDescription, "friendlyDescription"),
+      checkIfEmpty(triggered.metadata.source, "source"),
+      checkIfEmpty(triggered.metadata.triggerSource, "triggerSource"),
+      checkIfEmpty(triggered.metadata.templateManifest.id, "templateId"),
+      checkIfEmpty(triggered.metadata.templateManifest.version, "templateVersion"),
+      checkIfEmpty(triggered.metadata.commId, "commId")
+    )
+
+    val templateData = triggered.templateData.map(entry => checkTemplateData(s"templateData.${entry._1}", entry._2))
+
+    fields ++ templateData foldMap (identity) match {
+      case Valid(_) => Right(triggered)
+      case Invalid(emptyFields) =>
+        Left(
+          ErrorDetails(s"The following fields contain empty string: ${emptyFields.toList.mkString(", ")}",
+                       OrchestrationError))
     }
 
   }
 
   private def checkIfEmpty(value: String, name: String): ValidatedNel[String, Boolean] =
-    if(value.isEmpty || name.isEmpty) {
+    if (value.isEmpty || name.isEmpty) {
       Invalid(NonEmptyList.of(name))
     } else {
       Valid(true)

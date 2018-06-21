@@ -23,41 +23,40 @@ package object scheduling extends LoggingWithMDC {
   case class Change(timestamp: Instant, operation: String)
 
   object Schedule {
-    def buildFromTrigger(triggeredV3: TriggeredV3, clock: Clock = Clock.systemUTC()) = {
+    def buildFromTrigger(triggeredV4: TriggeredV4, clock: Clock = Clock.systemUTC()) = {
       Schedule(
         scheduleId = DynamoPersistence.generateScheduleId(),
-        triggeredV3 = Some(triggeredV3),
-        deliverAt = triggeredV3.deliverAt.getOrElse(Instant.now(clock)),
+        triggeredV4 = Some(triggeredV4),
+        deliverAt = triggeredV4.deliverAt.getOrElse(Instant.now(clock)),
         status = ScheduleStatus.Pending,
-        customerId = triggeredV3.metadata.deliverTo match {
+        customerId = triggeredV4.metadata.deliverTo match {
           case Customer(customerId) => Some(customerId)
           case _                    => None
         },
-        commName = triggeredV3.metadata.commManifest.name,
+        templateId = triggeredV4.metadata.templateManifest.id,
         orchestrationExpiry = Instant.now(),
         history = Seq.empty[Change]
       )
     }
   }
 
-  case class Schedule(
-      scheduleId: ScheduleId,
-      triggeredV3: Option[TriggeredV3],
-      deliverAt: Instant,
-      status: ScheduleStatus,
-      history: Seq[Change],
-      orchestrationExpiry: Instant,
-      customerId: Option[String],
-      commName: String
+  case class Schedule(scheduleId: ScheduleId,
+                      triggeredV4: Option[TriggeredV4],
+                      deliverAt: Instant,
+                      status: ScheduleStatus,
+                      history: Seq[Change],
+                      orchestrationExpiry: Instant,
+                      customerId: Option[String],
+                      templateId: String
   ) extends LoggableEvent{
     override def loggableString: Option[String] = None
     override def mdcMap: Map[String, String] = Map(
       "scheduleId" -> scheduleId,
       "deliverAt" -> deliverAt.toString,
       "status" -> status.toString,
-      "commName" -> commName,
+      "templateId" -> templateId,
     ) ++
       customerId.map(cId => Map("customerId" -> cId)).getOrElse(Map.empty) ++
-      triggeredV3.map(_.mdcMap).getOrElse(Map.empty)
+      triggeredV4.map(_.mdcMap).getOrElse(Map.empty)
   }
 }

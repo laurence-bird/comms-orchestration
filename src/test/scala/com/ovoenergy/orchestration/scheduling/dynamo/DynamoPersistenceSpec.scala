@@ -4,6 +4,7 @@ import java.time.{Clock, Instant, ZoneId}
 
 import cats.effect.IO
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType._
+import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.orchestration.aws.AwsProvider.DbClients
 import com.ovoenergy.orchestration.scheduling.Persistence.{AlreadyBeingOrchestrated, Successful}
 import com.ovoenergy.orchestration.scheduling._
@@ -23,7 +24,7 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
   val asyncClient = LocalDynamoDB.asyncClient()
   val client      = LocalDynamoDB.client()
   val secondaryIndices = Seq(
-    SecondaryIndexData("customerId-commName-index", Seq('customerId    -> S, 'commName            -> S)),
+    SecondaryIndexData("customerId-templateId-index", Seq('customerId  -> S, 'templateId          -> S)),
     SecondaryIndexData("status-orchestrationExpiry-index", Seq('status -> S, 'orchestrationExpiry -> N))
   )
   val context          = Context(DbClients(asyncClient, client), tableName)
@@ -122,21 +123,23 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
 
   it should "cancel pending and expired orchestrating schedules" in {
     LocalDynamoDB.withTableWithSecondaryIndex(client, tableName)(Seq('scheduleId -> S))(secondaryIndices) {
-      val commName   = "some-comm"
+      val templateId = Hash("some-comm")
       val customerId = "23141141241"
       val completedSchedule =
-        generate[Schedule].copy(customerId = Some(customerId), commName = commName, status = ScheduleStatus.Complete)
+        generate[Schedule].copy(customerId = Some(customerId),
+                                templateId = templateId,
+                                status = ScheduleStatus.Complete)
       val pendingSchedule = generate[Schedule].copy(history = List(),
                                                     customerId = Some(customerId),
-                                                    commName = commName,
+                                                    templateId = templateId,
                                                     status = ScheduleStatus.Pending)
       val expiredOrchestratingSchedule = generate[Schedule].copy(history = List(),
                                                                  customerId = Some(customerId),
-                                                                 commName = commName,
+                                                                 templateId = templateId,
                                                                  status = ScheduleStatus.Orchestrating,
                                                                  orchestrationExpiry = now.minusSeconds(60 * 30))
       val inProgressOrchestratingSchedule = generate[Schedule].copy(customerId = Some(customerId),
-                                                                    commName = commName,
+                                                                    templateId = templateId,
                                                                     status = ScheduleStatus.Orchestrating,
                                                                     orchestrationExpiry = now.plusSeconds(60 * 10))
       storeSchedule(completedSchedule)
@@ -144,7 +147,7 @@ class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
       storeSchedule(expiredOrchestratingSchedule)
       storeSchedule(inProgressOrchestratingSchedule)
 
-      val cancelled = persistence.cancelSchedules(customerId, commName)
+      val cancelled = persistence.cancelSchedules(customerId, templateId)
 
       retrieveSchedule(completedSchedule.scheduleId.toString) shouldBe completedSchedule
       retrieveSchedule(inProgressOrchestratingSchedule.scheduleId.toString) shouldBe inProgressOrchestratingSchedule
