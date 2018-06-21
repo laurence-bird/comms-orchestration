@@ -38,6 +38,7 @@ They work by spinning up an instance of the service and all of its dependencies 
 
 The service is deployed continuously to both the UAT and PRD environments via the [CircleCI build](https://circleci.com/gh/ovotech/comms-orchestration) 
 
+
 ## Credstash
 
 This service uses credstash for secret management, and this dependency is required if you want to publish the docker container for this project locally or to a remote server, or run the service tests. Information on how to install credstash can be found in the [Credstash readme](https://github.com/fugue/credstash)
