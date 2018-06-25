@@ -42,15 +42,14 @@ object ErrorHandling extends LoggingWithMDC {
     }
   }
 
-  def publisherFor[E <: LoggableEvent](topic: Topic[E], key: E => String)(
-      implicit schemaFor: SchemaFor[E],
-      toRecord: ToRecord[E],
-      classTag: ClassTag[E]): E => IO[RecordMetadata] = {
+  def publisherFor[E: Loggable](topic: Topic[E], key: E => String)(implicit schemaFor: SchemaFor[E],
+                                                                   toRecord: ToRecord[E],
+                                                                   classTag: ClassTag[E]): E => IO[RecordMetadata] = {
     val producer: KafkaProducer[String, E] = exitAppOnFailure(Producer[E](topic), topic.name)
     val publisher = { e: E =>
       Producer
         .publisher[E](key, producer, topic.name)(e)
-        .flatMap((rm: RecordMetadata) => IO(info(rm)(s"Sent event to ${topic.name}")) >> IO.pure(rm))
+        .flatMap((rm: RecordMetadata) => IO(info((rm, e))(s"Sent event to ${topic.name}")) >> IO.pure(rm))
     }
 
     publisher

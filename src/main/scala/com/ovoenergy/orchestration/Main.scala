@@ -23,7 +23,7 @@ import com.ovoenergy.comms.templates.{ErrorsOr, TemplateMetadataContext}
 import com.ovoenergy.orchestration.aws.AwsProvider
 import com.ovoenergy.orchestration.kafka._
 import com.ovoenergy.orchestration.kafka.consumers._
-import com.ovoenergy.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
 import com.ovoenergy.orchestration.processes.{
   ChannelSelectorWithTemplate,
   Orchestrator,
@@ -250,10 +250,10 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
   override def stream(args: List[String], requestShutdown: IO[Unit]): fs2.Stream[IO, StreamApp.ExitCode] = {
 
     // TODO: Improve error handling here
-    def recordProcessor[T, Result](consume: T => IO[Result]): Record[T] => IO[Unit] = { record: Record[T] =>
+    def recordProcessor[T: Loggable, Result](consume: T => IO[Result]): Record[T] => IO[Unit] = { record: Record[T] =>
       record.value() match {
         case Some(r) =>
-          IO(info(record)("Consumed Kafka Message")) >> consume(r) >> IO.pure(())
+          IO(info((record, r))("Consumed Kafka Message")) >> consume(r) >> IO.pure(())
         case None =>
           IO(fail(record)(s"Skipping event: $record, failed to parse"))
       }
