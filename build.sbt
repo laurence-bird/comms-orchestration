@@ -4,7 +4,7 @@ scalaVersion          := "2.12.4"
 scalacOptions         := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
 val circeVersion = "0.9.0"
-val commsKafkaSerialisationVersion = "3.15"
+val commsKafkaSerialisationVersion = "3.16"
 val dockerTestkitVersion = "0.9.5"
 val monocleVersion = "1.5.0"
 val fs2KafkaClientVersion = "0.1.9"

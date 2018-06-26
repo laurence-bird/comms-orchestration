@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    
+
     <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
-    
+
     <appender name="LogzioLogbackAppender" class="io.logz.logback.LogzioLogbackAppender">
         <token>@@{prd.logzio_token}</token>
         <logzioType>java</logzioType>
@@ -25,6 +25,7 @@
 
     <logger name="akka" level="INFO" />
     <logger name="org.apache" level="WARN" />
+    <logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="INFO" />
 
     <root level="INFO">
         <appender-ref ref="LogzioLogbackAppender"/>

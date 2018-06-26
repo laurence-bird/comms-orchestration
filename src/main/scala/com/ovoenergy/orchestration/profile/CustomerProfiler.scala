@@ -100,7 +100,7 @@ object CustomerProfiler extends LoggingWithMDC {
             }
         }
 
-      retry(response, _.isInstanceOf[ServerErrorException]).onError{
+      retry(response, _.isInstanceOf[ServerErrorException]).onError {
         case NonFatal(e) =>
           Async[F].delay(failWithException(req)("Failed to retrieve customer profile")(e))
       }

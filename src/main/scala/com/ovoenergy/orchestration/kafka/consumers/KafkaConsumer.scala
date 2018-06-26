@@ -60,7 +60,6 @@ object KafkaConsumer {
             )
           }
           .getOrElse(Map.empty) ++ kafkaClusterConfig.nativeProperties
-
       }
 
       val consumerSettings: ConsumerSettings = ConsumerSettings(
