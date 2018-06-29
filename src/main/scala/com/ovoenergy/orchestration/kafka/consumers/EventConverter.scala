@@ -7,52 +7,52 @@ import com.ovoenergy.comms.templates.util.Hash
 
 object EventConverter {
 
-  implicit class TriggeredV3ToV4(v3: TriggeredV3) {
+  implicit class TriggeredV3ToV4(triggeredV3: TriggeredV3) {
     def toV4: TriggeredV4 =
       TriggeredV4(
-        metadata = v3.metadata.toV3,
-        templateData = v3.templateData,
-        deliverAt = v3.deliverAt,
-        expireAt = v3.expireAt,
-        preferredChannels = v3.preferredChannels
+        metadata = triggeredV3.metadata.toV3Metadata,
+        templateData = triggeredV3.templateData,
+        deliverAt = triggeredV3.deliverAt,
+        expireAt = triggeredV3.expireAt,
+        preferredChannels = triggeredV3.preferredChannels
       )
   }
 
-  implicit class CancelledRequestV2ToV3(v2: CancellationRequestedV2) {
-    val toV3: CancellationRequestedV3 =
+  implicit class CancelledRequestV2ToV3(cancellationRequestedV2: CancellationRequestedV2) {
+    def toV3: CancellationRequestedV3 =
       CancellationRequestedV3(
-        metadata = v2.metadata.toV3,
-        templateId = Hash(v2.commName),
-        customerId = v2.customerId
+        metadata = cancellationRequestedV2.metadata.toV3,
+        templateId = Hash(cancellationRequestedV2.commName),
+        customerId = cancellationRequestedV2.customerId
       )
   }
 
-  implicit class MetadataV2ToV3(v2: MetadataV2) {
-    def toV3: MetadataV3 =
+  implicit class MetadataV2ToV3(v2Metadata: MetadataV2) {
+    def toV3Metadata: MetadataV3 =
       MetadataV3(
-        createdAt = v2.createdAt,
-        eventId = v2.eventId,
-        traceToken = v2.traceToken,
+        createdAt = v2Metadata.createdAt,
+        eventId = v2Metadata.eventId,
+        traceToken = v2Metadata.traceToken,
         commId = UUID.randomUUID().toString,
-        deliverTo = v2.deliverTo,
-        templateManifest = TemplateManifest(Hash(v2.commManifest.name), v2.commManifest.version),
-        friendlyDescription = v2.friendlyDescription,
-        source = v2.source,
-        canary = v2.canary,
-        sourceMetadata = v2.sourceMetadata.map(_.toV3),
-        triggerSource = v2.triggerSource
+        deliverTo = v2Metadata.deliverTo,
+        templateManifest = TemplateManifest(Hash(v2Metadata.commManifest.name), v2Metadata.commManifest.version),
+        friendlyDescription = v2Metadata.friendlyDescription,
+        source = v2Metadata.source,
+        canary = v2Metadata.canary,
+        sourceMetadata = v2Metadata.sourceMetadata.map(_.toV3Metadata),
+        triggerSource = v2Metadata.triggerSource
       )
   }
 
-  implicit class GenericMetadataV2ToV3(v2: GenericMetadataV2) {
-    val toV3: GenericMetadataV3 =
+  implicit class GenericMetadataV2ToV3(v2GenericMetadata: GenericMetadataV2) {
+    def toV3: GenericMetadataV3 =
       GenericMetadataV3(
-        createdAt = v2.createdAt,
-        eventId = v2.eventId,
-        traceToken = v2.traceToken,
+        createdAt = v2GenericMetadata.createdAt,
+        eventId = v2GenericMetadata.eventId,
+        traceToken = v2GenericMetadata.traceToken,
         commId = UUID.randomUUID().toString,
-        source = v2.source,
-        canary = v2.canary
+        source = v2GenericMetadata.source,
+        canary = v2GenericMetadata.canary
       )
   }
 

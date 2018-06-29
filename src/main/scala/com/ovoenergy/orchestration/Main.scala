@@ -191,15 +191,8 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
     )
   }
 
-  val triggeredV3Consumer: TriggeredV3 => IO[Unit] = (triggeredV3: TriggeredV3) => {
-    val commHashOrError = TriggeredDataValidator(triggeredV3)
-      .map(a => Hash(a.metadata.commManifest.name))
-
-    commHashOrError match {
-      case Right(ts)   => triggeredV4Consumer(triggeredV3.toV4)
-      case Left(error) => IO(fail(error)("Failed to process triggeredV3"))
-    }
-  }
+  val triggeredV3Consumer: TriggeredV3 => IO[Unit] = (triggeredV3: TriggeredV3) =>
+    triggeredV4Consumer(triggeredV3.toV4)
 
   val cancellationRequestV3Consumer = {
     CancellationRequestConsumer(
