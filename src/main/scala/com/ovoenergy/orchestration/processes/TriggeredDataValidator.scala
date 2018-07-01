@@ -50,7 +50,8 @@ object TriggeredDataValidator extends LoggingWithMDC {
       checkIfEmpty(triggered.metadata.triggerSource, "triggerSource"),
       checkIfEmpty(triggered.metadata.templateManifest.id, "templateId"),
       checkIfEmpty(triggered.metadata.templateManifest.version, "templateVersion"),
-      checkIfEmpty(triggered.metadata.commId, "commId")
+      checkIfEmpty(triggered.metadata.commId, "commId"),
+      checkCustomerId(triggered.metadata.deliverTo)
     )
 
     val templateData = triggered.templateData.map(entry => checkTemplateData(s"templateData.${entry._1}", entry._2))
@@ -63,6 +64,11 @@ object TriggeredDataValidator extends LoggingWithMDC {
                        OrchestrationError))
     }
 
+  def checkCustomerId(deliverTo: DeliverTo) = {
+    deliverTo match {
+      case Customer(customerId) => checkIfEmpty(customerId, "customerId")
+      case ContactDetails(email, phone, postalAddr) => Valid(true) // TODO: Validate me!
+    }
   }
 
   private def checkIfEmpty(value: String, name: String): ValidatedNel[String, Boolean] =
