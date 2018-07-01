@@ -63,6 +63,7 @@ object TriggeredDataValidator extends LoggingWithMDC {
           ErrorDetails(s"The following fields contain empty string: ${emptyFields.toList.mkString(", ")}",
                        OrchestrationError))
     }
+  }
 
   def checkCustomerId(deliverTo: DeliverTo) = {
     deliverTo match {
@@ -84,5 +85,4 @@ object TriggeredDataValidator extends LoggingWithMDC {
     case (Inr(Inr(Inl(mapObj))))    => mapObj.map(e => checkTemplateData(s"$key.${e._1}", e._2)).toList.foldMap(identity)
     case (Inr(Inr(Inr(_))))         => Invalid(NonEmptyList.of(s"Unable to extract value from templateData.$key"))
   }
-
 }
