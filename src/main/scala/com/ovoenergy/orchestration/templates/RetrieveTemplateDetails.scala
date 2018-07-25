@@ -2,7 +2,7 @@ package com.ovoenergy.orchestration.templates
 
 import cats.Id
 import cats.data.{NonEmptyList, Validated}
-import cats.data.Validated.Invalid
+import cats.data.Validated.{Invalid, Valid}
 import cats.effect.Async
 import com.ovoenergy.comms.model.{CommType, TemplateManifest}
 import com.ovoenergy.comms.templates.model.template.metadata.TemplateId
@@ -32,12 +32,21 @@ object RetrieveTemplateDetails extends LoggingWithMDC {
 
     def template(): ErrorsOr[CommTemplate[Id]] = TemplatesRepo.getTemplate(templatesContext, templateManifest)
     def templateSummary(): ErrorsOr[CommType] = {
-      cachingStrategy.get(templateId) {
-        TemplateMetadataRepo
-          .getTemplateSummary(templateMetadataContext, templateId)
-          .getOrElse(Invalid(NonEmptyList.of(s"Template summary does not exist for template ${templateManifest.id}")))
-          .map(_.commType)
-      }
+      cachingStrategy
+        .get(templateId) {
+          TemplateMetadataRepo
+            .getTemplateSummary(templateMetadataContext, templateId)
+            .getOrElse(
+              Invalid(NonEmptyList.of(s"Template summary does not exist for template ${templateManifest.id}")))
+            .map(_.commType)
+        }
+        .fold(
+          error => {
+            cachingStrategy.remove(templateId)
+            Invalid(error)
+          },
+          ok => Valid(ok)
+        )
     }
 
     val templateDetails: F[ErrorsOr[TemplateDetails]] = for {

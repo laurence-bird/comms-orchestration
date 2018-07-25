@@ -100,13 +100,6 @@ class ChannelSelectorWithTemplate[F[_]: Async](
 
   private def findChannelsWithTemplates(triggeredV4: TriggeredV4): F[Either[ErrorDetails, NonEmptyList[Channel]]] = {
     val res: F[ErrorsOr[TemplateDetails]] = retrieveTemplateDetails(triggeredV4.metadata.templateManifest)
-//    ) match {
-//      case Failure(throwable) => {
-//        warnWithException(triggeredV4)("Error retrieving template")(throwable)
-//        Invalid(NonEmptyList.of(throwable.getMessage))
-//      }
-//      case Success(res) => res
-//    }
 
     res.flatMap {
       case Valid(templateDetails) =>
