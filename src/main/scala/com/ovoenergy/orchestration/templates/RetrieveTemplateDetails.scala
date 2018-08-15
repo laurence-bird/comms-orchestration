@@ -30,7 +30,14 @@ object RetrieveTemplateDetails extends LoggingWithMDC {
     info(s"Fetching template details for: $templateManifest")
     val templateId = TemplateId(templateManifest.id)
 
-    def template(): ErrorsOr[CommTemplate[Id]] = TemplatesRepo.getTemplate(templatesContext, templateManifest)
+    def template(): ErrorsOr[CommTemplate[Id]] = {
+      TemplatesRepo
+        .getTemplate(templatesContext, templateManifest)
+        .leftMap{error =>
+            cachingStrategy.remove(templateId)
+            error
+        }
+    }
     def templateSummary(): ErrorsOr[CommType] = {
       cachingStrategy
         .get(templateId) {
@@ -39,14 +46,10 @@ object RetrieveTemplateDetails extends LoggingWithMDC {
             .getOrElse(
               Invalid(NonEmptyList.of(s"Template summary does not exist for template ${templateManifest.id}")))
             .map(_.commType)
+        }.leftMap{error =>
+          cachingStrategy.remove(templateId)
+          error
         }
-        .fold(
-          error => {
-            cachingStrategy.remove(templateId)
-            Invalid(error)
-          },
-          ok => Valid(ok)
-        )
     }
 
     val templateDetails: F[ErrorsOr[TemplateDetails]] = for {
