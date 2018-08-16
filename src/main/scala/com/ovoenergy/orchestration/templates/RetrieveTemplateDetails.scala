@@ -33,9 +33,9 @@ object RetrieveTemplateDetails extends LoggingWithMDC {
     def template(): ErrorsOr[CommTemplate[Id]] = {
       TemplatesRepo
         .getTemplate(templatesContext, templateManifest)
-        .leftMap{error =>
-            cachingStrategy.remove(templateId)
-            error
+        .leftMap { error =>
+          cachingStrategy.remove(templateId)
+          error
         }
     }
     def templateSummary(): ErrorsOr[CommType] = {
@@ -43,10 +43,10 @@ object RetrieveTemplateDetails extends LoggingWithMDC {
         .get(templateId) {
           TemplateMetadataRepo
             .getTemplateSummary(templateMetadataContext, templateId)
-            .getOrElse(
-              Invalid(NonEmptyList.of(s"Template summary does not exist for template ${templateManifest.id}")))
+            .getOrElse(Invalid(NonEmptyList.of(s"Template summary does not exist for template ${templateManifest.id}")))
             .map(_.commType)
-        }.leftMap{error =>
+        }
+        .leftMap { error =>
           cachingStrategy.remove(templateId)
           error
         }

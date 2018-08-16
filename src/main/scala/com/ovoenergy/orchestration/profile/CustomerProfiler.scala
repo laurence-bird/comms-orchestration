@@ -90,10 +90,9 @@ object CustomerProfiler extends LoggingWithMDC {
                        case _ =>
                          Async[F].delay(
                            warn(req)(s"Error response (${response.status.code}), from profile service $str")) >>
-                           Async[F].delay(
-                             Left(ErrorDetails(
-                               s"Error response (${response.status.code}) retrieving customer profile: $str",
-                               OrchestrationError)))
+                           Async[F].delay(Left(
+                             ErrorDetails(s"Error response (${response.status.code}) retrieving customer profile: $str",
+                                          OrchestrationError)))
                      }
                    }
                  })

@@ -178,8 +178,7 @@ object Loggable {
 
   implicit def tuple1Loggable[A](implicit aLoggable: Loggable[A]): Loggable[Tuple1[A]] = aLoggable.contramap(_._1)
 
-  implicit def tuple2Loggable[A1, A2](implicit a1Loggable: Loggable[A1],
-                                      a2Loggable: Loggable[A2]): Loggable[(A1, A2)] =
+  implicit def tuple2Loggable[A1, A2](implicit a1Loggable: Loggable[A1], a2Loggable: Loggable[A2]): Loggable[(A1, A2)] =
     instance {
       case (a1, a2) =>
         a1Loggable.mdcMap(a1) ++ a2Loggable.mdcMap(a2)

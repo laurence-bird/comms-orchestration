@@ -1,11 +1,9 @@
 package com.ovoenergy.orchestration
 
-import java.time.{Instant, OffsetDateTime}
-
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import io.circe.generic.extras.semiauto.deriveEnumerationDecoder
+
 package object domain {
 
   implicit val commTypeDecoder = deriveEnumerationDecoder[CommType]
@@ -64,17 +62,4 @@ package object domain {
     )
   }
 
-  def cancellationRequestedToV2(cancellationRequested: CancellationRequested): CancellationRequestedV2 = {
-    CancellationRequestedV2(
-      metadata = GenericMetadataV2(
-        createdAt = Instant.parse(cancellationRequested.metadata.createdAt),
-        eventId = cancellationRequested.metadata.eventId,
-        traceToken = cancellationRequested.metadata.traceToken,
-        source = cancellationRequested.metadata.source,
-        canary = cancellationRequested.metadata.canary
-      ),
-      commName = cancellationRequested.commName,
-      customerId = cancellationRequested.customerId
-    )
-  }
 }
