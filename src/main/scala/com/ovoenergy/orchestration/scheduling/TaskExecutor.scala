@@ -1,12 +1,12 @@
-package com.ovoenergy.orchestration.scheduling
+package com.ovoenergy.comms.orchestration.scheduling
 
 import cats.effect.IO
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
 import cats.syntax.flatMap._
 import cats.syntax.functor._
-import com.ovoenergy.orchestration.scheduling.Persistence.{
+import com.ovoenergy.comms.orchestration.scheduling.Persistence.{
   AlreadyBeingOrchestrated,
   Successful,
   Failed => FailedPersistence

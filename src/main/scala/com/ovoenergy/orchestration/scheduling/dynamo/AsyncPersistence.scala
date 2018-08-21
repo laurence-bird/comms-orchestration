@@ -1,13 +1,13 @@
-package com.ovoenergy.orchestration.scheduling.dynamo
+package com.ovoenergy.comms.orchestration.scheduling.dynamo
 
 import java.time.Clock
 
 import cats.effect.Async
 import com.gu.scanamo.ScanamoAsync
 import com.gu.scanamo.error.{DynamoReadError, ScanamoError}
-import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.scheduling.{Schedule, ScheduleId}
-import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence.Context
+import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.comms.orchestration.scheduling.{Schedule, ScheduleId}
+import com.ovoenergy.comms.orchestration.scheduling.dynamo.DynamoPersistence.Context
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import com.gu.scanamo._

@@ -1,14 +1,14 @@
-package com.ovoenergy.orchestration.processes
+package com.ovoenergy.comms.orchestration.processes
 
 import java.time.{Clock, Instant, ZoneId}
 
 import cats.effect.IO
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.processes.Scheduler.{TemplateId, CustomerId}
-import com.ovoenergy.orchestration.scheduling.ScheduleStatus.Pending
-import com.ovoenergy.orchestration.scheduling._
-import com.ovoenergy.orchestration.util.{ArbGenerator, TestUtil}
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.processes.Scheduler.{TemplateId, CustomerId}
+import com.ovoenergy.comms.orchestration.scheduling.ScheduleStatus.Pending
+import com.ovoenergy.comms.orchestration.scheduling._
+import com.ovoenergy.comms.orchestration.util.{ArbGenerator, TestUtil}
 import org.scalatest.{FlatSpec, Matchers, OneInstancePerTest}
 import org.scalacheck.Shapeless._
 

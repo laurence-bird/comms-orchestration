@@ -1,11 +1,11 @@
-package com.ovoenergy.orchestration
+package com.ovoenergy.comms.orchestration
 
 import java.time.{Clock, Instant, OffsetDateTime}
 
-import com.ovoenergy.orchestration.domain._
+import com.ovoenergy.comms.orchestration.domain._
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence
+import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.comms.orchestration.scheduling.dynamo.DynamoPersistence
 
 package object scheduling extends LoggingWithMDC {
 

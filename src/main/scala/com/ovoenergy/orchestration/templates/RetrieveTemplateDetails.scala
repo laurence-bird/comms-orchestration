@@ -1,4 +1,4 @@
-package com.ovoenergy.orchestration.templates
+package com.ovoenergy.comms.orchestration.templates
 
 import cats.Id
 import cats.data.{NonEmptyList, Validated}
@@ -12,8 +12,8 @@ import cats.syntax.all._
 import cats.instances.all._
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughputExceededException
 import com.ovoenergy.comms.templates.cache.CachingStrategy
-import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.util.Retry
+import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.comms.orchestration.util.Retry
 
 object RetrieveTemplateDetails extends LoggingWithMDC {
 
@@ -33,9 +33,9 @@ object RetrieveTemplateDetails extends LoggingWithMDC {
     def template(): ErrorsOr[CommTemplate[Id]] = {
       TemplatesRepo
         .getTemplate(templatesContext, templateManifest)
-        .leftMap{error =>
-            cachingStrategy.remove(templateId)
-            error
+        .leftMap { error =>
+          cachingStrategy.remove(templateId)
+          error
         }
     }
     def templateSummary(): ErrorsOr[CommType] = {
@@ -46,7 +46,8 @@ object RetrieveTemplateDetails extends LoggingWithMDC {
             .getOrElse(
               Invalid(NonEmptyList.of(s"Template summary does not exist for template ${templateManifest.id}")))
             .map(_.commType)
-        }.leftMap{error =>
+        }
+        .leftMap { error =>
           cachingStrategy.remove(templateId)
           error
         }

@@ -1,17 +1,17 @@
-package com.ovoenergy.orchestration.profile
+package com.ovoenergy.comms.orchestration.profile
 
 import cats.effect.IO
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.domain.{
+import com.ovoenergy.comms.orchestration.domain.{
   ContactProfile,
   CustomerProfile,
   CustomerProfileName,
   EmailAddress,
   MobilePhoneNumber
 }
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.profile.CustomerProfiler.ProfileCustomer
-import com.ovoenergy.orchestration.util.ArbGenerator
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.profile.CustomerProfiler.ProfileCustomer
+import com.ovoenergy.comms.orchestration.util.ArbGenerator
 import org.scalatest.{EitherValues, FlatSpec, Matchers}
 import org.scalacheck.Shapeless._
 

@@ -1,9 +1,9 @@
-package com.ovoenergy.orchestration.kafka.consumers
+package com.ovoenergy.comms.orchestration.kafka.consumers
 
 import cats.effect.{Async, IO}
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.clients.producer.RecordMetadata
 
 import scala.concurrent.{ExecutionContext, Future}

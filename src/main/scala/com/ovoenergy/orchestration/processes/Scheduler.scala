@@ -1,12 +1,12 @@
-package com.ovoenergy.orchestration.processes
+package com.ovoenergy.comms.orchestration.processes
 
 import java.time.{Clock, Instant}
 
 import cats.effect.Async
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.scheduling.{Schedule, ScheduleId}
+import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.scheduling.{Schedule, ScheduleId}
 import cats.syntax.either._
 import scala.util.control.NonFatal
 import scala.util.Try

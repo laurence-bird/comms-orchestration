@@ -1,4 +1,4 @@
-package com.ovoenergy.orchestration.scheduling
+package com.ovoenergy.comms.orchestration.scheduling
 
 import java.time.{Instant, ZoneId, ZonedDateTime}
 

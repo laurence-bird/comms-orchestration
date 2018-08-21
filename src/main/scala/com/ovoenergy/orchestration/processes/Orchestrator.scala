@@ -1,13 +1,13 @@
-package com.ovoenergy.orchestration.processes
+package com.ovoenergy.comms.orchestration.processes
 
 import cats.data.EitherT
 import cats.effect.{Async, IO}
 import com.ovoenergy.comms.model
-import com.ovoenergy.orchestration.domain
-import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
+import com.ovoenergy.comms.orchestration.domain
+import com.ovoenergy.comms.orchestration.logging.{Loggable, LoggingWithMDC}
 import org.apache.kafka.clients.producer.RecordMetadata
 import com.ovoenergy.comms.model.{ContactDetails, _}
-import com.ovoenergy.orchestration.domain.{
+import com.ovoenergy.comms.orchestration.domain.{
   CommunicationPreference,
   ContactAddress,
   ContactInfo,
@@ -15,7 +15,7 @@ import com.ovoenergy.orchestration.domain.{
   EmailAddress,
   MobilePhoneNumber
 }
-import com.ovoenergy.orchestration.kafka.IssueOrchestratedComm
+import com.ovoenergy.comms.orchestration.kafka.IssueOrchestratedComm
 import cats.implicits._
 
 import scala.concurrent.ExecutionContext

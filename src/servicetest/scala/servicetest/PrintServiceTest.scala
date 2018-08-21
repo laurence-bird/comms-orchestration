@@ -19,7 +19,7 @@ import com.ovoenergy.comms.serialisation.Codecs._
 import com.ovoenergy.comms.templates.model.Brand.Ovo
 import com.ovoenergy.comms.templates.model.template.metadata.{TemplateId, TemplateSummary}
 import com.ovoenergy.comms.templates.util.Hash
-import com.ovoenergy.orchestration.util.TestUtil.{metadataV3, traceToken}
+import com.ovoenergy.comms.orchestration.util.TestUtil.{metadataV3, traceToken}
 import org.apache.kafka.clients.consumer.KafkaConsumer
 
 class PrintServiceTest
@@ -133,11 +133,12 @@ class PrintServiceTest
     Kafka.aiven.orchestrationStarted.v3,
     Kafka.aiven.failed.v3) { (orchestrationStartedConsumer, failedConsumer) =>
     val templateManifest = TemplateManifest(Hash("print-only"), "0.1")
-    val metadata = com.ovoenergy.orchestration.util.TestUtil.metadataV3.copy(
+    val metadata = com.ovoenergy.comms.orchestration.util.TestUtil.metadataV3.copy(
       deliverTo = ContactDetails(Some("qatesting@ovoenergy.com"), None),
       templateManifest = templateManifest
     )
-    val triggered = com.ovoenergy.orchestration.util.TestUtil.emailContactDetailsTriggered.copy(metadata = metadata)
+    val triggered =
+      com.ovoenergy.comms.orchestration.util.TestUtil.emailContactDetailsTriggered.copy(metadata = metadata)
 
     populateTemplateSummaryTable(
       TemplateSummary(
@@ -157,7 +158,7 @@ class PrintServiceTest
     failures.foreach(failure => {
       failure.reason should include("No available channels to deliver comm")
       failure.errorCode shouldBe OrchestrationError
-      failure.metadata.traceToken shouldBe com.ovoenergy.orchestration.util.TestUtil.traceToken
+      failure.metadata.traceToken shouldBe com.ovoenergy.comms.orchestration.util.TestUtil.traceToken
     })
   }
 
@@ -190,7 +191,8 @@ class PrintServiceTest
     val orchestrationStartedEvents = consumer.pollFor(noOfEventsExpected = noOfEventsExpected)
 
     orchestrationStartedEvents.foreach { o =>
-      if (shouldCheckTraceToken) o.metadata.traceToken shouldBe com.ovoenergy.orchestration.util.TestUtil.traceToken
+      if (shouldCheckTraceToken)
+        o.metadata.traceToken shouldBe com.ovoenergy.comms.orchestration.util.TestUtil.traceToken
     }
     orchestrationStartedEvents
   }

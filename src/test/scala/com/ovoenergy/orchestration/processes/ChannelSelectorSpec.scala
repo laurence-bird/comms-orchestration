@@ -1,4 +1,4 @@
-package com.ovoenergy.orchestration.processes
+package com.ovoenergy.comms.orchestration.processes
 
 import cats.Id
 import cats.data.Validated.Valid
@@ -8,10 +8,15 @@ import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
 import com.ovoenergy.comms.templates.model.template.processed.email.EmailTemplate
 import com.ovoenergy.comms.templates.model.template.processed.sms.SMSTemplate
 import com.ovoenergy.comms.templates.util.Hash
-import com.ovoenergy.orchestration.domain.{CommunicationPreference, ContactProfile, EmailAddress, MobilePhoneNumber}
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.templates.RetrieveTemplateDetails.TemplateDetails
-import com.ovoenergy.orchestration.util.{ArbGenerator, TestUtil}
+import com.ovoenergy.comms.orchestration.domain.{
+  CommunicationPreference,
+  ContactProfile,
+  EmailAddress,
+  MobilePhoneNumber
+}
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.templates.RetrieveTemplateDetails.TemplateDetails
+import com.ovoenergy.comms.orchestration.util.{ArbGenerator, TestUtil}
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalacheck.Shapeless._
 

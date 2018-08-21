@@ -1,12 +1,12 @@
-package com.ovoenergy.orchestration
+package com.ovoenergy.comms.orchestration
 
 import cats.effect.{Async, IO}
 import cats.syntax.flatMap._
 import com.ovoenergy.comms.helpers.{EventLogger, HasCommName, Topic}
 import com.ovoenergy.comms.model.LoggableEvent
 import com.ovoenergy.comms.serialisation.Retry
-import com.ovoenergy.orchestration.kafka.Producer
-import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
+import com.ovoenergy.comms.orchestration.kafka.Producer
+import com.ovoenergy.comms.orchestration.logging.{Loggable, LoggingWithMDC}
 import com.sksamuel.avro4s.{SchemaFor, ToRecord}
 import org.apache.kafka.clients.producer.{KafkaProducer, RecordMetadata}
 

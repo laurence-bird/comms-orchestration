@@ -1,11 +1,11 @@
-package com.ovoenergy.orchestration.kafka
+package com.ovoenergy.comms.orchestration.kafka
 
 import java.util.UUID
 
 import cats.effect.{Async, IO}
 import com.ovoenergy.comms.model.email.OrchestratedEmailV4
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.domain.EmailAddress
+import com.ovoenergy.comms.orchestration.domain.EmailAddress
 import org.apache.kafka.clients.producer.RecordMetadata
 
 class IssueOrchestratedEmail[F[_]: Async](sendEvent: OrchestratedEmailV4 => F[RecordMetadata])

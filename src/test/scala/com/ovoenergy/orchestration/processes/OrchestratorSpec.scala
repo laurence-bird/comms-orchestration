@@ -1,9 +1,9 @@
-package com.ovoenergy.orchestration.processes
+package com.ovoenergy.comms.orchestration.processes
 
 import cats.effect.IO
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.domain.{
+import com.ovoenergy.comms.orchestration.domain.{
   CommunicationPreference,
   ContactAddress,
   ContactProfile,
@@ -11,9 +11,9 @@ import com.ovoenergy.orchestration.domain.{
   EmailAddress,
   MobilePhoneNumber
 }
-import com.ovoenergy.orchestration.kafka.IssueOrchestratedComm
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.util.{ArbGenerator, TestUtil}
+import com.ovoenergy.comms.orchestration.kafka.IssueOrchestratedComm
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.util.{ArbGenerator, TestUtil}
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
 import org.scalatest.concurrent.ScalaFutures

@@ -1,4 +1,4 @@
-package com.ovoenergy.orchestration.scheduling.dynamo
+package com.ovoenergy.comms.orchestration.scheduling.dynamo
 
 import java.time.{DateTimeException, Instant}
 import java.util.UUID
@@ -6,7 +6,7 @@ import com.gu.scanamo.DynamoFormat
 import com.gu.scanamo.error.TypeCoercionError
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.TemplateMetadataDynamoFormats
-import com.ovoenergy.orchestration.scheduling.ScheduleStatus
+import com.ovoenergy.comms.orchestration.scheduling.ScheduleStatus
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.parser.parse
 import io.circe.generic.semiauto._

@@ -1,14 +1,14 @@
-package com.ovoenergy.orchestration.processes
+package com.ovoenergy.comms.orchestration.processes
 
 import cats.data.{EitherT, NonEmptyList}
 import cats.data.Validated.{Invalid, Valid}
 import cats.effect.Async
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.ErrorsOr
-import com.ovoenergy.orchestration.domain.{CommunicationPreference, ContactProfile}
-import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.templates.RetrieveTemplateDetails.TemplateDetails
+import com.ovoenergy.comms.orchestration.domain.{CommunicationPreference, ContactProfile}
+import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.templates.RetrieveTemplateDetails.TemplateDetails
 import cats.syntax.flatMap._
 
 abstract class ChannelSelector[F[_]: Async] {

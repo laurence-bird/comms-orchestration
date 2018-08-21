@@ -1,10 +1,10 @@
-package com.ovoenergy.orchestration
+package com.ovoenergy.comms.orchestration
 
 import java.time.{Instant, OffsetDateTime}
 
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
 import io.circe.generic.extras.semiauto.deriveEnumerationDecoder
 package object domain {
 

@@ -1,12 +1,12 @@
-package com.ovoenergy.orchestration.processes
+package com.ovoenergy.comms.orchestration.processes
 
 import cats.Monoid
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
 import com.ovoenergy.comms.model.{OrchestrationError, TemplateData, TriggeredV3, TriggeredV4, DeliverTo, Customer, ContactDetails}
-import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
 import shapeless.{Inl, Inr}
 
 object TriggeredDataValidator extends LoggingWithMDC {

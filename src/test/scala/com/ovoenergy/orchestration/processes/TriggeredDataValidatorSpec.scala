@@ -1,8 +1,8 @@
-package com.ovoenergy.orchestration.processes
+package com.ovoenergy.comms.orchestration.processes
 
 import com.ovoenergy.comms.model.{OrchestrationError, TemplateData, TriggeredV3, TriggeredV4}
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.util.ArbGenerator
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.util.ArbGenerator
 import org.scalatest.{Matchers, WordSpec}
 import org.scalacheck.Shapeless._
 import monocle.macros.syntax.lens._

@@ -4,7 +4,7 @@ import com.ovoenergy.comms.helpers.Kafka
 import com.ovoenergy.comms.testhelpers.KafkaTestHelpers._
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.model.sms.{OrchestratedSMSV2, OrchestratedSMSV3}
-import com.ovoenergy.orchestration.util.TestUtil
+import com.ovoenergy.comms.orchestration.util.TestUtil
 import com.typesafe.config.{Config, ConfigFactory}
 import org.mockserver.client.server.MockServerClient
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}

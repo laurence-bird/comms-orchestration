@@ -3,7 +3,7 @@ package servicetest.helpers
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
-import com.ovoenergy.orchestration.util.TestUtil
+import com.ovoenergy.comms.orchestration.util.TestUtil
 import org.mockserver.client.server.MockServerClient
 import org.mockserver.matchers.Times
 import org.mockserver.model.HttpRequest.request

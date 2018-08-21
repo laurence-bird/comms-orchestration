@@ -1,8 +1,8 @@
-package com.ovoenergy.orchestration.util
+package com.ovoenergy.comms.orchestration.util
 
 import cats.syntax.flatMap._
 import cats.effect.{Async, IO}
-import com.ovoenergy.orchestration.util.Retry.Strategy
+import com.ovoenergy.comms.orchestration.util.Retry.Strategy
 import fs2.Scheduler
 
 import scala.concurrent.ExecutionContext

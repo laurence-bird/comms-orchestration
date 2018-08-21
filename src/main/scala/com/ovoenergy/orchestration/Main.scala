@@ -1,4 +1,4 @@
-package com.ovoenergy.orchestration
+package com.ovoenergy.comms.orchestration
 
 import cats.Id
 import cats.effect.IO
@@ -28,25 +28,25 @@ import akka.stream.ActorMaterializer
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.{AmazonDynamoDBException, ProvisionedThroughputExceededException}
 
-import com.ovoenergy.orchestration.ErrorHandling.publisherFor
-import com.ovoenergy.orchestration.aws.AwsProvider
-import com.ovoenergy.orchestration.kafka._
-import com.ovoenergy.orchestration.kafka.consumers._
-import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
-import com.ovoenergy.orchestration.processes.{
+import com.ovoenergy.comms.orchestration.ErrorHandling.publisherFor
+import com.ovoenergy.comms.orchestration.aws.AwsProvider
+import com.ovoenergy.comms.orchestration.kafka._
+import com.ovoenergy.comms.orchestration.kafka.consumers._
+import com.ovoenergy.comms.orchestration.logging.{Loggable, LoggingWithMDC}
+import com.ovoenergy.comms.orchestration.processes.{
   ChannelSelectorWithTemplate,
   Orchestrator,
   Scheduler,
   TriggeredDataValidator
 }
-import com.ovoenergy.orchestration.profile.{CustomerProfiler, ProfileValidation}
-import com.ovoenergy.orchestration.scheduling.dynamo.{AsyncPersistence, DynamoPersistence}
-import com.ovoenergy.orchestration.scheduling.{QuartzScheduling, Restore, Schedule, TaskExecutor}
-import com.ovoenergy.orchestration.kafka.consumers.EventConverter._
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.kafka.consumers.KafkaConsumer.Record
-import com.ovoenergy.orchestration.templates.RetrieveTemplateDetails
-import com.ovoenergy.orchestration.util.Retry
+import com.ovoenergy.comms.orchestration.profile.{CustomerProfiler, ProfileValidation}
+import com.ovoenergy.comms.orchestration.scheduling.dynamo.{AsyncPersistence, DynamoPersistence}
+import com.ovoenergy.comms.orchestration.scheduling.{QuartzScheduling, Restore, Schedule, TaskExecutor}
+import com.ovoenergy.comms.orchestration.kafka.consumers.EventConverter._
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.kafka.consumers.KafkaConsumer.Record
+import com.ovoenergy.comms.orchestration.templates.RetrieveTemplateDetails
+import com.ovoenergy.comms.orchestration.util.Retry
 
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.model.email.OrchestratedEmailV4

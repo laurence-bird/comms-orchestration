@@ -8,10 +8,10 @@ import com.ovoenergy.comms.model.{CommManifest, Service, TemplateManifest}
 import com.ovoenergy.comms.templates.model.Brand
 import com.ovoenergy.comms.templates.model.template.metadata.{TemplateId, TemplateSummary}
 import com.ovoenergy.comms.templates.util.Hash
-import com.ovoenergy.orchestration.scheduling.Schedule
-import com.ovoenergy.orchestration.scheduling.dynamo.DynamoFormats
-import com.ovoenergy.orchestration.util.LocalDynamoDB
-import com.ovoenergy.orchestration.util.LocalDynamoDB.SecondaryIndexData
+import com.ovoenergy.comms.orchestration.scheduling.Schedule
+import com.ovoenergy.comms.orchestration.scheduling.dynamo.DynamoFormats
+import com.ovoenergy.comms.orchestration.util.LocalDynamoDB
+import com.ovoenergy.comms.orchestration.util.LocalDynamoDB.SecondaryIndexData
 
 trait DynamoTesting extends DynamoFormats {
 

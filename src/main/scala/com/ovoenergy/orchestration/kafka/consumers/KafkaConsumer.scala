@@ -1,4 +1,4 @@
-package com.ovoenergy.orchestration.kafka.consumers
+package com.ovoenergy.comms.orchestration.kafka.consumers
 import java.nio.file.Paths
 
 import cats.effect._

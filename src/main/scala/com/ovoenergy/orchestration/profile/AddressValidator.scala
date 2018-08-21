@@ -1,11 +1,11 @@
-package com.ovoenergy.orchestration.profile
+package com.ovoenergy.comms.orchestration.profile
 
-import com.ovoenergy.orchestration.profile.Validators.ValidationErrorsOr
+import com.ovoenergy.comms.orchestration.profile.Validators.ValidationErrorsOr
 import Validators._
 import cats.data.Validated.Valid
 import cats.Apply
 import cats.data.{NonEmptyList, Validated}
-import com.ovoenergy.orchestration.domain
+import com.ovoenergy.comms.orchestration.domain
 
 object AddressValidator {
 

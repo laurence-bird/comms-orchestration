@@ -1,11 +1,11 @@
-package com.ovoenergy.orchestration.kafka
+package com.ovoenergy.comms.orchestration.kafka
 
 import java.util.UUID
 
 import cats.effect.Async
 import com.ovoenergy.comms.model.print.{OrchestratedPrint, OrchestratedPrintV2}
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.domain.ContactAddress
+import com.ovoenergy.comms.orchestration.domain.ContactAddress
 import org.apache.kafka.clients.producer.RecordMetadata
 
 class IssueOrchestratedPrint[F[_]: Async](sendEvent: OrchestratedPrintV2 => F[RecordMetadata])

@@ -1,10 +1,10 @@
-package com.ovoenergy.orchestration.kafka.consumers
+package com.ovoenergy.comms.orchestration.kafka.consumers
 
 import cats.effect.{Async, IO}
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.processes.TriggeredDataValidator
+import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.processes.TriggeredDataValidator
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.either._

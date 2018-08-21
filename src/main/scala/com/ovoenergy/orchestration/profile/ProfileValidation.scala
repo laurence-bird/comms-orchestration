@@ -1,4 +1,4 @@
-package com.ovoenergy.orchestration.profile
+package com.ovoenergy.comms.orchestration.profile
 
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.{EitherT, NonEmptyList, Validated}
@@ -6,8 +6,8 @@ import cats.effect.Async
 import cats.{Apply, Monoid, Semigroup}
 import cats.implicits._
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.domain
-import com.ovoenergy.orchestration.domain.{
+import com.ovoenergy.comms.orchestration.domain
+import com.ovoenergy.comms.orchestration.domain.{
   ContactAddress,
   ContactInfo,
   ContactProfile,
@@ -16,9 +16,9 @@ import com.ovoenergy.orchestration.domain.{
   EmailAddress,
   MobilePhoneNumber
 }
-import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.profile.CustomerProfiler.ProfileCustomer
+import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.profile.CustomerProfiler.ProfileCustomer
 
 object ProfileValidation extends LoggingWithMDC {
 

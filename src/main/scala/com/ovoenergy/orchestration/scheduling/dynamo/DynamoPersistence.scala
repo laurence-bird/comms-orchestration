@@ -1,4 +1,4 @@
-package com.ovoenergy.orchestration.scheduling.dynamo
+package com.ovoenergy.comms.orchestration.scheduling.dynamo
 
 import java.time.{Clock, DateTimeException, Instant}
 import java.util.{UUID, Map => JMap}
@@ -11,17 +11,17 @@ import com.gu.scanamo.error.{ConditionNotMet, DynamoReadError, TypeCoercionError
 import com.gu.scanamo.query.{AndCondition, Condition}
 import com.gu.scanamo.syntax._
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.aws.AwsProvider.DbClients
-import com.ovoenergy.orchestration.logging.LoggingWithMDC
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.scheduling.Persistence.{
+import com.ovoenergy.comms.orchestration.aws.AwsProvider.DbClients
+import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.scheduling.Persistence.{
   AlreadyBeingOrchestrated,
   Failed,
   SetAsOrchestratingResult,
   Successful
 }
-import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence.Context
-import com.ovoenergy.orchestration.scheduling.{Change, ScheduleStatus, _}
+import com.ovoenergy.comms.orchestration.scheduling.dynamo.DynamoPersistence.Context
+import com.ovoenergy.comms.orchestration.scheduling.{Change, ScheduleStatus, _}
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.{Decoder, Encoder, Error}

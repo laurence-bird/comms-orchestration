@@ -1,4 +1,4 @@
-package com.ovoenergy.orchestration.kafka
+package com.ovoenergy.comms.orchestration.kafka
 
 import java.nio.file.Paths
 import java.util.UUID

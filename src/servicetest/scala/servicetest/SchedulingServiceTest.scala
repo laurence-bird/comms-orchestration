@@ -9,7 +9,7 @@ import com.ovoenergy.comms.testhelpers.KafkaTestHelpers._
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.model.email.OrchestratedEmailV4
-import com.ovoenergy.orchestration.util.TestUtil
+import com.ovoenergy.comms.orchestration.util.TestUtil
 import com.typesafe.config.ConfigFactory
 import org.mockserver.client.server.MockServerClient
 import org.scalatest.concurrent.ScalaFutures
@@ -23,7 +23,7 @@ import com.ovoenergy.comms.templates.model.Brand
 import com.ovoenergy.comms.templates.model.Brand.Ovo
 import com.ovoenergy.comms.templates.model.template.metadata.{TemplateId, TemplateSummary}
 import com.ovoenergy.comms.templates.util.Hash
-import com.ovoenergy.orchestration.kafka.consumers.EventConverter._
+import com.ovoenergy.comms.orchestration.kafka.consumers.EventConverter._
 import org.apache.kafka.clients.consumer.KafkaConsumer
 
 class SchedulingServiceTest

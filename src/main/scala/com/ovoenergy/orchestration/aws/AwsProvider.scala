@@ -1,4 +1,4 @@
-package com.ovoenergy.orchestration.aws
+package com.ovoenergy.comms.orchestration.aws
 
 import com.amazonaws.auth._
 import com.amazonaws.auth.profile.ProfileCredentialsProvider

@@ -1,4 +1,4 @@
-package com.ovoenergy.orchestration.profile
+package com.ovoenergy.comms.orchestration.profile
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
@@ -14,17 +14,17 @@ import WireMock.{get, _}
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration._
 import com.github.tomakehurst.wiremock.http.UniformDistribution
 import com.github.tomakehurst.wiremock.matching.{EqualToPattern, StringValuePattern}
-import com.ovoenergy.orchestration.domain.{CustomerProfile => CProfile}
-import com.ovoenergy.orchestration.domain.{
+import com.ovoenergy.comms.orchestration.domain.{CustomerProfile => CProfile}
+import com.ovoenergy.comms.orchestration.domain.{
   CommunicationPreference,
   ContactProfile,
   CustomerProfileName,
   EmailAddress,
   MobilePhoneNumber
 }
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.profile.CustomerProfiler.{ServerErrorException, ProfileCustomer}
-import com.ovoenergy.orchestration.util.Retry
+import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.comms.orchestration.profile.CustomerProfiler.{ServerErrorException, ProfileCustomer}
+import com.ovoenergy.comms.orchestration.util.Retry
 import org.http4s.{InvalidMessageBodyFailure, Uri}
 import scala.concurrent.duration._
 import scala.util.{Failure, Try}
