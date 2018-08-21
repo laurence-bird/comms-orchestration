@@ -1,25 +1,34 @@
 package com.ovoenergy.orchestration
 
+import cats.Id
+import cats.effect.IO
+import cats.syntax.all._
+import fs2._
+
 import java.io.File
 import java.nio.file.Files
 import java.time.{Duration => JDuration}
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
+import scala.collection.JavaConverters._
+import scala.concurrent.duration._
+import scala.util.control.NonFatal
+
+import org.http4s.Uri
+import org.http4s.client.Client
+import org.http4s.client.blaze.Http1Client
+
+import com.typesafe.config.{Config, ConfigFactory}
+import org.apache.kafka.clients.producer.{KafkaProducer, RecordMetadata}
+
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import cats.Id
-import cats.effect.IO
-import cats.syntax.all._
+
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.{AmazonDynamoDBException, ProvisionedThroughputExceededException}
+
 import com.ovoenergy.orchestration.ErrorHandling.publisherFor
-import com.ovoenergy.comms.helpers.{Kafka, Topic}
-import com.ovoenergy.comms.model._
-import com.ovoenergy.comms.model.email.OrchestratedEmailV4
-import com.ovoenergy.comms.model.print.OrchestratedPrintV2
-import com.ovoenergy.comms.model.sms.OrchestratedSMSV3
-import com.ovoenergy.comms.templates.{ErrorsOr, TemplateMetadataContext}
 import com.ovoenergy.orchestration.aws.AwsProvider
 import com.ovoenergy.orchestration.kafka._
 import com.ovoenergy.orchestration.kafka.consumers._
@@ -34,26 +43,21 @@ import com.ovoenergy.orchestration.profile.{CustomerProfiler, ProfileValidation}
 import com.ovoenergy.orchestration.scheduling.dynamo.{AsyncPersistence, DynamoPersistence}
 import com.ovoenergy.orchestration.scheduling.{QuartzScheduling, Restore, Schedule, TaskExecutor}
 import com.ovoenergy.orchestration.kafka.consumers.EventConverter._
-import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.kafka.clients.producer.{KafkaProducer, RecordMetadata}
-import fs2._
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-
-import scala.collection.JavaConverters._
-import scala.concurrent.duration._
-import com.ovoenergy.comms.serialisation.Codecs._
-import com.ovoenergy.comms.templates.cache.CachingStrategy
-import com.ovoenergy.comms.templates.model.template.metadata.TemplateId
-import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.orchestration.kafka.consumers.KafkaConsumer.Record
 import com.ovoenergy.orchestration.templates.RetrieveTemplateDetails
 import com.ovoenergy.orchestration.util.Retry
-import fs2.StreamApp
-import org.http4s.Uri
-import org.http4s.client.Client
-import org.http4s.client.blaze.Http1Client
 
-import scala.util.control.NonFatal
+import com.ovoenergy.comms.model._
+import com.ovoenergy.comms.model.email.OrchestratedEmailV4
+import com.ovoenergy.comms.model.print.OrchestratedPrintV2
+import com.ovoenergy.comms.model.sms.OrchestratedSMSV3
+import com.ovoenergy.comms.serialisation.Codecs._
+import com.ovoenergy.comms.helpers.{Kafka, Topic}
+import com.ovoenergy.comms.templates.{ErrorsOr, TemplateMetadataContext}
+import com.ovoenergy.comms.templates.cache.CachingStrategy
+import com.ovoenergy.comms.templates.model.template.metadata.TemplateId
+import com.ovoenergy.comms.templates.util.Hash
 
 object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
   Files.readAllLines(new File("banner.txt").toPath).asScala.foreach(println(_))
