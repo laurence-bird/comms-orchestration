@@ -3,7 +3,7 @@ package com.ovoenergy.comms.orchestration.profile
 import cats.data.{NonEmptyList, Validated}
 import cats.data.Validated.{Invalid, Valid}
 import com.ovoenergy.comms.orchestration.profile.AddressValidator.AddressLine
-import cats.implicits._
+
 object Validators {
 
   val isValidPostcode =

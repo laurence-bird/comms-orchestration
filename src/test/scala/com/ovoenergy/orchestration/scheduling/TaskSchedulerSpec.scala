@@ -1,8 +1,8 @@
 package com.ovoenergy.comms.orchestration.scheduling
 
-import java.time.{Instant, ZoneId, ZonedDateTime}
+import java.time.Instant
 
-import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.concurrent.Eventually
 import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 

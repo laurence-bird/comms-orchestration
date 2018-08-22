@@ -4,15 +4,12 @@ import cats.effect.IO
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
-import cats.syntax.flatMap._
-import cats.syntax.functor._
 import com.ovoenergy.comms.orchestration.scheduling.Persistence.{
   AlreadyBeingOrchestrated,
   Successful,
   Failed => FailedPersistence
 }
 import org.apache.kafka.clients.producer.RecordMetadata
-import cats.implicits._
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
@@ -56,11 +53,13 @@ object TaskExecutor extends LoggingWithMDC {
           warn(triggered)("Orchestrating comm timed out, the comm may still get orchestrated, raising failed event")
           persistence.setScheduleAsFailed(scheduleId, "Orchestrating comm timed out")
           buildAndSendFailedEvent("Orchestrating comm timed out", triggered, OrchestrationError, internalMetadata)
+          ()
         }
       } catch {
         case NonFatal(e) =>
           warnWithException(triggered)("Unable to orchestrate comm, raising failed event")(e)
           buildAndSendFailedEvent(e.getMessage, triggered, OrchestrationError, internalMetadata)
+          ()
       }
     }
 

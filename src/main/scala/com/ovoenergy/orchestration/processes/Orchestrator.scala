@@ -1,7 +1,7 @@
 package com.ovoenergy.comms.orchestration.processes
 
+import cats.effect.Async
 import cats.data.EitherT
-import cats.effect.{Async, IO}
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.orchestration.domain
 import com.ovoenergy.comms.orchestration.logging.{Loggable, LoggingWithMDC}
@@ -10,7 +10,6 @@ import com.ovoenergy.comms.model.{ContactDetails, _}
 import com.ovoenergy.comms.orchestration.domain.{
   CommunicationPreference,
   ContactAddress,
-  ContactInfo,
   ContactProfile,
   EmailAddress,
   MobilePhoneNumber

@@ -18,9 +18,9 @@ import servicetest.helpers._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
+import scala.language.reflectiveCalls
 import com.ovoenergy.comms.serialisation.Codecs._
 import com.ovoenergy.comms.templates.model.Brand
-import com.ovoenergy.comms.templates.model.Brand.Ovo
 import com.ovoenergy.comms.templates.model.template.metadata.{TemplateId, TemplateSummary}
 import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.comms.orchestration.kafka.consumers.EventConverter._

@@ -15,6 +15,7 @@ import servicetest.helpers._
 import shapeless.Coproduct
 
 import scala.concurrent.duration._
+import scala.language.reflectiveCalls
 import com.ovoenergy.comms.serialisation.Codecs._
 import com.ovoenergy.comms.templates.model.Brand.Ovo
 import com.ovoenergy.comms.templates.model.template.metadata.{TemplateId, TemplateSummary}

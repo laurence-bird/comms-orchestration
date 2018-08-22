@@ -1,7 +1,7 @@
 package com.ovoenergy.comms.orchestration.profile
 
 import cats.data.Validated.{Invalid, Valid}
-import cats.data.{EitherT, NonEmptyList, Validated}
+import cats.data.{NonEmptyList, Validated}
 import cats.effect.Async
 import cats.{Apply, Monoid, Semigroup}
 import cats.implicits._

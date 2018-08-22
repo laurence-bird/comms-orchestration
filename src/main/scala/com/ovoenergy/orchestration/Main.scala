@@ -1,6 +1,5 @@
 package com.ovoenergy.comms.orchestration
 
-import cats.Id
 import cats.effect.IO
 import cats.syntax.all._
 import fs2._
@@ -14,13 +13,14 @@ import java.util.concurrent.TimeUnit
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
+import scala.language.reflectiveCalls // The kafka helpers lib uses structural types
 
 import org.http4s.Uri
 import org.http4s.client.Client
 import org.http4s.client.blaze.Http1Client
 
 import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.kafka.clients.producer.{KafkaProducer, RecordMetadata}
+import org.apache.kafka.clients.producer.RecordMetadata
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
@@ -33,15 +33,10 @@ import com.ovoenergy.comms.orchestration.aws.AwsProvider
 import com.ovoenergy.comms.orchestration.kafka._
 import com.ovoenergy.comms.orchestration.kafka.consumers._
 import com.ovoenergy.comms.orchestration.logging.{Loggable, LoggingWithMDC}
-import com.ovoenergy.comms.orchestration.processes.{
-  ChannelSelectorWithTemplate,
-  Orchestrator,
-  Scheduler,
-  TriggeredDataValidator
-}
+import com.ovoenergy.comms.orchestration.processes.{ChannelSelectorWithTemplate, Orchestrator, Scheduler}
 import com.ovoenergy.comms.orchestration.profile.{CustomerProfiler, ProfileValidation}
 import com.ovoenergy.comms.orchestration.scheduling.dynamo.{AsyncPersistence, DynamoPersistence}
-import com.ovoenergy.comms.orchestration.scheduling.{QuartzScheduling, Restore, Schedule, TaskExecutor}
+import com.ovoenergy.comms.orchestration.scheduling.{QuartzScheduling, Restore, TaskExecutor}
 import com.ovoenergy.comms.orchestration.kafka.consumers.EventConverter._
 import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.comms.orchestration.kafka.consumers.KafkaConsumer.Record
@@ -57,7 +52,6 @@ import com.ovoenergy.comms.helpers.{Kafka, Topic}
 import com.ovoenergy.comms.templates.{ErrorsOr, TemplateMetadataContext}
 import com.ovoenergy.comms.templates.cache.CachingStrategy
 import com.ovoenergy.comms.templates.model.template.metadata.TemplateId
-import com.ovoenergy.comms.templates.util.Hash
 
 object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
   Files.readAllLines(new File("banner.txt").toPath).asScala.foreach(println(_))

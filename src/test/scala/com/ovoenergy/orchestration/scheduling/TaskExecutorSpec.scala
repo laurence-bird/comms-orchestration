@@ -13,14 +13,13 @@ import com.ovoenergy.comms.orchestration.scheduling.Persistence.{
 import com.ovoenergy.comms.orchestration.util.{ArbGenerator, TestUtil}
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.record.Record
 import org.scalatest.{FlatSpec, Matchers, OneInstancePerTest}
 import org.scalacheck.Shapeless._
 import org.scalatest.concurrent.Eventually
-import org.scalatest.time.{Second, Seconds, Span}
+import org.scalatest.time.{Seconds, Span}
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 class TaskExecutorSpec
     extends FlatSpec

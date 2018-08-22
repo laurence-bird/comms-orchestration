@@ -2,7 +2,7 @@ package com.ovoenergy.comms.orchestration.kafka
 
 import java.util.UUID
 
-import cats.effect.{Async, IO}
+import cats.effect.Async
 import com.ovoenergy.comms.model.email.OrchestratedEmailV4
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.orchestration.domain.EmailAddress

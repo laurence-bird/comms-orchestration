@@ -3,7 +3,7 @@ package com.ovoenergy.comms.orchestration.kafka
 import java.util.UUID
 
 import cats.effect.Async
-import com.ovoenergy.comms.model.print.{OrchestratedPrint, OrchestratedPrintV2}
+import com.ovoenergy.comms.model.print.OrchestratedPrintV2
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.orchestration.domain.ContactAddress
 import org.apache.kafka.clients.producer.RecordMetadata

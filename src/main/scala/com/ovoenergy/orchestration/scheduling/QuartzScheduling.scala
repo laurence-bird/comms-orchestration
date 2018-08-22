@@ -40,6 +40,7 @@ object QuartzScheduling {
 
       log.info(s"Executing scheduled orchestration, scheduleId: $scheduleId")
       function.apply(scheduleId)
+      ()
     }
   }
 

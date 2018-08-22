@@ -1,9 +1,8 @@
 package com.ovoenergy.comms.orchestration
 
-import cats.effect.{Async, IO}
+import cats.effect.IO
 import cats.syntax.flatMap._
-import com.ovoenergy.comms.helpers.{EventLogger, HasCommName, Topic}
-import com.ovoenergy.comms.model.LoggableEvent
+import com.ovoenergy.comms.helpers.Topic
 import com.ovoenergy.comms.serialisation.Retry
 import com.ovoenergy.comms.orchestration.kafka.Producer
 import com.ovoenergy.comms.orchestration.logging.{Loggable, LoggingWithMDC}

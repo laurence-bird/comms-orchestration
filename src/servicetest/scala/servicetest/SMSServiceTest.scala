@@ -3,7 +3,7 @@ package servicetest
 import com.ovoenergy.comms.helpers.Kafka
 import com.ovoenergy.comms.testhelpers.KafkaTestHelpers._
 import com.ovoenergy.comms.model._
-import com.ovoenergy.comms.model.sms.{OrchestratedSMSV2, OrchestratedSMSV3}
+import com.ovoenergy.comms.model.sms.OrchestratedSMSV3
 import com.ovoenergy.comms.orchestration.util.TestUtil
 import com.typesafe.config.{Config, ConfigFactory}
 import org.mockserver.client.server.MockServerClient
@@ -12,6 +12,7 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import servicetest.helpers._
 
 import scala.concurrent.duration._
+import scala.language.reflectiveCalls
 import com.ovoenergy.comms.serialisation.Codecs._
 import org.apache.kafka.clients.consumer.KafkaConsumer
 

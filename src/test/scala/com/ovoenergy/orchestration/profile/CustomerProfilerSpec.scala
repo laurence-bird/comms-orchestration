@@ -5,7 +5,7 @@ import java.nio.file.{Files, Paths}
 
 import cats.effect.IO
 import com.github.tomakehurst.wiremock.WireMockServer
-import com.github.tomakehurst.wiremock.client.{MappingBuilder, WireMock}
+import com.github.tomakehurst.wiremock.client.WireMock
 import com.ovoenergy.comms.model._
 import org.http4s.client.Client
 import org.http4s.client.blaze.Http1Client
@@ -13,7 +13,6 @@ import org.scalatest._
 import WireMock.{get, _}
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration._
 import com.github.tomakehurst.wiremock.http.UniformDistribution
-import com.github.tomakehurst.wiremock.matching.{EqualToPattern, StringValuePattern}
 import com.ovoenergy.comms.orchestration.domain.{CustomerProfile => CProfile}
 import com.ovoenergy.comms.orchestration.domain.{
   CommunicationPreference,
@@ -27,7 +26,7 @@ import com.ovoenergy.comms.orchestration.profile.CustomerProfiler.{ServerErrorEx
 import com.ovoenergy.comms.orchestration.util.Retry
 import org.http4s.{InvalidMessageBodyFailure, Uri}
 import scala.concurrent.duration._
-import scala.util.{Failure, Try}
+import scala.util.Try
 
 class CustomerProfilerSpec
     extends FlatSpec

@@ -9,11 +9,9 @@ import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.comms.orchestration.scheduling.{Schedule, ScheduleId}
 import cats.syntax.either._
 import scala.util.control.NonFatal
-import scala.util.Try
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.either._
-import cats.syntax.applicative._
 import cats.syntax.applicativeError._
 
 object Scheduler extends LoggingWithMDC {

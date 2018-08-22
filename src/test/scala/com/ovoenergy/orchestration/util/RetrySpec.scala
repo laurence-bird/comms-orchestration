@@ -3,7 +3,6 @@ package com.ovoenergy.comms.orchestration.util
 import java.util.concurrent.atomic.AtomicInteger
 
 import cats.effect.IO
-import fs2.Scheduler
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
 

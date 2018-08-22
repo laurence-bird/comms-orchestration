@@ -3,10 +3,8 @@ package com.ovoenergy.comms.orchestration.kafka
 import java.nio.file.Paths
 import java.util.UUID
 
-import akka.dispatch.ExecutionContexts
-import cats.effect.{Async, IO, Timer}
+import cats.effect.{IO, Timer}
 
-import scala.util.control.NonFatal
 import com.ovoenergy.comms.helpers.Topic
 import com.ovoenergy.comms.serialisation.Retry
 import com.sksamuel.avro4s.{SchemaFor, ToRecord}
@@ -14,8 +12,6 @@ import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.producer.{Callback, KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.config.SslConfigs
 import org.apache.kafka.common.serialization.StringSerializer
-import cats.syntax.flatMap._
-import cats.syntax.functor._
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
@@ -76,6 +72,8 @@ object Producer {
           }
         }
       )
+
+      ()
     }
 
     for {

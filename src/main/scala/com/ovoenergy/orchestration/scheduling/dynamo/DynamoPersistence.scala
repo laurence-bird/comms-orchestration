@@ -1,13 +1,12 @@
 package com.ovoenergy.comms.orchestration.scheduling.dynamo
 
-import java.time.{Clock, DateTimeException, Instant}
+import java.time.{Clock, Instant}
 import java.util.{UUID, Map => JMap}
 
-import cats.effect.Async
 import com.amazonaws.services.dynamodbv2.{AmazonDynamoDB, AmazonDynamoDBAsync}
 import com.amazonaws.services.dynamodbv2.model.{AttributeValue, QueryRequest}
 import com.gu.scanamo._
-import com.gu.scanamo.error.{ConditionNotMet, DynamoReadError, TypeCoercionError}
+import com.gu.scanamo.error.ConditionNotMet
 import com.gu.scanamo.query.{AndCondition, Condition}
 import com.gu.scanamo.syntax._
 import com.ovoenergy.comms.model._
@@ -22,9 +21,6 @@ import com.ovoenergy.comms.orchestration.scheduling.Persistence.{
 }
 import com.ovoenergy.comms.orchestration.scheduling.dynamo.DynamoPersistence.Context
 import com.ovoenergy.comms.orchestration.scheduling.{Change, ScheduleStatus, _}
-import io.circe.generic.semiauto._
-import io.circe.parser._
-import io.circe.{Decoder, Encoder, Error}
 import org.slf4j.LoggerFactory
 
 import scala.annotation.tailrec

@@ -7,7 +7,7 @@ import com.typesafe.config.Config
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
-import scala.language.{higherKinds, reflectiveCalls}
+import scala.language.higherKinds
 import scala.concurrent.duration._
 import com.ovoenergy.kafka.serialization.core.constDeserializer
 import com.ovoenergy.fs2.kafka._

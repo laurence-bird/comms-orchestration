@@ -2,7 +2,6 @@ package servicetest.helpers
 
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType._
-import com.gu.scanamo.error.DynamoReadError
 import com.gu.scanamo.{Scanamo, Table}
 import com.ovoenergy.comms.model.{CommManifest, Service, TemplateManifest}
 import com.ovoenergy.comms.templates.model.Brand

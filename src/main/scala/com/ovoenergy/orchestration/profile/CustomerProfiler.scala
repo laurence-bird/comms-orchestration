@@ -1,10 +1,9 @@
 package com.ovoenergy.comms.orchestration.profile
 
-import cats.effect.{Async, IO}
+import cats.effect.Async
 import com.ovoenergy.comms.orchestration.logging.{Loggable, LoggingWithMDC}
 import com.ovoenergy.comms.orchestration.domain._
 import io.circe.generic.auto._
-import cats.syntax.either._
 import cats.implicits._
 import com.ovoenergy.comms.model.OrchestrationError
 import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails

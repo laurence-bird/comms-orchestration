@@ -4,14 +4,12 @@ import java.time.Clock
 
 import cats.effect.Async
 import com.gu.scanamo.ScanamoAsync
-import com.gu.scanamo.error.{DynamoReadError, ScanamoError}
+import com.gu.scanamo.error.DynamoReadError
 import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.comms.orchestration.scheduling.{Schedule, ScheduleId}
 import com.ovoenergy.comms.orchestration.scheduling.dynamo.DynamoPersistence.Context
 import cats.syntax.flatMap._
-import cats.syntax.functor._
 import com.gu.scanamo._
-import com.gu.scanamo.query.{AndCondition, Condition}
 import com.gu.scanamo.syntax._
 
 import scala.concurrent.{ExecutionContext, Future}

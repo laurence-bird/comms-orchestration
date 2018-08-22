@@ -1,12 +1,12 @@
 package com.ovoenergy.comms.orchestration.kafka.consumers
 
-import cats.effect.{Async, IO}
+import cats.effect.Async
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.comms.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.clients.producer.RecordMetadata
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 object CancellationRequestConsumer extends LoggingWithMDC {
 

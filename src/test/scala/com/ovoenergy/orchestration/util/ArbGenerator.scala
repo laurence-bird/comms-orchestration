@@ -1,9 +1,8 @@
 package com.ovoenergy.comms.orchestration.util
 
-import java.time.{Instant, ZoneId, ZonedDateTime}
+import java.time.Instant
 import java.util.UUID
 
-import com.ovoenergy.comms.orchestration.scheduling.ScheduleId
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Shapeless._
 import org.scalacheck.rng.Seed

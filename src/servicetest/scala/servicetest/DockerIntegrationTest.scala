@@ -15,7 +15,6 @@ import com.whisk.docker._
 import org.apache.commons.io.input.{Tailer, TailerListenerAdapter}
 import org.apache.kafka.clients.admin.{AdminClient, AdminClientConfig, NewTopic}
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.errors.TopicExistsException
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.scalatest.concurrent.{Eventually, PatienceConfiguration, ScalaFutures}
 import org.scalatest.time.{Seconds, Span}
@@ -24,7 +23,6 @@ import servicetest.helpers.DynamoTesting
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
-import scala.util.Try
 
 trait DockerIntegrationTest
     extends DockerKit
@@ -58,6 +56,7 @@ trait DockerIntegrationTest
                     lineWithLineEnding.getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.CREATE,
                     StandardOpenOption.APPEND)
+        ()
       }
 
       val logLineReceiver = LogLineReceiver(withErr = true, f = handleLine)
@@ -258,6 +257,7 @@ trait DockerIntegrationTest
     try {
       val r = adminClient.createTopics(topics.map(t => new NewTopic(t, 1, 1)).asJavaCollection)
       r.all().get()
+      ()
     } catch {
       case e: java.util.concurrent.ExecutionException => ()
     } finally {

@@ -12,6 +12,7 @@ import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import servicetest.helpers._
 
 import scala.concurrent.duration._
+import scala.language.reflectiveCalls
 import monocle.macros.syntax.lens._
 import com.ovoenergy.comms.templates.util.Hash
 import org.apache.kafka.clients.consumer.KafkaConsumer

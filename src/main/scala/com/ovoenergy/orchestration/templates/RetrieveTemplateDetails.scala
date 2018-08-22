@@ -1,15 +1,14 @@
 package com.ovoenergy.comms.orchestration.templates
 
 import cats.Id
-import cats.data.{NonEmptyList, Validated}
-import cats.data.Validated.{Invalid, Valid}
+import cats.data.NonEmptyList
+import cats.data.Validated.Invalid
 import cats.effect.Async
 import com.ovoenergy.comms.model.{CommType, TemplateManifest}
 import com.ovoenergy.comms.templates.model.template.metadata.TemplateId
 import com.ovoenergy.comms.templates._
 import com.ovoenergy.comms.templates.model.template.processed.CommTemplate
 import cats.syntax.all._
-import cats.instances.all._
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughputExceededException
 import com.ovoenergy.comms.templates.cache.CachingStrategy
 import com.ovoenergy.comms.orchestration.logging.LoggingWithMDC

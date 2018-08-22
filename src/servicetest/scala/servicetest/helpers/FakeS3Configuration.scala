@@ -3,9 +3,8 @@ package servicetest.helpers
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.{AmazonS3Client, S3ClientOptions}
-import com.ovoenergy.comms.model.{CommManifest, TemplateManifest}
+import com.ovoenergy.comms.model.TemplateManifest
 import com.ovoenergy.comms.templates.s3.S3Prefix
-import com.ovoenergy.comms.templates.util.Hash
 
 trait FakeS3Configuration {
 

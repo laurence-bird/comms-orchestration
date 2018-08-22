@@ -10,7 +10,6 @@ import com.amazonaws.services.dynamodbv2.{
   AmazonDynamoDBAsyncClientBuilder,
   AmazonDynamoDBClientBuilder
 }
-import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
 import com.ovoenergy.comms.templates.TemplatesContext
 import org.slf4j.LoggerFactory
 
