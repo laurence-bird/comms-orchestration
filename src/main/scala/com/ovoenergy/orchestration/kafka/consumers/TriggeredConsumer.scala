@@ -22,14 +22,21 @@ object TriggeredConsumer extends LoggingWithMDC {
       implicit ec: ExecutionContext): TriggeredV4 => F[Unit] = { triggeredV4: TriggeredV4 =>
     def scheduleOrFail(triggeredV4: TriggeredV4) = {
       scheduleTask(triggeredV4) flatMap {
-        case Right(r)  => Async[F].pure(())
-        case Left(err) => sendFailedEvent(failedEventFromErr(err))
+        case Right(r)  => {
+          // TODO: Send feedback event here (Scheduled)
+          Async[F].pure(())
+        }
+        case Left(err) => {
+          // TODO: Send Feedback event here (Failed)
+          sendFailedEvent(failedEventFromErr(err))
+        }
       }
     }
 
     def handleOrchestrationResult(either: Either[ErrorDetails, RecordMetadata]): F[Unit] = either match {
       case Left(err) =>
         warn(triggeredV4)(s"Error orchestrating comm: ${err.reason}")
+        // TODO: Send Feedback event here (Failed)
         sendFailedEvent(failedEventFromErr(err))
       case Right(_) => Async[F].pure(())
     }
@@ -37,6 +44,7 @@ object TriggeredConsumer extends LoggingWithMDC {
     def orchestrateOrFail(triggeredV4: TriggeredV4): F[Unit] = {
       val internalMetadata = buildInternalMetadata()
       for {
+        //TODO: Send Feedback event here (Pending)
         _          <- sendOrchestrationStartedEvent(OrchestrationStartedV3(triggeredV4.metadata, internalMetadata))
         orchResult <- orchestrateComm(triggeredV4, internalMetadata)
         _          <- handleOrchestrationResult(orchResult)

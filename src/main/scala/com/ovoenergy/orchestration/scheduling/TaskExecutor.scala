@@ -27,6 +27,8 @@ object TaskExecutor extends LoggingWithMDC {
                                 triggered: TriggeredV4,
                                 errorCode: ErrorCode,
                                 internalMetadata: InternalMetadata): IO[RecordMetadata] = {
+
+      // TODO: Send Feedback event here
       sendFailedEvent(
         FailedV3(MetadataV3.fromSourceMetadata("orchestration", triggered.metadata),
                  internalMetadata,
@@ -46,6 +48,7 @@ object TaskExecutor extends LoggingWithMDC {
             IO(persistence.setScheduleAsFailed(scheduleId, err.reason))
               .flatMap(_ => buildAndSendFailedEvent(err.reason, triggered, err.errorCode, internalMetadata))
               .map(_ => ())
+            // TODO: Raise Feedback event here (Failed)
           }
         }
 
