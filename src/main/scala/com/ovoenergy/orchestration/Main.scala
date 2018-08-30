@@ -8,7 +8,6 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import cats.Id
 import cats.effect.IO
 import cats.syntax.all._
 import com.amazonaws.regions.Regions
@@ -24,27 +23,20 @@ import com.ovoenergy.orchestration.aws.AwsProvider
 import com.ovoenergy.orchestration.kafka._
 import com.ovoenergy.orchestration.kafka.consumers._
 import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
-import com.ovoenergy.orchestration.processes.{
-  ChannelSelectorWithTemplate,
-  Orchestrator,
-  Scheduler,
-  TriggeredDataValidator
-}
+import com.ovoenergy.orchestration.processes.{ChannelSelectorWithTemplate, Orchestrator, Scheduler}
 import com.ovoenergy.orchestration.profile.{CustomerProfiler, ProfileValidation}
 import com.ovoenergy.orchestration.scheduling.dynamo.{AsyncPersistence, DynamoPersistence}
 import com.ovoenergy.orchestration.scheduling.{QuartzScheduling, Restore, Schedule, TaskExecutor}
 import com.ovoenergy.orchestration.kafka.consumers.EventConverter._
 import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.kafka.clients.producer.{KafkaProducer, RecordMetadata}
+import org.apache.kafka.clients.producer.{RecordMetadata}
 import fs2._
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
-import com.ovoenergy.comms.serialisation.Codecs._
 import com.ovoenergy.comms.templates.cache.CachingStrategy
 import com.ovoenergy.comms.templates.model.template.metadata.TemplateId
-import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.orchestration.kafka.consumers.KafkaConsumer.Record
 import com.ovoenergy.orchestration.templates.RetrieveTemplateDetails
 import com.ovoenergy.orchestration.util.Retry

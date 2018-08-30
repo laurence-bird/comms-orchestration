@@ -4,7 +4,7 @@ scalaVersion          := "2.12.4"
 scalacOptions         := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
 val circeVersion = "0.9.0"
-val commsKafkaSerialisationVersion = "3.16"
+val commsKafkaSerialisationVersion = "3.18"
 val dockerTestkitVersion = "0.9.5"
 val monocleVersion = "1.5.0"
 val fs2KafkaClientVersion = "0.1.9"
@@ -13,7 +13,7 @@ val http4sVersion = "0.18.9"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka"          %% "akka-slf4j"                % "2.4.18",
-  "com.ovoenergy"              %% "comms-kafka-messages"      % "1.71"  ,
+  "com.ovoenergy"              %% "comms-kafka-messages"      % "1.75"  ,
   "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-kafka-helpers"       % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-templates"           % "0.28",
@@ -21,7 +21,7 @@ libraryDependencies ++= Seq(
   "me.moocar"                  % "logback-gelf"               % "0.2",
   "org.slf4j"                  % "jcl-over-slf4j"             % "1.7.25",
   "io.logz.logback"            % "logzio-logback-appender"    % "1.0.11",
-  "org.typelevel"              %% "cats-core"                 % "1.0.1",
+  "org.typelevel"              %% "cats-core"                 % "1.1.0",
   "org.typelevel"              %% "cats-effect"               % "0.10",
   "co.fs2"                     %% "fs2-core"                  % fs2Version,
   "com.ovoenergy"              %% "fs2-kafka-client"          % fs2KafkaClientVersion,
@@ -34,7 +34,7 @@ libraryDependencies ++= Seq(
   "org.http4s"                 %% "http4s-blaze-client"       % http4sVersion,
   "org.http4s"                 %% "http4s-circe"              % http4sVersion,
   "org.quartz-scheduler"       % "quartz"                     % "2.2.3",
-  "com.gu"                     %% "scanamo"                   % "1.0.0-M3",
+  "com.gu"                     %% "scanamo"                   % "1.0.0-M6",
   "com.github.tomakehurst"     % "wiremock"                   % "2.16.0" % Test,
   "org.scalacheck"             %% "scalacheck"                % "1.13.4" % Test,
   "org.scalatest"              %% "scalatest"                 % "3.0.3" % Test,

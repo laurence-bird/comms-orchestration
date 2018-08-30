@@ -2,6 +2,7 @@ package com.ovoenergy.orchestration.kafka.consumers
 
 import cats.effect.{Async, IO}
 import com.ovoenergy.comms.model._
+import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.clients.producer.RecordMetadata
@@ -32,7 +33,12 @@ object CancellationRequestConsumer extends LoggingWithMDC {
               ))
           case Right(metadata) =>
             sendSuccessfulCancellationEvent(
-              CancelledV3(MetadataV3.fromSourceMetadata("orchestration", metadata), cancellationRequest))
+              CancelledV3(MetadataV3.fromSourceMetadata(
+                            "orchestration",
+                            metadata,
+                            Hash(metadata.eventId)
+                          ),
+                          cancellationRequest))
         }
 
         import cats.implicits._

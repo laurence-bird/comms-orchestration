@@ -3,6 +3,7 @@ package com.ovoenergy.orchestration.aws
 import com.amazonaws.auth._
 import com.amazonaws.auth.profile.ProfileCredentialsProvider
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
+import com.amazonaws.internal.CredentialsEndpointProvider
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.{
   AmazonDynamoDB,
@@ -19,6 +20,7 @@ object AwsProvider {
   private val log = LoggerFactory.getLogger("AwsClientProvider")
 
   case class DbClients(async: AmazonDynamoDBAsync, db: AmazonDynamoDB)
+
   def dynamoClients(isRunningInLocalDocker: Boolean, region: Regions): DbClients = {
     if (isRunningInLocalDocker) {
       log.warn("Running in local docker")
@@ -61,9 +63,6 @@ object AwsProvider {
       log.info("Running in docker, assoigning static credentials")
       new AWSStaticCredentialsProvider(new BasicAWSCredentials("key", "secret"))
     } else
-      new AWSCredentialsProviderChain(
-        new ContainerCredentialsProvider(),
-        new ProfileCredentialsProvider()
-      )
+      new DefaultAWSCredentialsProviderChain
   }
 }

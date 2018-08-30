@@ -9,8 +9,10 @@ import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.either._
 import cats.syntax.flatMap._
+import com.ovoenergy.comms.templates.util.Hash
 import org.apache.kafka.clients.producer.RecordMetadata
-import scala.concurrent.{ExecutionContext}
+
+import scala.concurrent.ExecutionContext
 
 object TriggeredConsumer extends LoggingWithMDC {
 
@@ -19,10 +21,10 @@ object TriggeredConsumer extends LoggingWithMDC {
                          sendOrchestrationStartedEvent: OrchestrationStartedV3 => F[RecordMetadata],
                          generateTraceToken: () => String,
                          orchestrateComm: (TriggeredV4, InternalMetadata) => F[Either[ErrorDetails, RecordMetadata]])(
-      implicit ec: ExecutionContext): TriggeredV4 => F[Unit] = { triggeredV4: TriggeredV4 =>
-    def scheduleOrFail(triggeredV4: TriggeredV4) = {
-      scheduleTask(triggeredV4) flatMap {
-        case Right(r)  => {
+      implicit ec: ExecutionContext): TriggeredV4 => F[Unit] = { triggered: TriggeredV4 =>
+    def scheduleOrFail(triggered: TriggeredV4) = {
+      scheduleTask(triggered) flatMap {
+        case Right(r) => {
           // TODO: Send feedback event here (Scheduled)
           Async[F].pure(())
         }
@@ -35,7 +37,7 @@ object TriggeredConsumer extends LoggingWithMDC {
 
     def handleOrchestrationResult(either: Either[ErrorDetails, RecordMetadata]): F[Unit] = either match {
       case Left(err) =>
-        warn(triggeredV4)(s"Error orchestrating comm: ${err.reason}")
+        warn(triggered)(s"Error orchestrating comm: ${err.reason}")
         // TODO: Send Feedback event here (Failed)
         sendFailedEvent(failedEventFromErr(err))
       case Right(_) => Async[F].pure(())
@@ -55,16 +57,16 @@ object TriggeredConsumer extends LoggingWithMDC {
 
     def failedEventFromErr(err: ErrorDetails): FailedV3 = {
       FailedV3(
-        MetadataV3.fromSourceMetadata("orchestration", triggeredV4.metadata),
+        MetadataV3.fromSourceMetadata("orchestration", triggered.metadata, Hash(triggered.metadata.eventId)),
         buildInternalMetadata(),
         err.reason,
         err.errorCode
       )
     }
 
-    def isScheduled(triggeredV4: TriggeredV4) = triggeredV4.deliverAt.isDefined
+    def isScheduled(triggered: TriggeredV4) = triggered.deliverAt.isDefined
 
-    val validatedTriggeredV4 = TriggeredDataValidator(triggeredV4)
+    val validatedTriggeredV4 = TriggeredDataValidator(triggered)
 
     validatedTriggeredV4 match {
       case Left(err) => sendFailedEvent(failedEventFromErr(err))

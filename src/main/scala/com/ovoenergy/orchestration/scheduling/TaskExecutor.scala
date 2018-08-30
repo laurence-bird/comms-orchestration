@@ -13,6 +13,8 @@ import com.ovoenergy.orchestration.scheduling.Persistence.{
 }
 import org.apache.kafka.clients.producer.RecordMetadata
 import cats.implicits._
+import com.ovoenergy.comms.templates.util.Hash
+
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
@@ -30,7 +32,7 @@ object TaskExecutor extends LoggingWithMDC {
 
       // TODO: Send Feedback event here
       sendFailedEvent(
-        FailedV3(MetadataV3.fromSourceMetadata("orchestration", triggered.metadata),
+        FailedV3(MetadataV3.fromSourceMetadata("orchestration", triggered.metadata, Hash(triggered.metadata.eventId)),
                  internalMetadata,
                  reason,
                  errorCode))
