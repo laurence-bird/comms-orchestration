@@ -121,7 +121,7 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
   val orchestrateEmail = new IssueOrchestratedEmail(sendOrchestratedEmailEvent)
   val orchestrateSMS   = new IssueOrchestratedSMS(sendOrchestratedSMSEvent)
   val orchestratePrint = new IssueOrchestratedPrint(sendOrchestratedPrintEvent)
-  val issueFeedback    = new IssueFeedback(sendFeedbackEvent)
+  val issueFeedback    = new IssueFeedback(sendFeedbackEvent, sendFailedEvent)
 
   private val httpClient: Client[IO] = Http1Client[IO]().unsafeRunSync
 

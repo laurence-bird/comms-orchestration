@@ -54,18 +54,18 @@ class TaskExecutorSpec
     IO.pure(Right(recordMetadata))
   }
 
+  val sendFailedEvent = (failed: FailedV3) => IO.pure(recordMetadata)
+
   val sendOrchestrationStartedEvent = (orchStarted: OrchestrationStartedV3) => IO.pure(recordMetadata)
 
   val traceToken         = "ssfifjsof"
   val generateTraceToken = () => traceToken
 
-  var feedbackEventSent = Option.empty[Feedback]
   val issueFeedback = {
     val f = (f: Feedback) => {
-      feedbackEventSent = Some(f)
       IO.pure(recordMetadata)
     }
-    new IssueFeedback[IO](f)
+    new IssueFeedback[IO](f, sendFailedEvent)
   }
 
   behavior of "TaskExecutor"
@@ -86,7 +86,6 @@ class TaskExecutorSpec
 
     //side effects
     triggerOrchestrated shouldBe None
-    feedbackEventSent shouldBe None
   }
 
   it should "handle failure setting comm schedule as orchestrating" in {
@@ -105,7 +104,6 @@ class TaskExecutorSpec
 
     //side effects
     triggerOrchestrated shouldBe None
-    feedbackEventSent shouldBe None
   }
 
   it should "handle orchestration failure" in {
@@ -133,7 +131,6 @@ class TaskExecutorSpec
 
     //side effects
     triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV4.get, InternalMetadata(traceToken))
-    feedbackEventSent shouldBe 'defined
     scheduleFailedPersist shouldBe Some(scheduleId, "Some error")
   }
 
@@ -162,7 +159,6 @@ class TaskExecutorSpec
 
     implicit val patienceConfig = PatienceConfig(Span(11, Seconds))
     eventually {
-      feedbackEventSent shouldBe 'defined
       scheduleAsFailed shouldBe Some(scheduleId, "Orchestrating comm timed out")
     }
   }
@@ -190,7 +186,6 @@ class TaskExecutorSpec
     eventually {
       //side effects
       triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV4.get, InternalMetadata(traceToken))
-      feedbackEventSent shouldBe None
       scheduleAsComplete shouldBe Some(scheduleId)
     }
   }
@@ -219,7 +214,7 @@ class TaskExecutorSpec
         val f = Future { Thread.sleep(6000); recordMetadata }
         IO.fromFuture(IO(f))
       }
-      new IssueFeedback[IO](func)
+      new IssueFeedback[IO](func, sendFailedEvent)
     }
 
     TaskExecutor.execute(Orchestrating,
@@ -253,13 +248,11 @@ class TaskExecutorSpec
       triggerOrchestrated = Some(triggeredV4, internalMetadata)
       IO.pure(Left(ErrorDetails("Some error", OrchestrationError)))
     }
-    var sendFailedEventInvoked = false
     val sendFeedbackEvent = {
       val f = (failed: Feedback) => {
-        sendFailedEventInvoked = true
         IO.raiseError(new RuntimeException("failing the future"))
       }
-      new IssueFeedback[IO](f)
+      new IssueFeedback[IO](f, sendFailedEvent)
     }
 
     TaskExecutor.execute(Orchestrating,
@@ -270,7 +263,6 @@ class TaskExecutorSpec
 
     //side effects
     triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV4.get, InternalMetadata(traceToken))
-    sendFailedEventInvoked shouldBe true
     scheduleFailedPersist shouldBe Some(scheduleId, "Some error")
   }
 
@@ -296,7 +288,6 @@ class TaskExecutorSpec
 
     //side effects
     triggerOrchestrated shouldBe None
-    feedbackEventSent shouldBe None
     scheduleFailedPersist.get._1 shouldBe scheduleId
     scheduleFailedPersist.get._2 should include("Unable to orchestrate as no Triggered event in Schedule:")
   }

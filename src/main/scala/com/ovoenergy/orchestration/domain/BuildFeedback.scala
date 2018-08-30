@@ -3,13 +3,12 @@ package com.ovoenergy.orchestration.domain
 import com.ovoenergy.comms.model.{Customer, DeliverTo, Feedback, FeedbackOptions}
 import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.kafka.common.event.EventMetadata
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 
 trait BuildFeedback[T] {
   def apply(t: T): Feedback
 }
 
-object BuildFeedback{
+object BuildFeedback {
 
   def instance[T](f: T => Feedback) = {
     new BuildFeedback[T] {
@@ -24,9 +23,8 @@ object BuildFeedback{
     }
   }
 
-
-  implicit val buildFeedbackId          = instance[Feedback](identity)
-  implicit val buildFeedbackErrorDetails = instance[FailureDetails]{ fd =>
+  implicit val buildFeedbackId = instance[Feedback](identity)
+  implicit val buildFeedbackErrorDetails = instance[FailureDetails] { fd =>
     Feedback(
       fd.metadata.commId,
       extractCustomer(fd.metadata.deliverTo),

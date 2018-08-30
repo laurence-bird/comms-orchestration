@@ -12,7 +12,6 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import servicetest.helpers._
 
 import scala.concurrent.duration._
-import com.ovoenergy.comms.serialisation.Codecs._
 import org.apache.kafka.clients.consumer.KafkaConsumer
 
 class SMSServiceTest

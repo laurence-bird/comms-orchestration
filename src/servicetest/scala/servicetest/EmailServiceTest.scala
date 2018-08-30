@@ -15,7 +15,6 @@ import scala.concurrent.duration._
 import monocle.macros.syntax.lens._
 import com.ovoenergy.comms.templates.util.Hash
 import org.apache.kafka.clients.consumer.KafkaConsumer
-import com.ovoenergy.comms.serialisation.Codecs._
 import com.ovoenergy.comms.templates.model.Brand
 import com.ovoenergy.comms.templates.model.template.metadata.{TemplateId, TemplateSummary}
 

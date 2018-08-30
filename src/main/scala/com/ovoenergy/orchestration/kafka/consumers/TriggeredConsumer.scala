@@ -40,7 +40,7 @@ object TriggeredConsumer extends LoggingWithMDC {
             ))
         }
         case Left(err) => {
-          issueFeedback.send(failedEventFromErr(err))
+          issueFeedback.send(failureDetailsFromErr(err))
         }
       }
     }
@@ -48,7 +48,7 @@ object TriggeredConsumer extends LoggingWithMDC {
     def handleOrchestrationResult(either: Either[ErrorDetails, RecordMetadata]): F[Unit] = either match {
       case Left(err) =>
         warn(triggered)(s"Error orchestrating comm: ${err.reason}")
-        issueFeedback.send(failedEventFromErr(err)).void
+        issueFeedback.send(failureDetailsFromErr(err)).void
       case Right(_) => Async[F].pure(())
     }
 
@@ -74,7 +74,7 @@ object TriggeredConsumer extends LoggingWithMDC {
 
     def buildInternalMetadata() = InternalMetadata(generateTraceToken())
 
-    def failedEventFromErr(err: ErrorDetails): FailureDetails = {
+    def failureDetailsFromErr(err: ErrorDetails): FailureDetails = {
       FailureDetails(
         MetadataV3.fromSourceMetadata("orchestration", triggered.metadata, Hash(triggered.metadata.eventId)),
         err.reason,
@@ -88,7 +88,7 @@ object TriggeredConsumer extends LoggingWithMDC {
     val validatedTriggeredV4 = TriggeredDataValidator(triggered)
 
     validatedTriggeredV4 match {
-      case Left(err) => issueFeedback.send(failedEventFromErr(err)).void
+      case Left(err) => issueFeedback.sendWithLegacy(failureDetailsFromErr(err)).void
       case Right(t) if isScheduled(t) =>
         scheduleOrFail(t).void
       case Right(t) =>

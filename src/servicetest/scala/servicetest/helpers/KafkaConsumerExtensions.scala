@@ -1,8 +1,6 @@
 package servicetest.helpers
 
-import com.ovoenergy.comms.helpers.{Kafka, Topic}
-import com.typesafe.config.Config
-import com.ovoenergy.comms.serialisation.Codecs._
+import com.ovoenergy.comms.helpers.Topic
 import com.ovoenergy.comms.testhelpers.KafkaTestHelpers.withThrowawayConsumerFor
 import com.sksamuel.avro4s.{FromRecord, SchemaFor}
 import org.apache.kafka.clients.consumer.KafkaConsumer

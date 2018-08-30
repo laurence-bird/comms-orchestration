@@ -27,7 +27,7 @@ object TaskExecutor extends LoggingWithMDC {
               issueFeedback: IssueFeedback[IO])(scheduleId: ScheduleId): Unit = {
 
     def buildAndSendFailedEvents(failureDetails: FailureDetails): IO[RecordMetadata] = {
-      issueFeedback.send(
+      issueFeedback.sendWithLegacy(
         FailureDetails(
           MetadataV3
             .fromSourceMetadata("orchestration", failureDetails.metadata, Hash(failureDetails.metadata.eventId)),

@@ -18,7 +18,6 @@ import servicetest.helpers._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
-import com.ovoenergy.comms.serialisation.Codecs._
 import com.ovoenergy.comms.templates.model.Brand
 import com.ovoenergy.comms.templates.model.Brand.Ovo
 import com.ovoenergy.comms.templates.model.template.metadata.{TemplateId, TemplateSummary}
