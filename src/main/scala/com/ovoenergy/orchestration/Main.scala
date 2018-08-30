@@ -12,7 +12,6 @@ import cats.effect.IO
 import cats.syntax.all._
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.{AmazonDynamoDBException, ProvisionedThroughputExceededException}
-import com.ovoenergy.orchestration.ErrorHandling.publisherFor
 import com.ovoenergy.comms.helpers.{Kafka, Topic}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.model.email.OrchestratedEmailV4
@@ -105,22 +104,24 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
   val determineChannel = new ChannelSelectorWithTemplate(retrieveTemplateDetails)
 
   // TODO: Clean this stuff up into a separate object/package
-  val sendFailedEvent    = publisherFor[FailedV3](Kafka.aiven.failed.v3, _.metadata.eventId)
-  val sendCancelledEvent = publisherFor[CancelledV3](Kafka.aiven.cancelled.v3, _.metadata.eventId)
+  val sendFailedEvent    = Producer.publisherFor[FailedV3](Kafka.aiven.failed.v3, _.metadata.eventId)
+  val sendCancelledEvent = Producer.publisherFor[CancelledV3](Kafka.aiven.cancelled.v3, _.metadata.eventId)
   val sendFailedCancellationEvent =
-    publisherFor[FailedCancellationV3](Kafka.aiven.failedCancellation.v3, _.metadata.eventId)
+    Producer.publisherFor[FailedCancellationV3](Kafka.aiven.failedCancellation.v3, _.metadata.eventId)
   val sendOrchestrationStartedEvent: OrchestrationStartedV3 => IO[RecordMetadata] =
-    publisherFor[OrchestrationStartedV3](Kafka.aiven.orchestrationStarted.v3, _.metadata.eventId)
+    Producer.publisherFor[OrchestrationStartedV3](Kafka.aiven.orchestrationStarted.v3, _.metadata.eventId)
   val sendOrchestratedEmailEvent =
-    publisherFor[OrchestratedEmailV4](Kafka.aiven.orchestratedEmail.v4, _.metadata.eventId)
+    Producer.publisherFor[OrchestratedEmailV4](Kafka.aiven.orchestratedEmail.v4, _.metadata.eventId)
   val sendOrchestratedSMSEvent =
-    publisherFor[OrchestratedSMSV3](Kafka.aiven.orchestratedSMS.v3, _.metadata.eventId)
+    Producer.publisherFor[OrchestratedSMSV3](Kafka.aiven.orchestratedSMS.v3, _.metadata.eventId)
   val sendOrchestratedPrintEvent =
-    publisherFor[OrchestratedPrintV2](Kafka.aiven.orchestratedPrint.v2, _.metadata.eventId)
+    Producer.publisherFor[OrchestratedPrintV2](Kafka.aiven.orchestratedPrint.v2, _.metadata.eventId)
+  val sendFeedbackEvent = Producer.publisherFor[Feedback](Kafka.aiven.feedback.v1, _.metadata.eventId)
 
   val orchestrateEmail = new IssueOrchestratedEmail(sendOrchestratedEmailEvent)
   val orchestrateSMS   = new IssueOrchestratedSMS(sendOrchestratedSMSEvent)
   val orchestratePrint = new IssueOrchestratedPrint(sendOrchestratedPrintEvent)
+  val issueFeedback    = new IssueFeedback(sendFeedbackEvent)
 
   private val httpClient: Client[IO] = Http1Client[IO]().unsafeRunSync
 
@@ -148,7 +149,7 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
                                                   orchestrateComm,
                                                   sendOrchestrationStartedEvent,
                                                   () => UUID.randomUUID.toString,
-                                                  sendFailedEvent) _
+                                                  issueFeedback) _
   val addSchedule = QuartzScheduling.addSchedule(executeScheduledTask) _
 
   val scheduleTask: TriggeredV4 => IO[Either[ErrorDetails, Boolean]] = { t: TriggeredV4 =>
@@ -178,7 +179,7 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
     TriggeredConsumer[IO](
       orchestrateComm = orchestrateComm,
       scheduleTask = scheduleTask,
-      sendFailedEvent = sendFailedEvent.andThen(_.map(_ => ())),
+      issueFeedback = issueFeedback,
       generateTraceToken = () => UUID.randomUUID().toString,
       sendOrchestrationStartedEvent = sendOrchestrationStartedEvent
     )

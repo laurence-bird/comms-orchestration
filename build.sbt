@@ -33,6 +33,7 @@ libraryDependencies ++= Seq(
   "org.http4s"                 %% "http4s-dsl"                % http4sVersion,
   "org.http4s"                 %% "http4s-blaze-client"       % http4sVersion,
   "org.http4s"                 %% "http4s-circe"              % http4sVersion,
+
   "org.quartz-scheduler"       % "quartz"                     % "2.2.3",
   "com.gu"                     %% "scanamo"                   % "1.0.0-M6",
   "com.github.tomakehurst"     % "wiremock"                   % "2.16.0" % Test,

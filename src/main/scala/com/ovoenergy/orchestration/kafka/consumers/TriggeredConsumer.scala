@@ -5,9 +5,13 @@ import cats.syntax.flatMap._
 import cats.syntax.functor._
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.util.Hash
+import com.ovoenergy.kafka.common.event.EventMetadata
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.processes.TriggeredDataValidator
+import com.ovoenergy.orchestration.domain.BuildFeedback.{extractCustomer, _}
+import com.ovoenergy.orchestration.domain.FailureDetails
+import com.ovoenergy.orchestration.kafka.IssueFeedback
 import org.apache.kafka.clients.producer.RecordMetadata
 
 import scala.concurrent.ExecutionContext
@@ -15,7 +19,7 @@ import scala.concurrent.ExecutionContext
 object TriggeredConsumer extends LoggingWithMDC {
 
   def apply[F[_]: Async](scheduleTask: TriggeredV4 => F[Either[ErrorDetails, Boolean]],
-                         sendFailedEvent: FailedV3 => F[Unit],
+                         issueFeedback: IssueFeedback[F],
                          sendOrchestrationStartedEvent: OrchestrationStartedV3 => F[RecordMetadata],
                          generateTraceToken: () => String,
                          orchestrateComm: (TriggeredV4, InternalMetadata) => F[Either[ErrorDetails, RecordMetadata]])(
@@ -23,12 +27,20 @@ object TriggeredConsumer extends LoggingWithMDC {
     def scheduleOrFail(triggered: TriggeredV4) = {
       scheduleTask(triggered) flatMap {
         case Right(r) => {
-          // TODO: Send feedback event here (Scheduled)
-          Async[F].pure(())
+          // TODO Clean this up
+          issueFeedback.send(
+            Feedback(
+              triggered.metadata.commId,
+              extractCustomer(triggered.metadata.deliverTo),
+              FeedbackOptions.Scheduled,
+              Some(s"Comm Scheduled for delivery"),
+              None,
+              None,
+              EventMetadata.fromMetadata(triggered.metadata, Hash(triggered.metadata.eventId))
+            ))
         }
         case Left(err) => {
-          // TODO: Send Feedback event here (Failed)
-          sendFailedEvent(failedEventFromErr(err))
+          issueFeedback.send(failedEventFromErr(err))
         }
       }
     }
@@ -36,15 +48,24 @@ object TriggeredConsumer extends LoggingWithMDC {
     def handleOrchestrationResult(either: Either[ErrorDetails, RecordMetadata]): F[Unit] = either match {
       case Left(err) =>
         warn(triggered)(s"Error orchestrating comm: ${err.reason}")
-        // TODO: Send Feedback event here (Failed)
-        sendFailedEvent(failedEventFromErr(err))
+        issueFeedback.send(failedEventFromErr(err)).void
       case Right(_) => Async[F].pure(())
     }
 
     def orchestrateOrFail(triggeredV4: TriggeredV4): F[Unit] = {
       val internalMetadata = buildInternalMetadata()
       for {
-        //TODO: Send Feedback event here (Pending)
+        // TODO Clean this up
+        _ <- issueFeedback.send(
+          Feedback(
+            triggered.metadata.commId,
+            extractCustomer(triggered.metadata.deliverTo),
+            FeedbackOptions.Scheduled,
+            Some(s"Comm Scheduled for delivery"),
+            None,
+            None,
+            EventMetadata.fromMetadata(triggered.metadata, Hash(triggered.metadata.eventId))
+          ))
         _          <- sendOrchestrationStartedEvent(OrchestrationStartedV3(triggeredV4.metadata, internalMetadata))
         orchResult <- orchestrateComm(triggeredV4, internalMetadata)
         _          <- handleOrchestrationResult(orchResult)
@@ -53,12 +74,12 @@ object TriggeredConsumer extends LoggingWithMDC {
 
     def buildInternalMetadata() = InternalMetadata(generateTraceToken())
 
-    def failedEventFromErr(err: ErrorDetails): FailedV3 = {
-      FailedV3(
+    def failedEventFromErr(err: ErrorDetails): FailureDetails = {
+      FailureDetails(
         MetadataV3.fromSourceMetadata("orchestration", triggered.metadata, Hash(triggered.metadata.eventId)),
-        buildInternalMetadata(),
         err.reason,
-        err.errorCode
+        err.errorCode,
+        buildInternalMetadata()
       )
     }
 
@@ -67,9 +88,9 @@ object TriggeredConsumer extends LoggingWithMDC {
     val validatedTriggeredV4 = TriggeredDataValidator(triggered)
 
     validatedTriggeredV4 match {
-      case Left(err) => sendFailedEvent(failedEventFromErr(err))
+      case Left(err) => issueFeedback.send(failedEventFromErr(err)).void
       case Right(t) if isScheduled(t) =>
-        scheduleOrFail(t)
+        scheduleOrFail(t).void
       case Right(t) =>
         orchestrateOrFail(t)
     }

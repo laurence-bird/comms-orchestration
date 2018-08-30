@@ -77,4 +77,9 @@ package object domain {
       customerId = cancellationRequested.customerId
     )
   }
+
+  case class FailureDetails(metadata: MetadataV3,
+                            reason: String,
+                            errorCode: ErrorCode,
+                            internalMetadata: InternalMetadata)
 }
