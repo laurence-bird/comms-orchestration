@@ -1,5 +1,7 @@
 package com.ovoenergy.orchestration.domain
 
+import java.time.Instant
+
 import com.ovoenergy.comms.model.{Customer, DeliverTo, Feedback, FeedbackOptions}
 import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.kafka.common.event.EventMetadata
@@ -24,15 +26,21 @@ object BuildFeedback {
   }
 
   implicit val buildFeedbackId = instance[Feedback](identity)
+
   implicit val buildFeedbackErrorDetails = instance[FailureDetails] { fd =>
+    val status = fd.failureType match {
+      case InternalFailure     => FeedbackOptions.Failed
+      case CancellationFailure => FeedbackOptions.FailedCancellation
+    }
+
     Feedback(
-      fd.metadata.commId,
-      extractCustomer(fd.metadata.deliverTo),
-      FeedbackOptions.Failed,
+      fd.commId.value,
+      extractCustomer(fd.deliverTo),
+      status,
       Some(fd.reason),
       None,
       None,
-      EventMetadata.fromMetadata(fd.metadata, Hash(fd.metadata.eventId))
+      EventMetadata(fd.traceToken.value, Hash(fd.eventId.value), Instant.now())
     )
   }
 }

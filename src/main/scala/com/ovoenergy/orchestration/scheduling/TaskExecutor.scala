@@ -12,8 +12,7 @@ import com.ovoenergy.orchestration.scheduling.Persistence.{
 }
 import org.apache.kafka.clients.producer.RecordMetadata
 import cats.implicits._
-import com.ovoenergy.comms.templates.util.Hash
-import com.ovoenergy.orchestration.domain.{BuildFeedback, FailureDetails}
+import com.ovoenergy.orchestration.domain.{FailureDetails, InternalFailure}
 import com.ovoenergy.orchestration.kafka.IssueFeedback
 
 import scala.concurrent.duration._
@@ -26,15 +25,22 @@ object TaskExecutor extends LoggingWithMDC {
               generateTraceToken: () => String,
               issueFeedback: IssueFeedback[IO])(scheduleId: ScheduleId): Unit = {
 
-    def buildAndSendFailedEvents(failureDetails: FailureDetails): IO[RecordMetadata] = {
+    def buildAndSendFailedEvents(triggered: TriggeredV4,
+                                 errorDetails: ErrorDetails,
+                                 internalMetadata: InternalMetadata): IO[RecordMetadata] = {
       issueFeedback.sendWithLegacy(
         FailureDetails(
-          MetadataV3
-            .fromSourceMetadata("orchestration", failureDetails.metadata, Hash(failureDetails.metadata.eventId)),
-          failureDetails.reason,
-          failureDetails.errorCode,
-          failureDetails.internalMetadata
-        ))
+          triggered.metadata.deliverTo,
+          triggered.metadata.commId,
+          triggered.metadata.traceToken,
+          triggered.metadata.eventId,
+          errorDetails.reason,
+          errorDetails.errorCode,
+          InternalFailure
+        ),
+        triggered.metadata,
+        internalMetadata
+      )
     }
 
     def awaitOrchestrationFuture(triggered: TriggeredV4,
@@ -47,9 +53,7 @@ object TaskExecutor extends LoggingWithMDC {
           case Left(err) => {
             warn(triggered)(s"Failed to orchestrate comm: ${err.reason}")
             IO(persistence.setScheduleAsFailed(scheduleId, err.reason))
-              .flatMap(_ =>
-                buildAndSendFailedEvents(
-                  FailureDetails(triggered.metadata, err.reason, err.errorCode, internalMetadata)))
+              .flatMap(_ => buildAndSendFailedEvents(triggered, err, internalMetadata))
               .map(_ => ())
           }
         }
@@ -60,14 +64,14 @@ object TaskExecutor extends LoggingWithMDC {
         else {
           warn(triggered)("Orchestrating comm timed out, the comm may still get orchestrated, raising failed event")
           persistence.setScheduleAsFailed(scheduleId, "Orchestrating comm timed out")
-          buildAndSendFailedEvents(
-            FailureDetails(triggered.metadata, "Orchestrating comm timed out", OrchestrationError, internalMetadata))
+          buildAndSendFailedEvents(triggered,
+                                   ErrorDetails("Orchestrating comm timed out", OrchestrationError),
+                                   internalMetadata)
         }
       } catch {
         case NonFatal(e) =>
           warnWithException(triggered)("Unable to orchestrate comm, raising failed event")(e)
-          buildAndSendFailedEvents(
-            FailureDetails(triggered.metadata, e.getMessage, OrchestrationError, internalMetadata))
+          buildAndSendFailedEvents(triggered, ErrorDetails(e.getMessage, OrchestrationError), internalMetadata)
       }
     }
 

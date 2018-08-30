@@ -2,7 +2,8 @@ package com.ovoenergy.orchestration.kafka
 
 import cats.effect.Async
 import cats.syntax.flatMap._
-import com.ovoenergy.comms.model.{FailedV3, Feedback}
+import com.ovoenergy.comms.model.{FailedV3, Feedback, InternalMetadata, MetadataV3}
+import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.orchestration.domain.{BuildFeedback, FailureDetails}
 import org.apache.kafka.clients.producer.RecordMetadata
 
@@ -14,14 +15,17 @@ class IssueFeedback[F[_]: Async](sendFeedback: Feedback => F[RecordMetadata],
   }
 
   // TODO this should go away once we stop producing to old feedback topic
-  def sendWithLegacy(failureDetails: FailureDetails): F[RecordMetadata] = {
+  def sendWithLegacy(failureDetails: FailureDetails,
+                     metadata: MetadataV3,
+                     internalMetadata: InternalMetadata): F[RecordMetadata] = {
     val feedback = BuildFeedback.buildFeedbackErrorDetails(failureDetails)
     val failed = FailedV3(
-      failureDetails.metadata,
-      failureDetails.internalMetadata,
+      MetadataV3.fromSourceMetadata("orchestrator", metadata, Hash(metadata.eventId)),
+      internalMetadata,
       failureDetails.reason,
       failureDetails.errorCode
     )
+
     sendFeedback(feedback) >> sendFailed(failed)
   }
 }

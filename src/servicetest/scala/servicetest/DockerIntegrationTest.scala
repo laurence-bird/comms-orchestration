@@ -135,7 +135,9 @@ trait DockerIntegrationTest
     "comms.failed.cancellation.v3",
     "comms.orchestrated.email.v4",
     "comms.orchestrated.sms.v3",
-    "comms.orchestration.started.v3"
+    "comms.orchestration.started.v3",
+    "comms.feedback",
+
   )
 
   // TODO currently no way to set the memory limit on docker containers. Need to make a PR to add support to docker-it-scala. I've checked that the spotify client supports it.

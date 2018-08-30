@@ -78,8 +78,40 @@ package object domain {
     )
   }
 
-  case class FailureDetails(metadata: MetadataV3,
+  case class FailureDetails(deliverTo: DeliverTo,
+                            commId: CommId,
+                            traceToken: TraceToken,
+                            eventId: EventId,
                             reason: String,
                             errorCode: ErrorCode,
-                            internalMetadata: InternalMetadata)
+                            failureType: FailureType)
+
+  object FailureDetails {
+    def apply(deliverTo: DeliverTo,
+              commId: String,
+              traceToken: String,
+              eventId: String,
+              reason: String,
+              errorCode: ErrorCode,
+              failureType: FailureType): FailureDetails = {
+      FailureDetails(
+        deliverTo,
+        CommId(commId),
+        TraceToken(traceToken),
+        EventId(eventId),
+        reason,
+        errorCode,
+        failureType
+      )
+    }
+  }
+
+  case class CommId(value: String)
+  case class EventId(value: String)
+  case class TraceToken(value: String)
+
+  sealed trait FailureType
+
+  case object CancellationFailure extends FailureType
+  case object InternalFailure     extends FailureType
 }

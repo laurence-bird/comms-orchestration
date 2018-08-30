@@ -19,13 +19,11 @@ import com.ovoenergy.comms.templates.model.Brand
 import com.ovoenergy.comms.templates.model.template.metadata.{TemplateId, TemplateSummary}
 
 class EmailServiceTest
-    extends FlatSpec
-    with DockerIntegrationTest
-    with Matchers
+    extends BaseSpec
+    with KafkaTesting
     with ScalaFutures
     with BeforeAndAfterAll
     with IntegrationPatience
-    with MockProfileResponses
     with FakeS3Configuration {
 
   val s3Endpoint = "http://localhost:4569"
@@ -43,9 +41,9 @@ class EmailServiceTest
 
   behavior of "Email Orchestration"
 
-  it should "orchestrate emails request to send immediately" in withThrowawayConsumerFor(
+  it should "orchestrate emails request to send immediately" in withMultipleThrowawayConsumersFor(
     Kafka.aiven.orchestrationStarted.v3,
-    Kafka.aiven.orchestratedEmail.v4) { (orchestrationStartedConsumer, orchestratedEmailConsumer) =>
+    Kafka.aiven.orchestratedEmail.v4, Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, orchestratedEmailConsumer, feedbackConsumer) =>
     val triggered = customerTriggeredV4
     createOKCustomerProfileResponse(mockServerClient)
     populateTemplateSummaryTable(
@@ -63,11 +61,14 @@ class EmailServiceTest
                                      consumer = orchestrationStartedConsumer,
                                      pollTime = 40.seconds)
     expectOrchestratedEmailEvents(noOfEventsExpected = 1, consumer = orchestratedEmailConsumer, pollTime = 40.seconds)
+    expectFeedbackEvents(noOfEventsExpected = 1,
+      consumer = feedbackConsumer,
+      expectedStatuses = Set(FeedbackOptions.Pending))
   }
 
-  it should "raise failure for customers with insufficient details to orchestrate emails for" in withThrowawayConsumerFor(
+  it should "raise failure for customers with insufficient details to orchestrate emails for" in withMultipleThrowawayConsumersFor(
     Kafka.aiven.orchestrationStarted.v3,
-    Kafka.aiven.failed.v3) { (orchestrationStartedConsumer, failedConsumer) =>
+    Kafka.aiven.failed.v3, Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, failedConsumer, feedbackConsumer) =>
     failedConsumer.checkNoMessages(5.second)
     uploadTemplateToFakeS3(s3Region, s3Endpoint)(metadataV3.templateManifest)
     createInvalidCustomerProfileResponse(mockServerClient)
@@ -93,11 +94,16 @@ class EmailServiceTest
       failure.errorCode shouldBe InvalidProfile
       failure.metadata.traceToken shouldBe traceToken
     })
+    expectFeedbackEvents(noOfEventsExpected = 2,
+      consumer = feedbackConsumer,
+      expectedStatuses = Set(FeedbackOptions.Pending, FeedbackOptions.Failed))
   }
 
-  it should "retry if the profile service returns an error response" in withThrowawayConsumerFor(
+  it should "retry if the profile service returns an error response" in withMultipleThrowawayConsumersFor(
     Kafka.aiven.orchestrationStarted.v3,
-    Kafka.aiven.orchestratedEmail.v4) { (orchestrationStartedConsumer, orchestratedEmailConsumer) =>
+    Kafka.aiven.orchestratedEmail.v4,
+    Kafka.aiven.feedback.v1,
+  ) { (orchestrationStartedConsumer, orchestratedEmailConsumer, feedbackConsumer) =>
     createFlakyCustomerProfileResponse(mockServerClient)
 
     val triggered = customerTriggeredV4
@@ -114,22 +120,30 @@ class EmailServiceTest
     Kafka.aiven.triggered.v4.publishOnce(triggered)
     expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
     expectOrchestratedEmailEvents(noOfEventsExpected = 1, consumer = orchestratedEmailConsumer)
+    expectFeedbackEvents(noOfEventsExpected = 1,
+      consumer = feedbackConsumer,
+      expectedStatuses = Set(FeedbackOptions.Pending))
   }
 
-  it should "orchestrate triggered event with email contact details" in withThrowawayConsumerFor(
+  it should "orchestrate triggered event with email contact details" in withMultipleThrowawayConsumersFor(
     Kafka.aiven.orchestrationStarted.v3,
-    Kafka.aiven.orchestratedEmail.v4) { (orchestrationStartedConsumer, orchestratedEmailConsumer) =>
+    Kafka.aiven.orchestratedEmail.v4,
+    Kafka.aiven.feedback.v1
+  ) { (orchestrationStartedConsumer, orchestratedEmailConsumer, feedbackConsumer) =>
     Kafka.aiven.triggered.v4.publishOnce(emailContactDetailsTriggered)
 
     expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
     expectOrchestratedEmailEvents(noOfEventsExpected = 1,
                                   shouldHaveCustomerProfile = false,
                                   consumer = orchestratedEmailConsumer)
+    expectFeedbackEvents(noOfEventsExpected = 1,
+      consumer = feedbackConsumer,
+      expectedStatuses = Set(FeedbackOptions.Pending))
   }
 
-  it should "raise failure for triggered event with contact details with insufficient details" in withThrowawayConsumerFor(
+  it should "raise failure for triggered event with contact details with insufficient details" in withMultipleThrowawayConsumersFor(
     Kafka.aiven.orchestrationStarted.v3,
-    Kafka.aiven.failed.v3) { (orchestrationStartedConsumer, failedConsumer) =>
+    Kafka.aiven.failed.v3, Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, failedConsumer, feedbackConsumer) =>
     uploadTemplateToFakeS3(s3Region, s3Endpoint)(metadataV3.templateManifest)
     Kafka.aiven.triggered.v4.publishOnce(invalidContactDetailsTriggered)
     expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
@@ -140,10 +154,13 @@ class EmailServiceTest
       failure.errorCode shouldBe InvalidProfile
       failure.metadata.traceToken shouldBe traceToken
     })
+    expectFeedbackEvents(noOfEventsExpected = 2,
+      consumer = feedbackConsumer,
+      expectedStatuses = Set(FeedbackOptions.Pending, FeedbackOptions.Failed))
   }
 
   it should "raise failure for triggered event with a list of fields having empty string as their value" in withThrowawayConsumerFor(
-    Kafka.aiven.failed.v3) { failedConsumer =>
+    Kafka.aiven.failed.v3, Kafka.aiven.feedback.v1) { (failedConsumer, feedbackConsumer) =>
     val td = Map(
       "firstName" -> TemplateData.fromString("Joe"),
       "lastName"  -> TemplateData.fromString(""),
@@ -169,11 +186,14 @@ class EmailServiceTest
       failure.errorCode shouldBe OrchestrationError
       failure.metadata.traceToken shouldBe ""
     })
+    expectFeedbackEvents(noOfEventsExpected = 2,
+      consumer = feedbackConsumer,
+      expectedStatuses = Set(FeedbackOptions.Pending, FeedbackOptions.Failed))
   }
 
-  it should "raise failure for triggered event with contact details that do not provide details for template channel" in withThrowawayConsumerFor(
+  it should "raise failure for triggered event with contact details that do not provide details for template channel" in withMultipleThrowawayConsumersFor(
     Kafka.aiven.orchestrationStarted.v3,
-    Kafka.aiven.failed.v3) { (orchestrationStartedConsumer, failedConsumer) =>
+    Kafka.aiven.failed.v3, Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, failedConsumer, feedbackConsumer) =>
     val templateManifest = TemplateManifest(Hash("sms-only"), "0.1")
     val metadata = metadataV3.copy(
       deliverTo = ContactDetails(Some("qatesting@ovoenergy.com"), None),
@@ -195,12 +215,17 @@ class EmailServiceTest
     Kafka.aiven.triggered.v4.publishOnce(triggered)
     expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
 
-    val failures = failedConsumer.pollFor(noOfEventsExpected = 1)
-    failures.foreach(failure => {
-      failure.reason should include("No available channels to deliver comm")
-      failure.errorCode shouldBe OrchestrationError
-      failure.metadata.traceToken shouldBe traceToken
+    failedConsumer
+      .pollFor(noOfEventsExpected = 1)
+      .foreach(failure => {
+        failure.reason should include("No available channels to deliver comm")
+        failure.errorCode shouldBe OrchestrationError
+        failure.metadata.traceToken shouldBe traceToken
     })
+
+    expectFeedbackEvents(noOfEventsExpected = 2,
+      consumer = feedbackConsumer,
+      expectedStatuses = Set(FeedbackOptions.Pending, FeedbackOptions.Failed))
   }
 
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25000.millisecond,

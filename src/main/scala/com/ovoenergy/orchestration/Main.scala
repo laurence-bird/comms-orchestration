@@ -61,7 +61,6 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
 
   lazy val triggeredV3Topic: Topic[TriggeredV3]                         = Kafka.aiven.triggered.v3
   lazy val triggeredV4Topic: Topic[TriggeredV4]                         = Kafka.aiven.triggered.v4
-  lazy val cancellationRequestedV2Topic: Topic[CancellationRequestedV2] = Kafka.aiven.cancellationRequested.v2
   lazy val cancellationRequestedV3Topic: Topic[CancellationRequestedV3] = Kafka.aiven.cancellationRequested.v3
 
   val region = Regions.fromName(config.getString("aws.region"))
@@ -193,12 +192,9 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
       sendFailedCancellationEvent = sendFailedCancellationEvent,
       sendSuccessfulCancellationEvent = sendCancelledEvent,
       descheduleComm = descheduleComm,
-      generateTraceToken = () => UUID.randomUUID().toString
+      generateTraceToken = () => UUID.randomUUID().toString,
+      issueFeedback: IssueFeedback[IO]
     )
-  }
-
-  val cancellationRequestV2Consumer = (cancellationRequestedV2: CancellationRequestedV2) => {
-    cancellationRequestV3Consumer(cancellationRequestedV2.toV3)
   }
 
   QuartzScheduling.init()
@@ -249,15 +245,12 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
     val triggeredV3Stream = KafkaConsumer[IO](topic = triggeredV3Topic)(f = recordProcessor(triggeredV3Consumer))
     val triggeredV4Stream = KafkaConsumer[IO](topic = triggeredV4Topic)(f = recordProcessor(triggeredV4Consumer))
 
-    val cancellationRequestV2Stream =
-      KafkaConsumer[IO](topic = cancellationRequestedV2Topic)(f = recordProcessor(cancellationRequestV2Consumer))
     val cancellationRequestV3Stream =
       KafkaConsumer[IO](topic = cancellationRequestedV3Topic)(f = recordProcessor(cancellationRequestV3Consumer))
 
     val s = Stream.eval(IO(info("Orchestration started"))) >>
         triggeredV3Stream
           .mergeHaltBoth(triggeredV4Stream)
-          .mergeHaltBoth(cancellationRequestV2Stream)
           .mergeHaltBoth(cancellationRequestV3Stream)
 
     s.drain.covaryOutput[StreamApp.ExitCode] ++ Stream.emit(StreamApp.ExitCode.Error)
