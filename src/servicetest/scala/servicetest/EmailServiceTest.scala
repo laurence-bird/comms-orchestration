@@ -65,44 +65,6 @@ class EmailServiceTest
     expectOrchestratedEmailEvents(noOfEventsExpected = 1, consumer = orchestratedEmailConsumer, pollTime = 40.seconds)
   }
 
-  it should "orchestrate multiple emails" in withThrowawayConsumerFor(Kafka.aiven.orchestrationStarted.v3,
-                                                                      Kafka.aiven.orchestratedEmail.v4) {
-    (orchestrationStartedConsumer, orchestratedEmailConsumer) =>
-      createOKCustomerProfileResponse(mockServerClient)
-      val triggered = customerTriggeredV4
-
-      populateTemplateSummaryTable(
-        TemplateSummary(
-          TemplateId(triggered.metadata.templateManifest.id),
-          "blah blah blah",
-          Service,
-          Brand.Ovo,
-          triggered.metadata.templateManifest.version
-        )
-      )
-
-      (1 to 10).foreach(counter => {
-        val newTriggered =
-          triggered.copy(metadata = metadataV3.copy(traceToken = counter.toString))
-        Kafka.aiven.triggered.v4.publishOnce(newTriggered, timeout = 10.seconds)
-      })
-
-      val deadline = 15.seconds
-      val orchestrationStartedEvents =
-        expectOrchestrationStartedEvents(noOfEventsExpected = 10,
-                                         shouldCheckTraceToken = false,
-                                         pollTime = (25000 * 10).millisecond,
-                                         consumer = orchestrationStartedConsumer)
-      orchestrationStartedEvents.map(_.metadata.traceToken) should contain allOf ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
-      val orchestratedEmails =
-        expectOrchestratedEmailEvents(pollTime = deadline,
-                                      noOfEventsExpected = 10,
-                                      shouldCheckTraceToken = false,
-                                      useMagicByte = false,
-                                      consumer = orchestratedEmailConsumer)
-      orchestratedEmails.map(_.metadata.traceToken) should contain allOf ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
-  }
-
   it should "raise failure for customers with insufficient details to orchestrate emails for" in withThrowawayConsumerFor(
     Kafka.aiven.orchestrationStarted.v3,
     Kafka.aiven.failed.v3) { (orchestrationStartedConsumer, failedConsumer) =>

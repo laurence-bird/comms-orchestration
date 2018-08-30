@@ -40,7 +40,7 @@ object TriggeredConsumer extends LoggingWithMDC {
             ))
         }
         case Left(err) => {
-          issueFeedback.send(failureDetailsFromErr(err))
+          issueFeedback.sendWithLegacy(failureDetailsFromErr(err))
         }
       }
     }
@@ -48,7 +48,7 @@ object TriggeredConsumer extends LoggingWithMDC {
     def handleOrchestrationResult(either: Either[ErrorDetails, RecordMetadata]): F[Unit] = either match {
       case Left(err) =>
         warn(triggered)(s"Error orchestrating comm: ${err.reason}")
-        issueFeedback.send(failureDetailsFromErr(err)).void
+        issueFeedback.sendWithLegacy(failureDetailsFromErr(err)).void
       case Right(_) => Async[F].pure(())
     }
 
