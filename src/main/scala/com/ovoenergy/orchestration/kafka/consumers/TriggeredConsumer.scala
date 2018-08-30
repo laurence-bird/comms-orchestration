@@ -1,15 +1,13 @@
 package com.ovoenergy.orchestration.kafka.consumers
 
-import cats.effect.{Async, IO}
+import cats.effect.Async
+import cats.syntax.flatMap._
+import cats.syntax.functor._
 import com.ovoenergy.comms.model._
+import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.processes.TriggeredDataValidator
-import cats.syntax.flatMap._
-import cats.syntax.functor._
-import cats.syntax.either._
-import cats.syntax.flatMap._
-import com.ovoenergy.comms.templates.util.Hash
 import org.apache.kafka.clients.producer.RecordMetadata
 
 import scala.concurrent.ExecutionContext

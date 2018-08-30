@@ -104,6 +104,7 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
     CachingStrategy.caffeine[TemplateId, ErrorsOr[CommType]](250))
   val determineChannel = new ChannelSelectorWithTemplate(retrieveTemplateDetails)
 
+  // TODO: Clean this stuff up into a separate object/package
   val sendFailedEvent    = publisherFor[FailedV3](Kafka.aiven.failed.v3, _.metadata.eventId)
   val sendCancelledEvent = publisherFor[CancelledV3](Kafka.aiven.cancelled.v3, _.metadata.eventId)
   val sendFailedCancellationEvent =
