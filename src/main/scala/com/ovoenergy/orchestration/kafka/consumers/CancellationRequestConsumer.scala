@@ -46,22 +46,13 @@ object CancellationRequestConsumer extends LoggingWithMDC {
                 s"Cancellation of scheduled comm failed: ${err.reason}"
               )) >> issueFeedback.send(failureDetails)
           case Right(metadata) =>
-            sendSuccessfulCancellationEvent(
-              CancelledV3(MetadataV3.fromSourceMetadata(
-                            "orchestration",
-                            metadata,
-                            Hash(metadata.eventId)
-                          ),
-                          cancellationRequest)) >> issueFeedback.send(
-              Feedback(
-                cancellationRequest.metadata.commId,
-                Some(Customer(cancellationRequest.customerId)),
-                FeedbackOptions.Cancelled,
-                Some("Scheduled Comm cancelled"),
-                None,
-                None,
-                EventMetadata.fromMetadata(metadata, Hash(metadata.eventId))
-              ))
+            val cancelledEvent = CancelledV3(MetadataV3.fromSourceMetadata(
+                                               "orchestration",
+                                               metadata,
+                                               Hash(metadata.eventId)
+                                             ),
+                                             cancellationRequest)
+            sendSuccessfulCancellationEvent(cancelledEvent) >> issueFeedback.send(cancelledEvent)
         }
 
         import cats.implicits._

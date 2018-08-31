@@ -4,6 +4,7 @@ import java.time.Instant
 
 import com.ovoenergy.comms.model.FeedbackOptions.Pending
 import com.ovoenergy.comms.model.{
+  CancelledV3,
   Customer,
   DeliverTo,
   Feedback,
@@ -62,6 +63,17 @@ object BuildFeedback {
       None,
       EventMetadata.fromMetadata(os.metadata, Hash(os.metadata.eventId))
     )
+  }
 
+  implicit val buildFeedbackCancelled = instance[CancelledV3] { cancelled =>
+    Feedback(
+      cancelled.metadata.commId,
+      extractCustomer(cancelled.metadata.deliverTo),
+      FeedbackOptions.Cancelled,
+      Some(s"Scheduled comm has been cancelled"),
+      None,
+      None,
+      EventMetadata.fromMetadata(cancelled.metadata, Hash(cancelled.metadata.eventId))
+    )
   }
 }

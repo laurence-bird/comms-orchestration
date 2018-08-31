@@ -46,8 +46,8 @@ object TriggeredConsumer extends LoggingWithMDC {
 
     def orchestrateOrFail(triggeredV4: TriggeredV4, internalMetadata: InternalMetadata): F[Unit] = {
 
-      def handleOrchestrationResult(either: Either[ErrorDetails, RecordMetadata],
-                                    internalMetadata: InternalMetadata): F[Unit] = either match {
+      def sendFeedbackIfFailure(either: Either[ErrorDetails, RecordMetadata],
+                                internalMetadata: InternalMetadata): F[Unit] = either match {
         case Left(err) =>
           warn(triggered)(s"Error orchestrating comm: ${err.reason}")
           issueFeedback.sendWithLegacy(failureDetailsFromErr(err), triggeredV4.metadata, internalMetadata).void
@@ -55,7 +55,6 @@ object TriggeredConsumer extends LoggingWithMDC {
       }
 
       for {
-        // TODO Clean this up
         _ <- issueFeedback.send(
           Feedback(
             triggered.metadata.commId,
@@ -68,7 +67,7 @@ object TriggeredConsumer extends LoggingWithMDC {
           ))
         _          <- sendOrchestrationStartedEvent(OrchestrationStartedV3(triggeredV4.metadata, internalMetadata))
         orchResult <- orchestrateComm(triggeredV4, internalMetadata)
-        _          <- handleOrchestrationResult(orchResult, internalMetadata)
+        _          <- sendFeedbackIfFailure(orchResult, internalMetadata)
       } yield ()
     }
 

@@ -187,7 +187,7 @@ class EmailServiceTest
       failure.errorCode shouldBe OrchestrationError
       failure.metadata.traceToken shouldBe ""
     })
-    expectFeedbackEvents(noOfEventsExpected = 2,
+    expectFeedbackEvents(noOfEventsExpected = 1,
                          consumer = feedbackConsumer,
                          expectedStatuses = Set(FeedbackOptions.Failed))
   }
