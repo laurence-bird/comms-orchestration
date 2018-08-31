@@ -13,7 +13,7 @@ import com.ovoenergy.orchestration.domain.{
 }
 import com.ovoenergy.orchestration.kafka.IssueOrchestratedComm
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.util.{ArbGenerator, TestUtil}
+import com.ovoenergy.orchestration.util.{ArbInstances, TestUtil}
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
 import org.scalatest.concurrent.ScalaFutures
@@ -26,7 +26,7 @@ class OrchestratorSpec
     with ScalaFutures
     with OneInstancePerTest
     with EitherValues
-    with ArbGenerator
+    with ArbInstances
     with BeforeAndAfterEach {
 
   var orchestratedDetails: Option[(Option[model.CustomerProfile], String)] = None

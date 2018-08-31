@@ -5,6 +5,7 @@ scalacOptions         := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
 val circeVersion = "0.9.0"
 val commsKafkaSerialisationVersion = "3.18"
+val commsKafkaMessagesVersion = "1.75"
 val dockerTestkitVersion = "0.9.5"
 val monocleVersion = "1.5.0"
 val fs2KafkaClientVersion = "0.1.9"
@@ -13,7 +14,8 @@ val http4sVersion = "0.18.9"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka"          %% "akka-slf4j"                % "2.4.18",
-  "com.ovoenergy"              %% "comms-kafka-messages"      % "1.75"  ,
+  "com.ovoenergy"              %% "comms-kafka-messages"      % commsKafkaMessagesVersion  ,
+  "com.ovoenergy"              %% "comms-kafka-messages"      % commsKafkaMessagesVersion classifier "tests",
   "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-kafka-helpers"       % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-templates"           % "0.28",
@@ -60,7 +62,6 @@ resolvers ++= Seq(
 enablePlugins(JavaServerAppPackaging, DockerPlugin)
 
 commsPackagingMaxMetaspaceSize := 256
-
 commsPackagingHeapSize := 512
 
 test in Test := (test in Test).dependsOn(startDynamoDBLocal).value

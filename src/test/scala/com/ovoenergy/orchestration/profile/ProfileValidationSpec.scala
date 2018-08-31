@@ -11,11 +11,11 @@ import com.ovoenergy.orchestration.domain.{
 }
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.profile.CustomerProfiler.ProfileCustomer
-import com.ovoenergy.orchestration.util.ArbGenerator
+import com.ovoenergy.orchestration.util.ArbInstances
 import org.scalatest.{EitherValues, FlatSpec, Matchers}
 import org.scalacheck.Shapeless._
 
-class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues with ArbGenerator {
+class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues with ArbInstances {
 
   behavior of "getValidatedContactProfile"
 

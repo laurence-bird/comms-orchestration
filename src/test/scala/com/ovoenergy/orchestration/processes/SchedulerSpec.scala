@@ -8,11 +8,11 @@ import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.processes.Scheduler.{TemplateId, CustomerId}
 import com.ovoenergy.orchestration.scheduling.ScheduleStatus.Pending
 import com.ovoenergy.orchestration.scheduling._
-import com.ovoenergy.orchestration.util.{ArbGenerator, TestUtil}
+import com.ovoenergy.orchestration.util.{ArbInstances, TestUtil}
 import org.scalatest.{FlatSpec, Matchers, OneInstancePerTest}
 import org.scalacheck.Shapeless._
 
-class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with ArbGenerator {
+class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with ArbInstances {
 
   val now   = Instant.now()
   val clock = Clock.fixed(now, ZoneId.of("UTC"))

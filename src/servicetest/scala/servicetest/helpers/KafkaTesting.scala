@@ -31,7 +31,7 @@ trait KafkaTesting { _: BaseSpec =>
     }
   }
 
-  def withMultipleThrowawayConsumerFor[E1: SchemaFor: FromRecord: ClassTag,
+  def withMultipleThrowawayConsumersFor[E1: SchemaFor: FromRecord: ClassTag,
   E2: SchemaFor: FromRecord: ClassTag,
   E3: SchemaFor: FromRecord: ClassTag,
   E4: SchemaFor: FromRecord: ClassTag,

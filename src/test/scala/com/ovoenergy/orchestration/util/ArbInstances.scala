@@ -2,15 +2,13 @@ package com.ovoenergy.orchestration.util
 
 import java.time.{Instant, ZoneId, ZonedDateTime}
 import java.util.UUID
-
-import com.ovoenergy.orchestration.scheduling.ScheduleId
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Shapeless._
 import org.scalacheck.rng.Seed
 
 import scala.util.Random
 
-trait ArbGenerator {
+trait ArbInstances extends ArbGenerator {
   implicit def arbUUID: Arbitrary[UUID] = Arbitrary {
     UUID.randomUUID()
   }
@@ -22,6 +20,9 @@ trait ArbGenerator {
   implicit def arbString: Arbitrary[String] = Arbitrary {
     UUID.randomUUID().toString
   }
+}
+
+trait ArbGenerator {
 
   def generate[A: Arbitrary] =
     implicitly[Arbitrary[A]].arbitrary

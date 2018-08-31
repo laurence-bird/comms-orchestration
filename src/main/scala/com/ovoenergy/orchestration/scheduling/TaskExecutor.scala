@@ -86,6 +86,7 @@ object TaskExecutor extends LoggingWithMDC {
         schedule.triggeredV4 match {
           case Some(triggered) => {
             val orchResult: IO[Either[ErrorDetails, RecordMetadata]] = for {
+              _   <- issueFeedback.send(OrchestrationStartedV3(triggered.metadata, internalMetadata))
               _   <- sendOrchestrationStartedEvent(OrchestrationStartedV3(triggered.metadata, internalMetadata))
               res <- orchestrateTrigger(triggered, internalMetadata)
             } yield res

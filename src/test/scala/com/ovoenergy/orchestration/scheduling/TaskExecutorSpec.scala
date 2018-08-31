@@ -12,10 +12,9 @@ import com.ovoenergy.orchestration.scheduling.Persistence.{
   Successful,
   Failed => FailedPersistence
 }
-import com.ovoenergy.orchestration.util.{ArbGenerator, TestUtil}
+import com.ovoenergy.orchestration.util.{ArbInstances, TestUtil}
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.record.Record
 import org.scalatest.{FlatSpec, Matchers, OneInstancePerTest}
 import org.scalacheck.Shapeless._
 import org.scalatest.concurrent.Eventually
@@ -28,7 +27,7 @@ class TaskExecutorSpec
     extends FlatSpec
     with Matchers
     with OneInstancePerTest
-    with ArbGenerator
+    with ArbInstances
     with Eventually
     with ExecutionContexts {
 

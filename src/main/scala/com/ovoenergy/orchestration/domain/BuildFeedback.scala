@@ -2,7 +2,15 @@ package com.ovoenergy.orchestration.domain
 
 import java.time.Instant
 
-import com.ovoenergy.comms.model.{Customer, DeliverTo, Feedback, FeedbackOptions}
+import com.ovoenergy.comms.model.FeedbackOptions.Pending
+import com.ovoenergy.comms.model.{
+  Customer,
+  DeliverTo,
+  Feedback,
+  FeedbackOptions,
+  OrchestrationStarted,
+  OrchestrationStartedV3
+}
 import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.kafka.common.event.EventMetadata
 
@@ -42,5 +50,18 @@ object BuildFeedback {
       None,
       EventMetadata(fd.traceToken.value, Hash(fd.eventId.value), Instant.now())
     )
+  }
+
+  implicit val buildFeedbackOrchestrationStarted = instance[OrchestrationStartedV3] { os =>
+    Feedback(
+      os.metadata.commId,
+      extractCustomer(os.metadata.deliverTo),
+      FeedbackOptions.Pending,
+      Some(s"Trigger for communication accepted"),
+      None,
+      None,
+      EventMetadata.fromMetadata(os.metadata, Hash(os.metadata.eventId))
+    )
+
   }
 }
