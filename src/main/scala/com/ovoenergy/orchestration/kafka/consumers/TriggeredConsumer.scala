@@ -1,6 +1,6 @@
 package com.ovoenergy.orchestration.kafka.consumers
 
-import cats.Monad
+import cats.effect.Sync
 import cats.implicits._
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.util.Hash
@@ -23,7 +23,7 @@ object TriggeredConsumer extends LoggingWithMDC {
                   generateTraceToken: () => String,
                   orchestrateComm: (TriggeredV4, InternalMetadata) => F[Either[ErrorDetails, RecordMetadata]])(
       implicit ec: ExecutionContext,
-      F: Monad[F]): TriggeredV4 => F[Unit] = { triggered: TriggeredV4 =>
+      F: Sync[F]): TriggeredV4 => F[Unit] = { triggered: TriggeredV4 =>
     def scheduleOrFail(triggered: TriggeredV4, internalMetadata: InternalMetadata) = {
       scheduleTask(triggered) flatMap {
         case Right(r) => {
@@ -49,7 +49,7 @@ object TriggeredConsumer extends LoggingWithMDC {
       def sendFeedbackIfFailure(either: Either[ErrorDetails, RecordMetadata],
                                 internalMetadata: InternalMetadata): F[Unit] = either match {
         case Left(err) =>
-          F.pure(warn(triggered)(s"Error orchestrating comm: ${err.reason}")) *>
+          F.delay(warn(triggered)(s"Error orchestrating comm: ${err.reason}")) *>
             issueFeedback.sendWithLegacy(failureDetailsFromErr(err), triggeredV4.metadata, internalMetadata).void
         case Right(_) => ().pure[F]
       }
