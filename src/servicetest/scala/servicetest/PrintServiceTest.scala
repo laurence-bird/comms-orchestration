@@ -15,7 +15,6 @@ import servicetest.helpers._
 import shapeless.Coproduct
 
 import scala.concurrent.duration._
-import com.ovoenergy.comms.serialisation.Codecs._
 import com.ovoenergy.comms.templates.model.Brand.Ovo
 import com.ovoenergy.comms.templates.model.template.metadata.{TemplateId, TemplateSummary}
 import com.ovoenergy.comms.templates.util.Hash
@@ -23,14 +22,12 @@ import com.ovoenergy.orchestration.util.TestUtil.{metadataV3, traceToken}
 import org.apache.kafka.clients.consumer.KafkaConsumer
 
 class PrintServiceTest
-    extends FlatSpec
-    with DockerIntegrationTest
-    with Matchers
+    extends BaseSpec
     with ScalaFutures
     with BeforeAndAfterAll
     with IntegrationPatience
-    with MockProfileResponses
     with DynamoTesting
+    with KafkaTesting
     with FakeS3Configuration {
 
   val validCustomerAddress = CustomerAddress(line1 = "33 Notting Hill Gate",
@@ -91,20 +88,23 @@ class PrintServiceTest
 
   behavior of "Aiven Print Orchestration"
 
-  it should "orchestrate a triggered event with valid print contact details" in withThrowawayConsumerFor(
+  it should "orchestrate a triggered event with valid print contact details" in withMultipleThrowawayConsumersFor(
     Kafka.aiven.orchestrationStarted.v3,
-    Kafka.aiven.orchestratedPrint.v2) { (orchestrationStartedConsumer, orchestratedPrintConsumer) =>
+    Kafka.aiven.orchestratedPrint.v2,
+    Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, orchestratedPrintConsumer, feedbackConsumer) =>
     Kafka.aiven.triggered.v4.publishOnce(printContactDetailsTriggered)
 
     expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
-    expectOrchestratedPrintEvents(noOfEventsExpected = 1,
-                                  shouldHaveCustomerProfile = false,
-                                  consumer = orchestratedPrintConsumer)
+    expectOrchestratedPrintEvents(noOfEventsExpected = 1, consumer = orchestratedPrintConsumer)
+    expectFeedbackEvents(noOfEventsExpected = 1,
+                         consumer = feedbackConsumer,
+                         expectedStatuses = Set(FeedbackOptions.Pending))
   }
 
-  it should "raise failure for triggered event with contact details with insufficient details" in withThrowawayConsumerFor(
+  it should "raise failure for triggered event with contact details with insufficient details" in withMultipleThrowawayConsumersFor(
     Kafka.aiven.orchestrationStarted.v3,
-    Kafka.aiven.failed.v3) { (orchestrationStartedConsumer, failedConsumer) =>
+    Kafka.aiven.failed.v3,
+    Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, failedConsumer, feedbackConsumer) =>
     val triggered = invalidPrintContactDetailsTriggered
     uploadTemplateToFakeS3(region, s3Endpoint)(triggered.metadata.templateManifest)
     Kafka.aiven.triggered.v4.publishOnce(triggered)
@@ -127,11 +127,16 @@ class PrintServiceTest
         failure.errorCode shouldBe InvalidProfile
         failure.metadata.traceToken shouldBe traceToken
       })
+
+    expectFeedbackEvents(noOfEventsExpected = 2,
+                         consumer = feedbackConsumer,
+                         expectedStatuses = Set(FeedbackOptions.Pending, FeedbackOptions.Failed))
   }
 
-  it should "raise failure for triggered event with contact details that do not provide details for template channel" in withThrowawayConsumerFor(
+  it should "raise failure for triggered event with contact details that do not provide details for template channel" in withMultipleThrowawayConsumersFor(
     Kafka.aiven.orchestrationStarted.v3,
-    Kafka.aiven.failed.v3) { (orchestrationStartedConsumer, failedConsumer) =>
+    Kafka.aiven.failed.v3,
+    Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, failedConsumer, feedbackConsumer) =>
     val templateManifest = TemplateManifest(Hash("print-only"), "0.1")
     val metadata = com.ovoenergy.orchestration.util.TestUtil.metadataV3.copy(
       deliverTo = ContactDetails(Some("qatesting@ovoenergy.com"), None),
@@ -159,27 +164,10 @@ class PrintServiceTest
       failure.errorCode shouldBe OrchestrationError
       failure.metadata.traceToken shouldBe com.ovoenergy.orchestration.util.TestUtil.traceToken
     })
-  }
 
-  it should "support the scheduling of triggered events for print" in withThrowawayConsumerFor(
-    Kafka.aiven.orchestrationStarted.v3,
-    Kafka.aiven.orchestratedPrint.v2) { (orchestrationStartedConsumer, orchestratedPrintConsumer) =>
-    val scheduledPrintevent = printContactDetailsTriggered.copy(deliverAt = Some(Instant.now().plusSeconds(5)))
-
-    populateTemplateSummaryTable(
-      TemplateSummary(
-        TemplateId(scheduledPrintevent.metadata.templateManifest.id),
-        "myTemplate",
-        model.Service,
-        Ovo,
-        scheduledPrintevent.metadata.templateManifest.version
-      ))
-
-    Kafka.aiven.triggered.v4.publishOnce(scheduledPrintevent)
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
-    expectOrchestratedPrintEvents(noOfEventsExpected = 1,
-                                  shouldHaveCustomerProfile = false,
-                                  consumer = orchestratedPrintConsumer)
+    expectFeedbackEvents(noOfEventsExpected = 2,
+                         consumer = feedbackConsumer,
+                         expectedStatuses = Set(FeedbackOptions.Pending, FeedbackOptions.Failed))
   }
 
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25000.millisecond,
@@ -194,12 +182,9 @@ class PrintServiceTest
     }
     orchestrationStartedEvents
   }
-
   def expectOrchestratedPrintEvents(pollTime: FiniteDuration = 25000.millisecond,
                                     noOfEventsExpected: Int,
                                     shouldCheckTraceToken: Boolean = true,
-                                    useMagicByte: Boolean = true,
-                                    shouldHaveCustomerProfile: Boolean = true,
                                     consumer: KafkaConsumer[String, Option[OrchestratedPrintV2]]) = {
     val orchestratedPrintEvents = consumer.pollFor(noOfEventsExpected = noOfEventsExpected)
 

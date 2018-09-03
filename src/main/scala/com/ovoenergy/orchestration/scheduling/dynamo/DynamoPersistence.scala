@@ -133,7 +133,7 @@ class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock
     }
   }
 
-  def cancelSchedules(customerId: String, templateId: String): Seq[Either[ErrorDetails, Schedule]] = {
+  def cancelSchedules(customerId: String, templateId: String): List[Either[ErrorDetails, Schedule]] = {
     log.info(s"Removing schedule for $customerId, $templateId")
     val now       = Instant.now(clock)
     val db        = context.db
@@ -156,16 +156,16 @@ class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock
 
     @tailrec
     def pageQuery(key: JMap[String, AttributeValue],
-                  currentItems: Vector[JMap[String, AttributeValue]]): Vector[JMap[String, AttributeValue]] = {
+                  currentItems: List[JMap[String, AttributeValue]]): List[JMap[String, AttributeValue]] = {
       query.setExclusiveStartKey(key)
       val queryResult   = db.query(query)
       val evaluationKey = queryResult.getLastEvaluatedKey
-      val items         = currentItems ++ queryResult.getItems.asScala.toVector
+      val items         = currentItems ++ queryResult.getItems.asScala.toList
       if (evaluationKey == null) items
       else pageQuery(evaluationKey, items)
     }
 
-    val items = pageQuery(null, Vector.empty[JMap[String, AttributeValue]])
+    val items = pageQuery(null, List.empty[JMap[String, AttributeValue]])
       .map(item => {
         DynamoFormat[Schedule].read(new AttributeValue().withM(item))
       })

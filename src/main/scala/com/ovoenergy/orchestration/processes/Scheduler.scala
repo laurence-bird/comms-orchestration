@@ -44,9 +44,9 @@ object Scheduler extends LoggingWithMDC {
   }
 
   // TODO: make me Async!
-  def descheduleComm(removeFromDb: (CustomerId, TemplateId) => Seq[Either[ErrorDetails, Schedule]],
+  def descheduleComm(removeFromDb: (CustomerId, TemplateId) => List[Either[ErrorDetails, Schedule]],
                      removeTask: (ScheduleId) => Boolean)(
-      cancellationRequested: CancellationRequestedV3): Seq[Either[ErrorDetails, MetadataV3]] = {
+      cancellationRequested: CancellationRequestedV3): List[Either[ErrorDetails, MetadataV3]] = {
 
     def removeScheduleFromMemory(schedule: Schedule): Either[ErrorDetails, MetadataV3] = {
       // Filter out failed schedule removals

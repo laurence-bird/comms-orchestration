@@ -1,7 +1,6 @@
 package com.ovoenergy.orchestration.scheduling.dynamo
 
 import java.time.{Clock, Instant, ZoneId}
-
 import cats.effect.IO
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType._
 import com.ovoenergy.comms.templates.util.Hash
@@ -9,14 +8,14 @@ import com.ovoenergy.orchestration.aws.AwsProvider.DbClients
 import com.ovoenergy.orchestration.scheduling.Persistence.{AlreadyBeingOrchestrated, Successful}
 import com.ovoenergy.orchestration.scheduling._
 import com.ovoenergy.orchestration.scheduling.dynamo.DynamoPersistence.Context
-import com.ovoenergy.orchestration.util.{ArbGenerator, LocalDynamoDB}
+import com.ovoenergy.orchestration.util.{ArbInstances, LocalDynamoDB}
 import com.ovoenergy.orchestration.util.LocalDynamoDB.SecondaryIndexData
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalacheck.Shapeless._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbGenerator {
+class DynamoPersistenceSpec extends FlatSpec with Matchers with ArbInstances {
 
   val now         = Instant.now()
   val clock       = Clock.fixed(now, ZoneId.of("UTC"))

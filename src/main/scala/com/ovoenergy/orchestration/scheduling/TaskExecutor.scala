@@ -2,10 +2,9 @@ package com.ovoenergy.orchestration.scheduling
 
 import cats.effect.IO
 import com.ovoenergy.comms.model._
+import com.ovoenergy.orchestration.domain.BuildFeedback._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import cats.syntax.flatMap._
-import cats.syntax.functor._
 import com.ovoenergy.orchestration.scheduling.Persistence.{
   AlreadyBeingOrchestrated,
   Successful,
@@ -13,6 +12,9 @@ import com.ovoenergy.orchestration.scheduling.Persistence.{
 }
 import org.apache.kafka.clients.producer.RecordMetadata
 import cats.implicits._
+import com.ovoenergy.orchestration.domain.{CommId, EventId, FailureDetails, InternalFailure, TraceToken}
+import com.ovoenergy.orchestration.kafka.IssueFeedback
+
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
@@ -21,17 +23,24 @@ object TaskExecutor extends LoggingWithMDC {
               orchestrateTrigger: (TriggeredV4, InternalMetadata) => IO[Either[ErrorDetails, RecordMetadata]],
               sendOrchestrationStartedEvent: OrchestrationStartedV3 => IO[RecordMetadata],
               generateTraceToken: () => String,
-              sendFailedEvent: FailedV3 => IO[RecordMetadata])(scheduleId: ScheduleId): Unit = {
+              issueFeedback: IssueFeedback[IO])(scheduleId: ScheduleId): Unit = {
 
-    def buildAndSendFailedEvent(reason: String,
-                                triggered: TriggeredV4,
-                                errorCode: ErrorCode,
-                                internalMetadata: InternalMetadata): IO[RecordMetadata] = {
-      sendFailedEvent(
-        FailedV3(MetadataV3.fromSourceMetadata("orchestration", triggered.metadata),
-                 internalMetadata,
-                 reason,
-                 errorCode))
+    def buildAndSendFailedEvents(triggered: TriggeredV4,
+                                 errorDetails: ErrorDetails,
+                                 internalMetadata: InternalMetadata): IO[RecordMetadata] = {
+      issueFeedback.sendWithLegacy(
+        FailureDetails(
+          triggered.metadata.deliverTo,
+          CommId(triggered.metadata.commId),
+          TraceToken(triggered.metadata.traceToken),
+          EventId(triggered.metadata.eventId),
+          errorDetails.reason,
+          errorDetails.errorCode,
+          InternalFailure
+        ),
+        triggered.metadata,
+        internalMetadata
+      )
     }
 
     def awaitOrchestrationFuture(triggered: TriggeredV4,
@@ -43,9 +52,11 @@ object TaskExecutor extends LoggingWithMDC {
             IO(persistence.setScheduleAsComplete(scheduleId))
           case Left(err) => {
             warn(triggered)(s"Failed to orchestrate comm: ${err.reason}")
-            IO(persistence.setScheduleAsFailed(scheduleId, err.reason))
-              .flatMap(_ => buildAndSendFailedEvent(err.reason, triggered, err.errorCode, internalMetadata))
-              .map(_ => ())
+            IO(persistence.setScheduleAsFailed(scheduleId, err.reason)) >> buildAndSendFailedEvents(
+              triggered,
+              err,
+              internalMetadata).void
+
           }
         }
 
@@ -55,12 +66,14 @@ object TaskExecutor extends LoggingWithMDC {
         else {
           warn(triggered)("Orchestrating comm timed out, the comm may still get orchestrated, raising failed event")
           persistence.setScheduleAsFailed(scheduleId, "Orchestrating comm timed out")
-          buildAndSendFailedEvent("Orchestrating comm timed out", triggered, OrchestrationError, internalMetadata)
+          buildAndSendFailedEvents(triggered,
+                                   ErrorDetails("Orchestrating comm timed out", OrchestrationError),
+                                   internalMetadata)
         }
       } catch {
         case NonFatal(e) =>
           warnWithException(triggered)("Unable to orchestrate comm, raising failed event")(e)
-          buildAndSendFailedEvent(e.getMessage, triggered, OrchestrationError, internalMetadata)
+          buildAndSendFailedEvents(triggered, ErrorDetails(e.getMessage, OrchestrationError), internalMetadata)
       }
     }
 
@@ -75,6 +88,7 @@ object TaskExecutor extends LoggingWithMDC {
         schedule.triggeredV4 match {
           case Some(triggered) => {
             val orchResult: IO[Either[ErrorDetails, RecordMetadata]] = for {
+              _   <- issueFeedback.send(OrchestrationStartedV3(triggered.metadata, internalMetadata))
               _   <- sendOrchestrationStartedEvent(OrchestrationStartedV3(triggered.metadata, internalMetadata))
               res <- orchestrateTrigger(triggered, internalMetadata)
             } yield res

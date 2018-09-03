@@ -11,11 +11,11 @@ import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.orchestration.domain.{CommunicationPreference, ContactProfile, EmailAddress, MobilePhoneNumber}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.templates.RetrieveTemplateDetails.TemplateDetails
-import com.ovoenergy.orchestration.util.{ArbGenerator, TestUtil}
+import com.ovoenergy.orchestration.util.{ArbInstances, TestUtil}
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalacheck.Shapeless._
 
-class ChannelSelectorSpec extends FlatSpec with Matchers with ArbGenerator {
+class ChannelSelectorSpec extends FlatSpec with Matchers with ArbInstances {
 
   val contactProfile = ContactProfile(
     Some(EmailAddress("some.email@ovoenergy.com")),

@@ -77,4 +77,21 @@ package object domain {
       customerId = cancellationRequested.customerId
     )
   }
+
+  case class FailureDetails(deliverTo: DeliverTo,
+                            commId: CommId,
+                            traceToken: TraceToken,
+                            eventId: EventId,
+                            reason: String,
+                            errorCode: ErrorCode,
+                            failureType: FailureType)
+
+  case class CommId(value: String)
+  case class EventId(value: String)
+  case class TraceToken(value: String)
+
+  sealed trait FailureType
+
+  case object CancellationFailure extends FailureType
+  case object InternalFailure     extends FailureType
 }

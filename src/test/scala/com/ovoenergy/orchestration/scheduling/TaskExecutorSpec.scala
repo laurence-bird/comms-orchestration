@@ -1,8 +1,10 @@
 package com.ovoenergy.orchestration.scheduling
 
 import cats.effect.IO
+import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.ExecutionContexts
+import com.ovoenergy.orchestration.kafka.IssueFeedback
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.scheduling.Persistence.{
   AlreadyBeingOrchestrated,
@@ -10,10 +12,9 @@ import com.ovoenergy.orchestration.scheduling.Persistence.{
   Successful,
   Failed => FailedPersistence
 }
-import com.ovoenergy.orchestration.util.{ArbGenerator, TestUtil}
+import com.ovoenergy.orchestration.util.{ArbInstances, TestUtil}
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.record.Record
 import org.scalatest.{FlatSpec, Matchers, OneInstancePerTest}
 import org.scalacheck.Shapeless._
 import org.scalatest.concurrent.Eventually
@@ -26,14 +27,14 @@ class TaskExecutorSpec
     extends FlatSpec
     with Matchers
     with OneInstancePerTest
-    with ArbGenerator
+    with ArbInstances
     with Eventually
     with ExecutionContexts {
 
   trait StubPersistence extends Persistence.Orchestration {
     override def attemptSetScheduleAsOrchestrating(sId: ScheduleId): SetAsOrchestratingResult = {
       if (scheduleId == sId) {
-        Successful(scheduleWithTriggeredV3)
+        Successful(scheduleWithTriggeredV4)
       } else fail("Incorrect scheduleId requested")
     }
     override def setScheduleAsFailed(scheduleId: ScheduleId, reason: String): Unit =
@@ -42,7 +43,7 @@ class TaskExecutorSpec
       fail("Set schedule as complete Incorrectly invoked")
   }
   val scheduleId = "1234567890A"
-  val scheduleWithTriggeredV3 =
+  val scheduleWithTriggeredV4 =
     generate[Schedule].copy(scheduleId = scheduleId, triggeredV4 = Some(TestUtil.customerTriggeredV4))
 
   val recordMetadata      = new RecordMetadata(new TopicPartition("test", 1), 1, 1, 100l, -1, -1, -1)
@@ -52,17 +53,19 @@ class TaskExecutorSpec
     IO.pure(Right(recordMetadata))
   }
 
+  val sendFailedEvent = (failed: FailedV3) => IO.pure(recordMetadata)
+
   val sendOrchestrationStartedEvent = (orchStarted: OrchestrationStartedV3) => IO.pure(recordMetadata)
 
   val traceToken         = "ssfifjsof"
   val generateTraceToken = () => traceToken
 
-  var failedEventSent = Option.empty[FailedV3]
-  val sendFailedEvent =
-    (failed: FailedV3) => {
-      failedEventSent = Some(failed)
+  val issueFeedback = {
+    val f = (f: Feedback) => {
       IO.pure(recordMetadata)
     }
+    new IssueFeedback[IO](f, sendFailedEvent)
+  }
 
   behavior of "TaskExecutor"
 
@@ -78,11 +81,10 @@ class TaskExecutorSpec
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFailedEvent)(scheduleId)
+                         issueFeedback)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe None
-    failedEventSent shouldBe None
   }
 
   it should "handle failure setting comm schedule as orchestrating" in {
@@ -97,11 +99,10 @@ class TaskExecutorSpec
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFailedEvent)(scheduleId)
+                         issueFeedback)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe None
-    failedEventSent shouldBe None
   }
 
   it should "handle orchestration failure" in {
@@ -109,7 +110,7 @@ class TaskExecutorSpec
     var scheduleFailedPersist = Option.empty[(ScheduleId, String)]
     object Orchestrating extends StubPersistence {
       override def attemptSetScheduleAsOrchestrating(sId: ScheduleId): SetAsOrchestratingResult = {
-        if (scheduleId == sId) Successful(scheduleWithTriggeredV3)
+        if (scheduleId == sId) Successful(scheduleWithTriggeredV4)
         else fail("Incorrect scheduleId requested")
       }
       override def setScheduleAsFailed(sId: ScheduleId, reason: String): Unit = {
@@ -125,16 +126,10 @@ class TaskExecutorSpec
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFailedEvent)(scheduleId)
+                         issueFeedback)(scheduleId)
 
     //side effects
-    triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV4.get, InternalMetadata(traceToken))
-    failedEventSent shouldBe 'defined
-    val failedEventResult = failedEventSent.get
-    failedEventResult.internalMetadata shouldBe InternalMetadata(traceToken)
-    failedEventResult.errorCode shouldBe OrchestrationError
-    failedEventResult.reason shouldBe "Some error"
-
+    triggerOrchestrated shouldBe Some(scheduleWithTriggeredV4.triggeredV4.get, InternalMetadata(traceToken))
     scheduleFailedPersist shouldBe Some(scheduleId, "Some error")
   }
 
@@ -156,18 +151,13 @@ class TaskExecutorSpec
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFailedEvent)(scheduleId)
+                         issueFeedback)(scheduleId)
 
     //side effects
-    triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV4.get, InternalMetadata(traceToken))
+    triggerOrchestrated shouldBe Some(scheduleWithTriggeredV4.triggeredV4.get, InternalMetadata(traceToken))
 
     implicit val patienceConfig = PatienceConfig(Span(11, Seconds))
     eventually {
-      failedEventSent shouldBe 'defined
-      val failedEventResult = failedEventSent.get
-      failedEventResult.internalMetadata shouldBe InternalMetadata(traceToken)
-      failedEventResult.errorCode shouldBe OrchestrationError
-      failedEventResult.reason shouldBe "Orchestrating comm timed out"
       scheduleAsFailed shouldBe Some(scheduleId, "Orchestrating comm timed out")
     }
   }
@@ -189,13 +179,12 @@ class TaskExecutorSpec
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFailedEvent)(scheduleId)
+                         issueFeedback)(scheduleId)
 
     implicit val patienceConfig = PatienceConfig(Span(3, Seconds))
     eventually {
       //side effects
-      triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV4.get, InternalMetadata(traceToken))
-      failedEventSent shouldBe None
+      triggerOrchestrated shouldBe Some(scheduleWithTriggeredV4.triggeredV4.get, InternalMetadata(traceToken))
       scheduleAsComplete shouldBe Some(scheduleId)
     }
   }
@@ -205,7 +194,7 @@ class TaskExecutorSpec
     var scheduleFailedPersist = Option.empty[(ScheduleId, String)]
     object Orchestrating extends StubPersistence {
       override def attemptSetScheduleAsOrchestrating(sId: ScheduleId): SetAsOrchestratingResult = {
-        if (scheduleId == sId) Successful(scheduleWithTriggeredV3)
+        if (scheduleId == sId) Successful(scheduleWithTriggeredV4)
         else fail("Incorrect scheduleId requested")
       }
       override def setScheduleAsFailed(sId: ScheduleId, reason: String): Unit = {
@@ -218,23 +207,25 @@ class TaskExecutorSpec
     }
 
     var sendFailedEventInvoked = false
-    val timedOutSendFailedEvent: (FailedV3) => IO[RecordMetadata] =
-      (failed: FailedV3) => {
+    val timedOutIssueFeedback = {
+      val func = (feedback: Feedback) => {
         sendFailedEventInvoked = true
         val f = Future { Thread.sleep(6000); recordMetadata }
         IO.fromFuture(IO(f))
       }
+      new IssueFeedback[IO](func, sendFailedEvent)
+    }
 
     TaskExecutor.execute(Orchestrating,
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         timedOutSendFailedEvent)(scheduleId)
+                         timedOutIssueFeedback)(scheduleId)
 
     //side effects
     implicit val patienceConfig = PatienceConfig(Span(6, Seconds))
     eventually {
-      triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV4.get, InternalMetadata(traceToken))
+      triggerOrchestrated shouldBe Some(scheduleWithTriggeredV4.triggeredV4.get, InternalMetadata(traceToken))
       sendFailedEventInvoked shouldBe true
       scheduleFailedPersist shouldBe Some(scheduleId, "Some error")
     }
@@ -245,7 +236,7 @@ class TaskExecutorSpec
     var scheduleFailedPersist = Option.empty[(ScheduleId, String)]
     object Orchestrating extends StubPersistence {
       override def attemptSetScheduleAsOrchestrating(sId: ScheduleId): SetAsOrchestratingResult = {
-        if (scheduleId == sId) Successful(scheduleWithTriggeredV3)
+        if (scheduleId == sId) Successful(scheduleWithTriggeredV4)
         else fail("Incorrect scheduleId requested")
       }
       override def setScheduleAsFailed(sId: ScheduleId, reason: String): Unit = {
@@ -256,22 +247,24 @@ class TaskExecutorSpec
       triggerOrchestrated = Some(triggeredV4, internalMetadata)
       IO.pure(Left(ErrorDetails("Some error", OrchestrationError)))
     }
-    var sendFailedEventInvoked = false
-    val sendFailedEvent =
-      (failed: FailedV3) => {
-        sendFailedEventInvoked = true
-        IO.raiseError(new RuntimeException("failing the future"))
+
+    val sendFeedbackEvent = {
+      val f = (failed: Feedback) => {
+        IO.pure(recordMetadata)
       }
+      val failingSendFailed = (failed: FailedV3) => IO.raiseError(new RuntimeException("Failed, uh oh"))
+
+      new IssueFeedback[IO](f, sendFailedEvent)
+    }
 
     TaskExecutor.execute(Orchestrating,
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFailedEvent)(scheduleId)
+                         sendFeedbackEvent)(scheduleId)
 
     //side effects
-    triggerOrchestrated shouldBe Some(scheduleWithTriggeredV3.triggeredV4.get, InternalMetadata(traceToken))
-    sendFailedEventInvoked shouldBe true
+    triggerOrchestrated shouldBe Some(scheduleWithTriggeredV4.triggeredV4.get, InternalMetadata(traceToken))
     scheduleFailedPersist shouldBe Some(scheduleId, "Some error")
   }
 
@@ -293,11 +286,10 @@ class TaskExecutorSpec
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFailedEvent)(scheduleId)
+                         issueFeedback)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe None
-    failedEventSent shouldBe None
     scheduleFailedPersist.get._1 shouldBe scheduleId
     scheduleFailedPersist.get._2 should include("Unable to orchestrate as no Triggered event in Schedule:")
   }

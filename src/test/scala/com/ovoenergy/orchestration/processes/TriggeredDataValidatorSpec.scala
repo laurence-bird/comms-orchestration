@@ -1,13 +1,13 @@
 package com.ovoenergy.orchestration.processes
 
-import com.ovoenergy.comms.model.{OrchestrationError, TemplateData, TriggeredV3, TriggeredV4}
+import com.ovoenergy.comms.model.{Arbitraries, OrchestrationError, TemplateData, TriggeredV3, TriggeredV4}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.util.ArbGenerator
+import com.ovoenergy.orchestration.util.ArbInstances
 import org.scalatest.{Matchers, WordSpec}
 import org.scalacheck.Shapeless._
 import monocle.macros.syntax.lens._
 
-class TriggeredDataValidatorSpec extends WordSpec with Matchers with ArbGenerator {
+class TriggeredDataValidatorSpec extends WordSpec with Matchers with ArbInstances {
 
   val triggeredV4 = generate[TriggeredV4]
 

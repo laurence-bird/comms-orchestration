@@ -127,8 +127,8 @@ trait DockerIntegrationTest
     .fold(throw new RuntimeException("Local ip address not found"))(_.getHostAddress)
 
   val aivenTopics = Seq(
+    "comms.feedback",
     "comms.failed.v3",
-    "comms.triggered.v3",
     "comms.triggered.v4",
     "comms.cancellation.requested.v3",
     "comms.cancelled.v3",
