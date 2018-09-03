@@ -94,7 +94,7 @@ object Producer {
     val publisher = { e: E =>
       Producer
         .publisher[E](key, producer, topic.name)(e)
-        .flatMap((rm: RecordMetadata) => IO(info((rm, e))(s"Sent event to ${topic.name}")) >> IO.pure(rm))
+        .flatTap((rm: RecordMetadata) => IO(info((rm, e))(s"Sent event to ${topic.name}")))
     }
 
     publisher

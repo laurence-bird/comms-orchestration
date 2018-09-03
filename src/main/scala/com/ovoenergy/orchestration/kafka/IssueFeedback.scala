@@ -1,13 +1,13 @@
 package com.ovoenergy.orchestration.kafka
 
-import cats.effect.Async
-import cats.syntax.flatMap._
+import cats.Apply
+import cats.implicits._
 import com.ovoenergy.comms.model.{FailedV3, Feedback, InternalMetadata, MetadataV3}
 import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.orchestration.domain.{BuildFeedback, FailureDetails}
 import org.apache.kafka.clients.producer.RecordMetadata
 
-class IssueFeedback[F[_]: Async](sendFeedback: Feedback => F[RecordMetadata],
+class IssueFeedback[F[_]: Apply](sendFeedback: Feedback => F[RecordMetadata],
                                  sendFailed: FailedV3 => F[RecordMetadata]) {
   def send[T](t: T)(implicit buildFeedback: BuildFeedback[T]): F[RecordMetadata] = {
     val feedback: Feedback = buildFeedback(t)
@@ -26,6 +26,6 @@ class IssueFeedback[F[_]: Async](sendFeedback: Feedback => F[RecordMetadata],
       failureDetails.errorCode
     )
 
-    sendFeedback(feedback) >> sendFailed(failed)
+    sendFeedback(feedback) *> sendFailed(failed)
   }
 }

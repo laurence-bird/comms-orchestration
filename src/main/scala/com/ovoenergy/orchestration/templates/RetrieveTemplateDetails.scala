@@ -29,7 +29,6 @@ object RetrieveTemplateDetails extends LoggingWithMDC {
     : TemplateManifest => F[ErrorsOr[TemplateDetails]] = { (templateManifest: TemplateManifest) =>
     info(s"Fetching template details for: $templateManifest")
     val templateId = TemplateId(templateManifest.id)
-
     def template(): ErrorsOr[CommTemplate[Id]] = {
       TemplatesRepo
         .getTemplate(templatesContext, templateManifest)

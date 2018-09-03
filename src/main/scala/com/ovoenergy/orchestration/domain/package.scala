@@ -86,26 +86,6 @@ package object domain {
                             errorCode: ErrorCode,
                             failureType: FailureType)
 
-  object FailureDetails {
-    def apply(deliverTo: DeliverTo,
-              commId: String,
-              traceToken: String,
-              eventId: String,
-              reason: String,
-              errorCode: ErrorCode,
-              failureType: FailureType): FailureDetails = {
-      FailureDetails(
-        deliverTo,
-        CommId(commId),
-        TraceToken(traceToken),
-        EventId(eventId),
-        reason,
-        errorCode,
-        failureType
-      )
-    }
-  }
-
   case class CommId(value: String)
   case class EventId(value: String)
   case class TraceToken(value: String)

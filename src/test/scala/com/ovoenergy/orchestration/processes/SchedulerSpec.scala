@@ -80,7 +80,7 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
 
   it should "return successful result if a cancellationRequest is successful" in {
     val cancellationRequested = generate[CancellationRequestedV3]
-    val schedules = Seq(
+    val schedules = List(
       Right(generate[Schedule].copy(triggeredV4 = Some(TestUtil.customerTriggeredV4))),
       Right(generate[Schedule].copy(triggeredV4 = Some(TestUtil.customerTriggeredV4)))
     )
@@ -103,7 +103,7 @@ class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with 
     val cancellationRequested = generate[CancellationRequestedV3]
     val successfulSchedule    = generate[Schedule].copy(triggeredV4 = Some(TestUtil.customerTriggeredV4))
     val failedSchedule        = generate[Schedule].copy(triggeredV4 = Some(TestUtil.customerTriggeredV4))
-    val schedules             = Seq(Right(successfulSchedule), Right(failedSchedule))
+    val schedules             = List(Right(successfulSchedule), Right(failedSchedule))
 
     val removeFromPersistence = (customerId: CustomerId, commName: TemplateId) => schedules
     val removeSchedule = (scheduledId: ScheduleId) => {

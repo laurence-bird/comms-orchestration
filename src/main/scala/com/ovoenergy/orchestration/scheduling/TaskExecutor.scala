@@ -12,7 +12,7 @@ import com.ovoenergy.orchestration.scheduling.Persistence.{
 }
 import org.apache.kafka.clients.producer.RecordMetadata
 import cats.implicits._
-import com.ovoenergy.orchestration.domain.{FailureDetails, InternalFailure}
+import com.ovoenergy.orchestration.domain.{CommId, EventId, FailureDetails, InternalFailure, TraceToken}
 import com.ovoenergy.orchestration.kafka.IssueFeedback
 
 import scala.concurrent.duration._
@@ -31,9 +31,9 @@ object TaskExecutor extends LoggingWithMDC {
       issueFeedback.sendWithLegacy(
         FailureDetails(
           triggered.metadata.deliverTo,
-          triggered.metadata.commId,
-          triggered.metadata.traceToken,
-          triggered.metadata.eventId,
+          CommId(triggered.metadata.commId),
+          TraceToken(triggered.metadata.traceToken),
+          EventId(triggered.metadata.eventId),
           errorDetails.reason,
           errorDetails.errorCode,
           InternalFailure
@@ -52,9 +52,11 @@ object TaskExecutor extends LoggingWithMDC {
             IO(persistence.setScheduleAsComplete(scheduleId))
           case Left(err) => {
             warn(triggered)(s"Failed to orchestrate comm: ${err.reason}")
-            IO(persistence.setScheduleAsFailed(scheduleId, err.reason))
-              .flatMap(_ => buildAndSendFailedEvents(triggered, err, internalMetadata))
-              .map(_ => ())
+            IO(persistence.setScheduleAsFailed(scheduleId, err.reason)) >> buildAndSendFailedEvents(
+              triggered,
+              err,
+              internalMetadata).void
+
           }
         }
 
