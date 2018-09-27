@@ -9,7 +9,8 @@ import com.ovoenergy.comms.model.{
   FailedCancellationV3,
   Feedback,
   FeedbackOptions,
-  OrchestrationStartedV3
+  OrchestrationStartedV3,
+  TemplateManifest
 }
 import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.kafka.common.event.EventMetadata
@@ -48,6 +49,7 @@ object BuildFeedback {
       Some(fd.reason),
       None,
       None,
+      Some(fd.templateManifest),
       EventMetadata(fd.traceToken.value, Hash(fd.eventId.value), Instant.now())
     )
   }
@@ -61,6 +63,7 @@ object BuildFeedback {
         Some(s"Trigger for communication accepted"),
         None,
         None,
+        Some(TemplateManifest(os.metadata.templateManifest.id, os.metadata.templateManifest.version)),
         EventMetadata.fromMetadata(os.metadata, Hash(os.metadata.eventId))
       )
     }
@@ -73,6 +76,7 @@ object BuildFeedback {
       Some(s"Scheduled comm has been cancelled"),
       None,
       None,
+      Some(TemplateManifest(cancelled.metadata.templateManifest.id, cancelled.metadata.templateManifest.version)),
       EventMetadata.fromMetadata(cancelled.metadata, Hash(cancelled.metadata.eventId))
     )
   }
@@ -83,6 +87,7 @@ object BuildFeedback {
         Some(Customer(fc.cancellationRequested.customerId)),
         FeedbackOptions.FailedCancellation,
         Some(fc.reason),
+        None,
         None,
         None,
         EventMetadata.fromGenericMetadata(fc.metadata, s"failed-${fc.metadata.eventId}")

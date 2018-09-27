@@ -38,6 +38,7 @@ object TriggeredConsumer extends LoggingWithMDC {
               Some(s"Comm scheduled for delivery"),
               None,
               None,
+              Some(triggered.metadata.templateManifest),
               EventMetadata.fromMetadata(triggered.metadata, Hash(triggered.metadata.eventId))
             ))
         }
@@ -67,6 +68,7 @@ object TriggeredConsumer extends LoggingWithMDC {
             Some(s"Trigger for communication accepted"),
             None,
             None,
+            Some(triggered.metadata.templateManifest),
             EventMetadata.fromMetadata(triggered.metadata, Hash(triggered.metadata.eventId))
           ))
         _          <- sendOrchestrationStartedEvent(OrchestrationStartedV3(triggeredV4.metadata, internalMetadata))
@@ -81,6 +83,7 @@ object TriggeredConsumer extends LoggingWithMDC {
       FailureDetails(
         triggered.metadata.deliverTo,
         CommId(triggered.metadata.commId),
+        triggered.metadata.templateManifest,
         TraceToken(triggered.metadata.traceToken),
         EventId(triggered.metadata.eventId),
         err.reason,

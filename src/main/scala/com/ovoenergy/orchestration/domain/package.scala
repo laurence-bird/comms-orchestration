@@ -80,6 +80,7 @@ package object domain {
 
   case class FailureDetails(deliverTo: DeliverTo,
                             commId: CommId,
+                            templateManifest: TemplateManifest,
                             traceToken: TraceToken,
                             eventId: EventId,
                             reason: String,
