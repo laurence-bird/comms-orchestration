@@ -31,14 +31,6 @@ object TestUtil {
     triggerSource = "test-trigger"
   )
 
-  val customerTriggeredV3 = TriggeredV3(
-    metadata = metadataV2,
-    templateData = templateData,
-    deliverAt = None,
-    expireAt = None,
-    Some(List(Email))
-  )
-
   val metadataV3 = MetadataV3(
     commId = UUID.randomUUID().toString,
     createdAt = Instant.parse(createdAt),

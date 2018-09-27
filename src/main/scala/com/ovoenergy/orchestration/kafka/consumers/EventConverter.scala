@@ -7,17 +7,6 @@ import com.ovoenergy.comms.templates.util.Hash
 
 object EventConverter {
 
-  implicit class TriggeredV3ToV4(triggeredV3: TriggeredV3) {
-    def toV4: TriggeredV4 =
-      TriggeredV4(
-        metadata = triggeredV3.metadata.toV3Metadata,
-        templateData = triggeredV3.templateData,
-        deliverAt = triggeredV3.deliverAt,
-        expireAt = triggeredV3.expireAt,
-        preferredChannels = triggeredV3.preferredChannels
-      )
-  }
-
   implicit class CancelledRequestV2ToV3(cancellationRequestedV2: CancellationRequestedV2) {
     def toV3: CancellationRequestedV3 =
       CancellationRequestedV3(
