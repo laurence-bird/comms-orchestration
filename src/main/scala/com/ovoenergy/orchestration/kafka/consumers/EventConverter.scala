@@ -16,23 +16,6 @@ object EventConverter {
       )
   }
 
-  implicit class MetadataV2ToV3(v2Metadata: MetadataV2) {
-    def toV3Metadata: MetadataV3 =
-      MetadataV3(
-        createdAt = v2Metadata.createdAt,
-        eventId = v2Metadata.eventId,
-        traceToken = v2Metadata.traceToken,
-        commId = UUID.randomUUID().toString,
-        deliverTo = v2Metadata.deliverTo,
-        templateManifest = TemplateManifest(Hash(v2Metadata.commManifest.name), v2Metadata.commManifest.version),
-        friendlyDescription = v2Metadata.friendlyDescription,
-        source = v2Metadata.source,
-        canary = v2Metadata.canary,
-        sourceMetadata = v2Metadata.sourceMetadata.map(_.toV3Metadata),
-        triggerSource = v2Metadata.triggerSource
-      )
-  }
-
   implicit class GenericMetadataV2ToV3(v2GenericMetadata: GenericMetadataV2) {
     def toV3: GenericMetadataV3 =
       GenericMetadataV3(
