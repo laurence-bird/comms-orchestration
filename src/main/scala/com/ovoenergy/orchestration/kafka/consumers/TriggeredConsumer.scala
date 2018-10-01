@@ -1,6 +1,6 @@
 package com.ovoenergy.orchestration.kafka.consumers
 
-import java.time.{Instant, Month}
+import java.time.{Instant, Month, ZonedDateTime}
 import java.time.temporal.{ChronoUnit, TemporalUnit}
 
 import cats.effect.Sync
@@ -91,9 +91,13 @@ object TriggeredConsumer extends LoggingWithMDC {
 
     def isScheduled(triggered: TriggeredV4) = triggered.deliverAt.isDefined
 
-    def isOutOfDate(triggeredV4: TriggeredV4): Boolean = {
-      triggered.metadata.createdAt.isAfter(Instant.now().minus(1, ChronoUnit.WEEKS))
-    }
+    def isOutOfDate(triggeredV4: TriggeredV4): Boolean =
+      triggered
+        .metadata
+        .createdAt
+        .isBefore(
+          ZonedDateTime.now().minusDays(7).toInstant
+      )
 
     val internalMetadata     = buildInternalMetadata()
     val validatedTriggeredV4 = TriggeredDataValidator(triggered)
