@@ -24,24 +24,24 @@ object CancellationRequestConsumer extends LoggingWithMDC {
       {
 
         F.delay(info(cancellationRequest)(s"Event received: ${cancellationRequest.loggableString}")) *>
-        descheduleComm(cancellationRequest).traverse_ {
-          case Left(err) =>
-            val failedCancellation = FailedCancellationV3(
-              GenericMetadataV3.fromSourceGenericMetadata("orchestration", cancellationRequest.metadata),
-              cancellationRequest,
-              s"Cancellation of scheduled comm failed: ${err.reason}"
-            )
-            F.delay(warn(cancellationRequest)(s"Cancellation request failed with error $err")) *>
-              sendFailedCancellationEvent(failedCancellation) *> issueFeedback.send(failedCancellation)
-          case Right(metadata) =>
-            val cancelledEvent = CancelledV3(MetadataV3.fromSourceMetadata(
-                                               "orchestration",
-                                               metadata,
-                                               Hash(metadata.eventId)
-                                             ),
-                                             cancellationRequest)
-            sendSuccessfulCancellationEvent(cancelledEvent) *> issueFeedback.send(cancelledEvent)
-        }
+          descheduleComm(cancellationRequest).traverse_ {
+            case Left(err) =>
+              val failedCancellation = FailedCancellationV3(
+                GenericMetadataV3.fromSourceGenericMetadata("orchestration", cancellationRequest.metadata),
+                cancellationRequest,
+                s"Cancellation of scheduled comm failed: ${err.reason}"
+              )
+              F.delay(warn(cancellationRequest)(s"Cancellation request failed with error $err")) *>
+                sendFailedCancellationEvent(failedCancellation) *> issueFeedback.send(failedCancellation)
+            case Right(metadata) =>
+              val cancelledEvent = CancelledV3(MetadataV3.fromSourceMetadata(
+                                                 "orchestration",
+                                                 metadata,
+                                                 Hash(metadata.eventId)
+                                               ),
+                                               cancellationRequest)
+              sendSuccessfulCancellationEvent(cancelledEvent) *> issueFeedback.send(cancelledEvent)
+          }
       }
   }
 }
