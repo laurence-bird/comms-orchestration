@@ -1,5 +1,8 @@
 package com.ovoenergy.orchestration.kafka.consumers
 
+import java.time.{Instant, Month}
+import java.time.temporal.{ChronoUnit, TemporalUnit}
+
 import cats.effect.Sync
 import cats.implicits._
 import com.ovoenergy.comms.model._
@@ -44,15 +47,16 @@ object TriggeredConsumer extends LoggingWithMDC {
       }
     }
 
-    def orchestrateOrFail(triggeredV4: TriggeredV4, internalMetadata: InternalMetadata): F[Unit] = {
+    def sendFeedbackIfFailure(either: Either[ErrorDetails, RecordMetadata],
+                              internalMetadata: InternalMetadata,
+                              triggeredV4: TriggeredV4): F[Unit] = either match {
+      case Left(err) =>
+        F.delay(warn(triggered)(s"Error orchestrating comm: ${err.reason}")) *>
+          issueFeedback.sendWithLegacy(failureDetailsFromErr(err), triggeredV4.metadata, internalMetadata).void
+      case Right(_) => ().pure[F]
+    }
 
-      def sendFeedbackIfFailure(either: Either[ErrorDetails, RecordMetadata],
-                                internalMetadata: InternalMetadata): F[Unit] = either match {
-        case Left(err) =>
-          F.delay(warn(triggered)(s"Error orchestrating comm: ${err.reason}")) *>
-            issueFeedback.sendWithLegacy(failureDetailsFromErr(err), triggeredV4.metadata, internalMetadata).void
-        case Right(_) => ().pure[F]
-      }
+    def orchestrateOrFail(triggeredV4: TriggeredV4, internalMetadata: InternalMetadata): F[Unit] = {
 
       for {
         _ <- issueFeedback.send(
@@ -67,7 +71,7 @@ object TriggeredConsumer extends LoggingWithMDC {
           ))
         _          <- sendOrchestrationStartedEvent(OrchestrationStartedV3(triggeredV4.metadata, internalMetadata))
         orchResult <- orchestrateComm(triggeredV4, internalMetadata)
-        _          <- sendFeedbackIfFailure(orchResult, internalMetadata)
+        _          <- sendFeedbackIfFailure(orchResult, internalMetadata, triggeredV4)
       } yield ()
     }
 
@@ -86,11 +90,20 @@ object TriggeredConsumer extends LoggingWithMDC {
     }
 
     def isScheduled(triggered: TriggeredV4) = triggered.deliverAt.isDefined
-    val internalMetadata                    = buildInternalMetadata()
-    val validatedTriggeredV4                = TriggeredDataValidator(triggered)
+
+    def isOutOfDate(triggeredV4: TriggeredV4): Boolean = {
+      triggered.metadata.createdAt.isAfter(Instant.now().minus(1, ChronoUnit.WEEKS))
+    }
+
+    val internalMetadata     = buildInternalMetadata()
+    val validatedTriggeredV4 = TriggeredDataValidator(triggered)
     validatedTriggeredV4 match {
       case Left(err) =>
         issueFeedback.sendWithLegacy(failureDetailsFromErr(err), triggered.metadata, internalMetadata).void
+      case Right(t) if isOutOfDate(t) =>
+        sendFeedbackIfFailure(Left(ErrorDetails("Trigger message is more than a week old", CommExpired)),
+                              internalMetadata,
+                              t)
       case Right(t) if isScheduled(t) =>
         scheduleOrFail(t, internalMetadata).void
       case Right(t) =>
