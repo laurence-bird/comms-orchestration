@@ -1,7 +1,6 @@
 package com.ovoenergy.orchestration.processes
 
 import cats.data.{EitherT, NonEmptyList}
-import cats.data.Validated.{Invalid, Valid}
 import cats.effect.Async
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.ErrorsOr
@@ -9,7 +8,7 @@ import com.ovoenergy.orchestration.domain.{CommunicationPreference, ContactProfi
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.templates.RetrieveTemplateDetails.TemplateDetails
-import cats.syntax.flatMap._
+import cats.implicits._
 
 abstract class ChannelSelector[F[_]: Async] {
   def determineChannel(contactProfile: ContactProfile,
@@ -36,14 +35,11 @@ class ChannelSelectorWithTemplate[F[_]: Async](
                        customerPreferences: Seq[CommunicationPreference],
                        triggered: TriggeredV4): F[Either[ErrorDetails, Channel]] = {
 
-    val customerPrefs: Option[NonEmptyList[Channel]] = {
-      val prefsForCommType = customerPreferences.collectFirst({
-        case CommunicationPreference(commType, prefs) if commType == commType => prefs
-      })
-      prefsForCommType.flatMap { prefs =>
-        val prefsForSupportedChannels = prefs.toList.filter(channel => channelCostMap.contains(channel))
-        NonEmptyList.fromList(prefsForSupportedChannels)
-      }
+    def getTemplateDetails(manifest: TemplateManifest): F[Either[ErrorDetails, TemplateDetails]] = {
+      retrieveTemplateDetails(manifest)
+        .map(_.toEither.leftMap { errors =>
+          ErrorDetails(s"Invalid template: ${errors.toList.mkString(", ")}", InvalidTemplate)
+        })
     }
 
     def filterByCustomerPreferences(
@@ -58,11 +54,24 @@ class ChannelSelectorWithTemplate[F[_]: Async](
       }
     }
 
+    // doesn't take into account templateDetails
+    def customerPrefs(templateDetails: TemplateDetails): Option[NonEmptyList[Channel]] = {
+      val prefsForCommType = customerPreferences.collectFirst({
+        case CommunicationPreference(commType, prefs) if commType == templateDetails.commType => prefs
+      })
+      prefsForCommType.flatMap { prefs =>
+        val prefsForSupportedChannels = prefs.toList.filter(channel => channelCostMap.contains(channel))
+        NonEmptyList.fromList(prefsForSupportedChannels)
+      }
+    }
+
     val channelOrError: EitherT[F, ErrorDetails, Channel] = for {
       channelsWithContactDetails <- EitherT(findChannelsWithContactDetails(contactProfile))
-      channelsWithTemplates      <- EitherT(findChannelsWithTemplates(triggered))
-      availableChannels          <- EitherT(findAvailableChannels(channelsWithTemplates, channelsWithContactDetails))
-      acceptableChannels         <- EitherT(filterByCustomerPreferences(availableChannels, customerPrefs))
+      templateDetails            <- EitherT(getTemplateDetails(triggered.metadata.templateManifest))
+      customerPs = customerPrefs(templateDetails)
+      channelsWithTemplates <- EitherT(findChannelsWithTemplates(triggered, templateDetails))
+      availableChannels     <- EitherT(findAvailableChannels(channelsWithTemplates, channelsWithContactDetails))
+      acceptableChannels    <- EitherT(filterByCustomerPreferences(availableChannels, customerPs))
     } yield {
       val res = determinePrioritisedChannel(acceptableChannels, triggered.preferredChannels)
       info(triggered)(s"Channel determined for comm: $res")
@@ -98,29 +107,20 @@ class ChannelSelectorWithTemplate[F[_]: Async](
       .toRight(ErrorDetails(errorMessage, errorCode))
   }
 
-  private def findChannelsWithTemplates(triggeredV4: TriggeredV4): F[Either[ErrorDetails, NonEmptyList[Channel]]] = {
-    val res: F[ErrorsOr[TemplateDetails]] = retrieveTemplateDetails(triggeredV4.metadata.templateManifest)
+  private def findChannelsWithTemplates(
+      triggeredV4: TriggeredV4,
+      templateDetails: TemplateDetails): F[Either[ErrorDetails, NonEmptyList[Channel]]] = {
+    val channelsWithTemplates =
+      List(templateDetails.template.email.map(_ => Email),
+           templateDetails.template.sms.map(_ => SMS),
+           templateDetails.template.print.map(_ => Print)).flatten
 
-    res.flatMap {
-      case Valid(templateDetails) =>
-        val channelsWithTemplates =
-          List(templateDetails.template.email.map(_ => Email),
-               templateDetails.template.sms.map(_ => SMS),
-               templateDetails.template.print.map(_ => Print)).flatten
-
-        Async[F].pure {
-          nonEmptyListFrom(
-            channelsWithTemplates,
-            s"No valid template found for template: ${triggeredV4.metadata.templateManifest.id} version ${triggeredV4.metadata.templateManifest.version}",
-            InvalidTemplate
-          )
-        }
-      case Invalid(errors) => {
-        info(triggeredV4)(s"Invalid template retrieved: ${errors.toList.mkString(", ")}")
-        Async[F].pure {
-          Left(ErrorDetails(s"Invalid template: ${errors.toList.mkString(", ")}", InvalidTemplate))
-        }
-      }
+    Async[F].pure {
+      nonEmptyListFrom(
+        channelsWithTemplates,
+        s"No valid template found for template: ${triggeredV4.metadata.templateManifest.id} version ${triggeredV4.metadata.templateManifest.version}",
+        InvalidTemplate
+      )
     }
   }
 
