@@ -95,12 +95,10 @@ object TriggeredConsumer extends LoggingWithMDC {
     def isScheduled(triggered: TriggeredV4) = triggered.deliverAt.isDefined
 
     def isOutOfDate(triggeredV4: TriggeredV4): Boolean =
-      triggered
-        .metadata
-        .createdAt
+      triggered.metadata.createdAt
         .isBefore(
           ZonedDateTime.now().minusDays(7).toInstant
-      )
+        )
 
     val internalMetadata     = buildInternalMetadata()
     val validatedTriggeredV4 = TriggeredDataValidator(triggered)

@@ -126,4 +126,15 @@ class ChannelSelectorSpec extends FlatSpec with Matchers with ArbInstances {
 
     channelResult.unsafeRunSync() shouldBe Right(Email)
   }
+
+  it should "ignore non relevant preferences" in {
+    val triggered = triggeredBase.copy(preferredChannels = None)
+    val customerProfileAllPreferences =
+      contactProfile.copy(mobileNumber = None)
+    val channelResult =
+      new ChannelSelectorWithTemplate[IO](retrieveTemplate(emailOnlyTemplate))
+        .determineChannel(customerProfileAllPreferences, Seq(CommunicationPreference(Marketing, Seq(SMS))), triggered)
+
+    channelResult.unsafeRunSync() shouldBe Right(Email)
+  }
 }
