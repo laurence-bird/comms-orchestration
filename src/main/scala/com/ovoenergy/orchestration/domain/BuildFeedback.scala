@@ -44,6 +44,7 @@ object BuildFeedback {
 
     Feedback(
       fd.commId.value,
+      Some(fd.friendlyDescription),
       extractCustomer(fd.deliverTo),
       status,
       Some(fd.reason),
@@ -58,6 +59,7 @@ object BuildFeedback {
     instance[OrchestrationStartedV3] { os =>
       Feedback(
         os.metadata.commId,
+        Some(os.metadata.friendlyDescription),
         extractCustomer(os.metadata.deliverTo),
         FeedbackOptions.Pending,
         Some(s"Trigger for communication accepted"),
@@ -71,6 +73,7 @@ object BuildFeedback {
   implicit val buildFeedbackCancelled: BuildFeedback[CancelledV3] = instance[CancelledV3] { cancelled =>
     Feedback(
       cancelled.metadata.commId,
+      Some(cancelled.metadata.friendlyDescription),
       extractCustomer(cancelled.metadata.deliverTo),
       FeedbackOptions.Cancelled,
       Some(s"Scheduled comm has been cancelled"),
@@ -84,6 +87,7 @@ object BuildFeedback {
     fc =>
       Feedback(
         fc.metadata.commId,
+        None,
         Some(Customer(fc.cancellationRequested.customerId)),
         FeedbackOptions.FailedCancellation,
         Some(fc.reason),

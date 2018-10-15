@@ -33,6 +33,7 @@ object TriggeredConsumer extends LoggingWithMDC {
           issueFeedback.send(
             Feedback(
               triggered.metadata.commId,
+              Some(triggered.metadata.friendlyDescription),
               extractCustomer(triggered.metadata.deliverTo),
               FeedbackOptions.Scheduled,
               Some(s"Comm scheduled for delivery"),
@@ -63,6 +64,7 @@ object TriggeredConsumer extends LoggingWithMDC {
         _ <- issueFeedback.send(
           Feedback(
             triggered.metadata.commId,
+            Some(triggered.metadata.friendlyDescription),
             extractCustomer(triggered.metadata.deliverTo),
             FeedbackOptions.Pending,
             Some(s"Trigger for communication accepted"),
@@ -83,6 +85,7 @@ object TriggeredConsumer extends LoggingWithMDC {
       FailureDetails(
         triggered.metadata.deliverTo,
         CommId(triggered.metadata.commId),
+        triggered.metadata.friendlyDescription,
         triggered.metadata.templateManifest,
         TraceToken(triggered.metadata.traceToken),
         EventId(triggered.metadata.eventId),

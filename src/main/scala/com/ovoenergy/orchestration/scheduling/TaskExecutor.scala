@@ -32,6 +32,7 @@ object TaskExecutor extends LoggingWithMDC {
         FailureDetails(
           triggered.metadata.deliverTo,
           CommId(triggered.metadata.commId),
+          triggered.metadata.friendlyDescription,
           triggered.metadata.templateManifest,
           TraceToken(triggered.metadata.traceToken),
           EventId(triggered.metadata.eventId),
