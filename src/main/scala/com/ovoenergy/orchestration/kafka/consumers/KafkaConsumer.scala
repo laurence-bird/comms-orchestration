@@ -44,8 +44,10 @@ object KafkaConsumer {
 
       val consumerNativeSettings: Map[String, AnyRef] = {
         Map(
-          ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG -> kafkaClusterConfig.hosts,
-          ConsumerConfig.GROUP_ID_CONFIG          -> kafkaClusterConfig.groupId
+          ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG    -> kafkaClusterConfig.hosts,
+          ConsumerConfig.GROUP_ID_CONFIG             -> kafkaClusterConfig.groupId,
+          ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG -> "600000", // 10 minutes
+          ConsumerConfig.MAX_POLL_RECORDS_CONFIG     -> "100" // 10 minutes
         ) ++ kafkaClusterConfig.ssl
           .map { ssl =>
             Map(
