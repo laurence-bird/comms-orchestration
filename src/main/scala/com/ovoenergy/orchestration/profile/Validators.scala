@@ -22,7 +22,7 @@ object Validators {
   val onlyNumber = validate((line: AddressLine) => line.value.matches("[0-9]*"), "should only contain numbers")(_)
 
   val onlyLetter =
-    validate((line: AddressLine) => line.value.toUpperCase.matches("[^0-9]*"), "should only contain numbers")(_)
+    validate((line: AddressLine) => line.value.toUpperCase.matches("[^0-9]*"), "should only contain letters")(_)
 
   val noRestriction = (i: ValidationErrorsOr[AddressLine]) => Valid(i)
 
