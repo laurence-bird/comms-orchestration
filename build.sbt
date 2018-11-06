@@ -18,7 +18,7 @@ libraryDependencies ++= Seq(
   "com.ovoenergy"              %% "comms-kafka-messages"      % commsKafkaMessagesVersion classifier "tests",
   "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-kafka-helpers"       % commsKafkaSerialisationVersion,
-  "com.ovoenergy"              %% "comms-templates"           % "0.29",
+  "com.ovoenergy"              %% "comms-templates"           % "0.30",
   "ch.qos.logback"             % "logback-classic"            % "1.1.7",
   "me.moocar"                  % "logback-gelf"               % "0.2",
   "org.slf4j"                  % "jcl-over-slf4j"             % "1.7.25",
