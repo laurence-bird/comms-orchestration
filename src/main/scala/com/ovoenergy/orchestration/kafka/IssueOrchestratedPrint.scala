@@ -20,7 +20,7 @@ class IssueOrchestratedPrint[F[_]: Async](sendEvent: OrchestratedPrintV2 => F[Re
       metadata = MetadataV3.fromSourceMetadata(
         "orchestration",
         triggered.metadata,
-        Hash(triggered.metadata.eventId)
+        Hash(triggered.metadata.eventId ++ "-orchestrated-print")
       ),
       internalMetadata = InternalMetadata(UUID.randomUUID.toString),
       customerProfile = customerProfile,

@@ -19,7 +19,7 @@ class IssueOrchestratedEmail[F[_]: Async](sendEvent: OrchestratedEmailV4 => F[Re
       metadata = MetadataV3.fromSourceMetadata(
         source = "orchestration",
         sourceMetadata = triggered.metadata,
-        eventId = Hash(triggered.metadata.eventId)
+        eventId = Hash(triggered.metadata.eventId ++ "-orchestrated-email")
       ),
       recipientEmailAddress = emailAddress.address,
       templateData = triggered.templateData,

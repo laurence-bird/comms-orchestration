@@ -20,7 +20,7 @@ class IssueFeedback[F[_]: Apply](sendFeedback: Feedback => F[RecordMetadata],
                      internalMetadata: InternalMetadata): F[RecordMetadata] = {
     val feedback = BuildFeedback.buildFeedbackErrorDetails(failureDetails)
     val failed = FailedV3(
-      MetadataV3.fromSourceMetadata("orchestrator", metadata, Hash(metadata.eventId)),
+      MetadataV3.fromSourceMetadata("orchestrator", metadata, Hash(metadata.eventId ++ "-orchestration-feedback")),
       internalMetadata,
       failureDetails.reason,
       failureDetails.errorCode
