@@ -21,7 +21,7 @@ trait BuildFeedback[T] {
 
 object BuildFeedback {
 
-  def instance[T](f: T => Feedback) = {
+  def instance[T](f: T => Feedback): BuildFeedback[T] = {
     new BuildFeedback[T] {
       override def apply(t: T): Feedback = f(t)
     }
@@ -37,11 +37,14 @@ object BuildFeedback {
   implicit val buildFeedbackId: BuildFeedback[Feedback] = instance[Feedback](identity)
 
   implicit val buildFeedbackErrorDetails: BuildFeedback[FailureDetails] = instance[FailureDetails] { fd =>
+    // FIXME CancellationFailure is not a Status, it need to be modelled in another way
     val status = fd.failureType match {
       case InternalFailure     => FeedbackOptions.Failed
       case CancellationFailure => FeedbackOptions.FailedCancellation
     }
 
+    // We are using the "-failed" suffix here as we should not send cancellation
+    // failed as status
     Feedback(
       fd.commId.value,
       Some(fd.friendlyDescription),
@@ -51,7 +54,7 @@ object BuildFeedback {
       None,
       None,
       Some(fd.templateManifest),
-      EventMetadata(fd.traceToken.value, Hash(fd.eventId.value), Instant.now())
+      EventMetadata(fd.traceToken.value, fd.commId.value ++ "-failed", Instant.now())
     )
   }
 
@@ -66,7 +69,7 @@ object BuildFeedback {
         None,
         None,
         Some(TemplateManifest(os.metadata.templateManifest.id, os.metadata.templateManifest.version)),
-        EventMetadata.fromMetadata(os.metadata, Hash(os.metadata.eventId))
+        EventMetadata.fromMetadata(os.metadata, os.metadata.commId ++ "-failed")
       )
     }
 
@@ -80,7 +83,7 @@ object BuildFeedback {
       None,
       None,
       Some(TemplateManifest(cancelled.metadata.templateManifest.id, cancelled.metadata.templateManifest.version)),
-      EventMetadata.fromMetadata(cancelled.metadata, Hash(cancelled.metadata.eventId))
+      EventMetadata.fromMetadata(cancelled.metadata, cancelled.metadata.commId ++ "-cancelled")
     )
   }
   implicit val buildFeedbackFailedCancellation: BuildFeedback[FailedCancellationV3] = instance[FailedCancellationV3] {
@@ -94,7 +97,9 @@ object BuildFeedback {
         None,
         None,
         None,
-        EventMetadata.fromGenericMetadata(fc.metadata, s"failed-${fc.metadata.eventId}")
+        EventMetadata.fromGenericMetadata(
+          fc.metadata,
+          fc.metadata.commId ++ "-failed-cancellation-" ++ fc.metadata.createdAt.toEpochMilli.toString)
       )
 
   }

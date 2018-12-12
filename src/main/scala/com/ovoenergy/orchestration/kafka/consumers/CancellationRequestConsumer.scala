@@ -37,7 +37,7 @@ object CancellationRequestConsumer extends LoggingWithMDC {
               val cancelledEvent = CancelledV3(MetadataV3.fromSourceMetadata(
                                                  "orchestration",
                                                  metadata,
-                                                 Hash(metadata.eventId)
+                                                 metadata.commId ++ "-cancelled"
                                                ),
                                                cancellationRequest)
               sendSuccessfulCancellationEvent(cancelledEvent) *> issueFeedback.send(cancelledEvent)
