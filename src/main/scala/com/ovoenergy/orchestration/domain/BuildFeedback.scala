@@ -54,7 +54,7 @@ object BuildFeedback {
       None,
       None,
       Some(fd.templateManifest),
-      EventMetadata(fd.traceToken.value, fd.commId.value ++ "-failed", Instant.now())
+      EventMetadata(fd.traceToken.value, fd.commId.value ++ "-feedback-failed", Instant.now())
     )
   }
 
