@@ -3,7 +3,6 @@ package com.ovoenergy.orchestration.kafka
 import cats.Apply
 import cats.implicits._
 import com.ovoenergy.comms.model.{FailedV3, Feedback, InternalMetadata, MetadataV3}
-import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.orchestration.domain.{BuildFeedback, FailureDetails}
 import org.apache.kafka.clients.producer.RecordMetadata
 
@@ -20,7 +19,7 @@ class IssueFeedback[F[_]: Apply](sendFeedback: Feedback => F[RecordMetadata],
                      internalMetadata: InternalMetadata): F[RecordMetadata] = {
     val feedback = BuildFeedback.buildFeedbackErrorDetails(failureDetails)
     val failed = FailedV3(
-      MetadataV3.fromSourceMetadata("orchestrator", metadata, Hash(metadata.eventId)),
+      MetadataV3.fromSourceMetadata("orchestrator", metadata, metadata.commId ++ "-failed"),
       internalMetadata,
       failureDetails.reason,
       failureDetails.errorCode

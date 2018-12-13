@@ -19,7 +19,7 @@ class IssueOrchestratedSMS[F[_]: Async](sendEvent: OrchestratedSMSV3 => F[Record
       metadata = MetadataV3.fromSourceMetadata(
         "orchestration",
         triggered.metadata,
-        Hash(triggered.metadata.eventId)
+        triggered.metadata.commId ++ "-orchestrated"
       ),
       customerProfile = customerProfile,
       templateData = triggered.templateData,

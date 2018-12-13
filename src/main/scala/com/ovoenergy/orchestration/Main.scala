@@ -102,19 +102,19 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
   val determineChannel = new ChannelSelectorWithTemplate(retrieveTemplateDetails)
 
   // TODO: Clean this stuff up into a separate object/package
-  val sendFailedEvent    = Producer.publisherFor[FailedV3](Kafka.aiven.failed.v3, _.metadata.eventId)
-  val sendCancelledEvent = Producer.publisherFor[CancelledV3](Kafka.aiven.cancelled.v3, _.metadata.eventId)
+  val sendFailedEvent    = Producer.publisherFor[FailedV3](Kafka.aiven.failed.v3, _.metadata.commId)
+  val sendCancelledEvent = Producer.publisherFor[CancelledV3](Kafka.aiven.cancelled.v3, _.metadata.commId)
   val sendFailedCancellationEvent =
-    Producer.publisherFor[FailedCancellationV3](Kafka.aiven.failedCancellation.v3, _.metadata.eventId)
+    Producer.publisherFor[FailedCancellationV3](Kafka.aiven.failedCancellation.v3, _.metadata.commId)
   val sendOrchestrationStartedEvent: OrchestrationStartedV3 => IO[RecordMetadata] =
-    Producer.publisherFor[OrchestrationStartedV3](Kafka.aiven.orchestrationStarted.v3, _.metadata.eventId)
+    Producer.publisherFor[OrchestrationStartedV3](Kafka.aiven.orchestrationStarted.v3, _.metadata.commId)
   val sendOrchestratedEmailEvent =
-    Producer.publisherFor[OrchestratedEmailV4](Kafka.aiven.orchestratedEmail.v4, _.metadata.eventId)
+    Producer.publisherFor[OrchestratedEmailV4](Kafka.aiven.orchestratedEmail.v4, _.metadata.commId)
   val sendOrchestratedSMSEvent =
-    Producer.publisherFor[OrchestratedSMSV3](Kafka.aiven.orchestratedSMS.v3, _.metadata.eventId)
+    Producer.publisherFor[OrchestratedSMSV3](Kafka.aiven.orchestratedSMS.v3, _.metadata.commId)
   val sendOrchestratedPrintEvent =
-    Producer.publisherFor[OrchestratedPrintV2](Kafka.aiven.orchestratedPrint.v2, _.metadata.eventId)
-  val sendFeedbackEvent = Producer.publisherFor[Feedback](Kafka.aiven.feedback.v1, _.metadata.eventId)
+    Producer.publisherFor[OrchestratedPrintV2](Kafka.aiven.orchestratedPrint.v2, _.metadata.commId)
+  val sendFeedbackEvent = Producer.publisherFor[Feedback](Kafka.aiven.feedback.v1, _.commId)
 
   val orchestrateEmail = new IssueOrchestratedEmail(sendOrchestratedEmailEvent)
   val orchestrateSMS   = new IssueOrchestratedSMS(sendOrchestratedSMSEvent)

@@ -40,7 +40,7 @@ object TriggeredConsumer extends LoggingWithMDC {
               None,
               None,
               Some(triggered.metadata.templateManifest),
-              EventMetadata.fromMetadata(triggered.metadata, Hash(triggered.metadata.eventId))
+              EventMetadata.fromMetadata(triggered.metadata, triggered.metadata.commId ++ "-feedback-scheduled")
             ))
         }
         case Left(err) => {
@@ -71,7 +71,7 @@ object TriggeredConsumer extends LoggingWithMDC {
             None,
             None,
             Some(triggered.metadata.templateManifest),
-            EventMetadata.fromMetadata(triggered.metadata, Hash(triggered.metadata.eventId))
+            EventMetadata.fromMetadata(triggered.metadata, triggered.metadata.commId ++ "-feedback-pending")
           ))
         _          <- sendOrchestrationStartedEvent(OrchestrationStartedV3(triggeredV4.metadata, internalMetadata))
         orchResult <- orchestrateComm(triggeredV4, internalMetadata)
