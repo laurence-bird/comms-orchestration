@@ -52,7 +52,7 @@ class SchedulingServiceTest
     Kafka.aiven.orchestratedEmail.v4,
     Kafka.aiven.cancelled.v3,
     Kafka.aiven.feedback.v1,
-  ) { (orchestrationStartedConsumer, orchestratedEmailConsumer, cancelledConsumer, feedbackConsumer: KafkaConsumer[String, Option[Feedback]]) =>
+  ) { (orchestrationStartedConsumer, orchestratedEmailConsumer, cancelledConsumer, feedbackConsumer) =>
     createOKCustomerProfileResponse(mockServerClient)
     val triggered = {
       TestUtil
@@ -166,7 +166,7 @@ class SchedulingServiceTest
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25.seconds,
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true,
-                                       consumer: KafkaConsumer[String, Option[OrchestrationStartedV3]]) = {
+                                       consumer: KafkaConsumer[String, OrchestrationStartedV3]) = {
     val orchestrationStartedEvents =
       consumer.pollFor(noOfEventsExpected = noOfEventsExpected)
 
@@ -183,7 +183,7 @@ class SchedulingServiceTest
   def expectOrchestratedEmailEvents(pollTime: FiniteDuration = 25.seconds,
                                     noOfEventsExpected: Int,
                                     shouldCheckTraceToken: Boolean = true,
-                                    consumer: KafkaConsumer[String, Option[OrchestratedEmailV4]]) = {
+                                    consumer: KafkaConsumer[String, OrchestratedEmailV4]) = {
     val orchestratedEmails =
       consumer.pollFor(noOfEventsExpected = noOfEventsExpected)
 

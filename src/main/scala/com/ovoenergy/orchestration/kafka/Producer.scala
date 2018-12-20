@@ -28,7 +28,7 @@ object Producer {
 
   private val log = LoggerFactory.getLogger(getClass)
 
-  def apply[E: SchemaFor: ToRecord](topic: Topic[E]): Either[Retry.Failed, KafkaProducer[String, E]] = {
+  def apply[E: SchemaFor: ToRecord](topic: Topic[E]): KafkaProducer[String, E] = {
 
     val initialSettings = Map(
       ProducerConfig.BOOTSTRAP_SERVERS_CONFIG -> topic.kafkaConfig.hosts,
@@ -55,10 +55,7 @@ object Producer {
 
     val producerSettings: Map[String, AnyRef] = sslSettings.getOrElse(initialSettings)
 
-    topic.serializer
-      .map { valueSerialiser =>
-        new KafkaProducer[String, E](producerSettings.asJava, new StringSerializer(), valueSerialiser)
-      }
+    new KafkaProducer[String, E](producerSettings.asJava, new StringSerializer(), topic.serializer)
   }
 
   def publisher[E](getKey: E => String, producer: KafkaProducer[String, E], topicName: String)(t: E)(
@@ -90,7 +87,7 @@ object Producer {
   def publisherFor[E: Loggable](topic: Topic[E], key: E => String)(implicit schemaFor: SchemaFor[E],
                                                                    toRecord: ToRecord[E],
                                                                    classTag: ClassTag[E]): E => IO[RecordMetadata] = {
-    val producer: KafkaProducer[String, E] = exitAppOnFailure(Producer[E](topic), topic.name)
+    val producer: KafkaProducer[String, E] = Producer[E](topic)
     val publisher = { e: E =>
       Producer
         .publisher[E](key, producer, topic.name)(e)

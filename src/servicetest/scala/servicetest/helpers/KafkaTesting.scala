@@ -19,9 +19,9 @@ trait KafkaTesting { _: BaseSpec =>
                                        E3: SchemaFor: FromRecord: ClassTag,
                                        R](t1: Topic[E1],
                                           t2: Topic[E2],
-                                          t3: Topic[E3])(f: (KafkaConsumer[String, Option[E1]],
-                                                             KafkaConsumer[String, Option[E2]],
-                                                             KafkaConsumer[String, Option[E3]]) => R): R = {
+                                          t3: Topic[E3])(f: (KafkaConsumer[String, E1],
+                                                             KafkaConsumer[String, E2],
+                                                             KafkaConsumer[String, E3]) => R): R = {
     withThrowawayConsumerFor(t1) { c1 =>
       withThrowawayConsumerFor(t2) { c2 =>
         withThrowawayConsumerFor(t3) { c3 =>
@@ -37,10 +37,10 @@ trait KafkaTesting { _: BaseSpec =>
   E4: SchemaFor: FromRecord: ClassTag,
   R](t1: Topic[E1],
      t2: Topic[E2],
-     t3: Topic[E3], t4: Topic[E4])(f: (KafkaConsumer[String, Option[E1]],
-    KafkaConsumer[String, Option[E2]],
-    KafkaConsumer[String, Option[E3]],
-    KafkaConsumer[String, Option[E4]],
+     t3: Topic[E3], t4: Topic[E4])(f: (KafkaConsumer[String, E1],
+    KafkaConsumer[String, E2],
+    KafkaConsumer[String, E3],
+    KafkaConsumer[String, E4],
     ) => R): R = {
     withThrowawayConsumerFor(t1) { c1 =>
       withThrowawayConsumerFor(t2) { c2 =>
@@ -55,7 +55,7 @@ trait KafkaTesting { _: BaseSpec =>
 
   def expectFeedbackEvents(pollTime: FiniteDuration = 25000.millisecond,
                            noOfEventsExpected: Int,
-                           consumer: KafkaConsumer[String, Option[Feedback]],
+                           consumer: KafkaConsumer[String, Feedback],
                            expectedStatuses: Set[FeedbackStatus]) = {
     if (noOfEventsExpected < expectedStatuses.size)
       fail(

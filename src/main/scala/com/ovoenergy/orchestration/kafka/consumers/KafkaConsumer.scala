@@ -1,6 +1,7 @@
 package com.ovoenergy.orchestration.kafka.consumers
 import java.nio.file.Paths
 
+import cats.data.NonEmptyList
 import cats.effect._
 import com.ovoenergy.comms.helpers.{Kafka, Topic}
 import com.typesafe.config.Config
@@ -21,7 +22,7 @@ import scala.reflect.ClassTag
 
 object KafkaConsumer {
 
-  type Record[T] = ConsumerRecord[Unit, Option[T]]
+  type Record[T] = ConsumerRecord[Unit, T]
 
   final case class Settings[T](deserialiser: Deserializer[Option[T]])
   val DefaultPollTimeout: FiniteDuration = 150.milliseconds
@@ -30,17 +31,17 @@ object KafkaConsumer {
 
   class ApplyPartiallyApplied[F[_]] {
 
-    def apply[A, T](pollTimeout: FiniteDuration = DefaultPollTimeout, topic: Topic[T])(f: Record[T] => F[A])(
-        implicit config: Config,
-        ec: ExecutionContext,
-        F: Effect[F],
-        sf: SchemaFor[T],
-        fr: FromRecord[T],
-        ct: ClassTag[T]): fs2.Stream[F, A] = {
+    def apply[A, T](topics: NonEmptyList[Topic[T]])(pollTimeout: FiniteDuration = DefaultPollTimeout)(
+        f: Record[T] => F[A])(implicit config: Config,
+                              ec: ExecutionContext,
+                              F: Effect[F],
+                              sf: SchemaFor[T],
+                              fr: FromRecord[T],
+                              ct: ClassTag[T]): fs2.Stream[F, A] = {
 
-      val deserialiser: Deserializer[Option[T]] = topic.deserializer.right.get
-      val aivenCluster                          = Kafka.aiven
-      val kafkaClusterConfig                    = aivenCluster.kafkaConfig
+      val deserialiser: Deserializer[T] = topics.head.deserializer
+      val aivenCluster                  = Kafka.aiven
+      val kafkaClusterConfig            = aivenCluster.kafkaConfig
 
       val consumerNativeSettings: Map[String, AnyRef] = {
         Map(
@@ -71,7 +72,7 @@ object KafkaConsumer {
       )
 
       consumeProcessAndCommit[F].apply(
-        Subscription.topics(topic = topic.name),
+        Subscription.topics(topics.map(_.name)),
         constDeserializer[Unit](()),
         deserialiser,
         consumerSettings
