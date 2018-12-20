@@ -55,7 +55,7 @@ class EmailServiceTest
         triggered.metadata.templateManifest.version
       )
     )
-    Kafka.aiven.triggered.v4.publishOnce(customerTriggeredV4)
+    Kafka.aiven.triggered.p0V4.publishOnce(customerTriggeredV4)
 
     expectOrchestrationStartedEvents(noOfEventsExpected = 1,
                                      consumer = orchestrationStartedConsumer,
@@ -232,7 +232,7 @@ class EmailServiceTest
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25000.millisecond,
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true,
-                                       consumer: KafkaConsumer[String, Option[OrchestrationStartedV3]]) = {
+                                       consumer: KafkaConsumer[String, OrchestrationStartedV3]) = {
 
     val orchestrationStartedEvents =
       consumer.pollFor(noOfEventsExpected = noOfEventsExpected, pollTime = pollTime)
@@ -248,7 +248,7 @@ class EmailServiceTest
                                     shouldCheckTraceToken: Boolean = true,
                                     useMagicByte: Boolean = true,
                                     shouldHaveCustomerProfile: Boolean = true,
-                                    consumer: KafkaConsumer[String, Option[OrchestratedEmailV4]]) = {
+                                    consumer: KafkaConsumer[String, OrchestratedEmailV4]) = {
     val orchestratedEmails =
       consumer.pollFor(noOfEventsExpected = noOfEventsExpected, pollTime = pollTime)
 

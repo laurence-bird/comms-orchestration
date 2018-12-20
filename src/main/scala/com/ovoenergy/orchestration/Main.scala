@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
+import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.syntax.all._
 import com.amazonaws.regions.Regions
@@ -25,10 +26,9 @@ import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
 import com.ovoenergy.orchestration.processes.{ChannelSelectorWithTemplate, Orchestrator, Scheduler}
 import com.ovoenergy.orchestration.profile.{CustomerProfiler, ProfileValidation}
 import com.ovoenergy.orchestration.scheduling.dynamo.{AsyncPersistence, DynamoPersistence}
-import com.ovoenergy.orchestration.scheduling.{QuartzScheduling, Restore, Schedule, TaskExecutor}
-import com.ovoenergy.orchestration.kafka.consumers.EventConverter._
+import com.ovoenergy.orchestration.scheduling.{QuartzScheduling, Restore, TaskExecutor}
 import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.kafka.clients.producer.{RecordMetadata}
+import org.apache.kafka.clients.producer.RecordMetadata
 import fs2._
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 
@@ -60,6 +60,7 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
   implicit val materializer   = ActorMaterializer()
 
   lazy val triggeredV4Topic: Topic[TriggeredV4]                         = Kafka.aiven.triggered.v4
+  lazy val triggeredV4PriorityTopic: Topic[TriggeredV4]                 = Kafka.aiven.triggered.p0V4
   lazy val cancellationRequestedV3Topic: Topic[CancellationRequestedV3] = Kafka.aiven.cancellationRequested.v3
 
   val region = Regions.fromName(config.getString("aws.region"))
@@ -230,18 +231,15 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
 
     // TODO: Improve error handling here
     def recordProcessor[T: Loggable, Result](consume: T => IO[Result]): Record[T] => IO[Unit] = { record: Record[T] =>
-      record.value() match {
-        case Some(r) =>
-          IO(info((record, r))("Consumed Kafka Message")) >> consume(r) >> IO.pure(())
-        case None =>
-          IO(fail(record)(s"Skipping event: $record, failed to parse"))
-      }
+      IO(info((record, record.value()))("Consumed Kafka Message")) >> consume(record.value) >> IO.pure(())
     }
 
-    val triggeredV4Stream = KafkaConsumer[IO](topic = triggeredV4Topic)(f = recordProcessor(triggeredV4Consumer))
+    val triggeredV4Stream = KafkaConsumer[IO](topics = NonEmptyList.of(triggeredV4Topic, triggeredV4PriorityTopic))()(
+      f = recordProcessor(triggeredV4Consumer))
 
     val cancellationRequestV3Stream =
-      KafkaConsumer[IO](topic = cancellationRequestedV3Topic)(f = recordProcessor(cancellationRequestV3Consumer))
+      KafkaConsumer[IO](topics = NonEmptyList.of(cancellationRequestedV3Topic))()(
+        f = recordProcessor(cancellationRequestV3Consumer))
 
     val s = Stream.eval(IO(info("Orchestration started"))) >>
         triggeredV4Stream

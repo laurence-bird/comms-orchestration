@@ -75,7 +75,7 @@ class SMSServiceTest
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25.seconds,
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true,
-                                       consumer: KafkaConsumer[String, Option[OrchestrationStartedV3]]) = {
+                                       consumer: KafkaConsumer[String, OrchestrationStartedV3]) = {
     val orchestrationStartedEvents =
       consumer.pollFor(pollTime = pollTime, noOfEventsExpected = noOfEventsExpected)
 
@@ -89,7 +89,7 @@ class SMSServiceTest
                                    noOfEventsExpected: Int,
                                    shouldCheckTraceToken: Boolean = true,
                                    shouldHaveCustomerProfile: Boolean = true,
-                                   consumer: KafkaConsumer[String, Option[OrchestratedSMSV3]]) = {
+                                   consumer: KafkaConsumer[String, OrchestratedSMSV3]) = {
 
     val orchestratedSMS = consumer.pollFor(pollTime = pollTime, noOfEventsExpected = noOfEventsExpected)
 

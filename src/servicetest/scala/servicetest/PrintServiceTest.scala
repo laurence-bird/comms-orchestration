@@ -1,7 +1,5 @@
 package servicetest
 
-import java.time.Instant
-
 import com.ovoenergy.comms.helpers.Kafka
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
@@ -173,7 +171,7 @@ class PrintServiceTest
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25000.millisecond,
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true,
-                                       consumer: KafkaConsumer[String, Option[OrchestrationStartedV3]]) = {
+                                       consumer: KafkaConsumer[String, OrchestrationStartedV3]) = {
 
     val orchestrationStartedEvents = consumer.pollFor(noOfEventsExpected = noOfEventsExpected)
 
@@ -185,7 +183,7 @@ class PrintServiceTest
   def expectOrchestratedPrintEvents(pollTime: FiniteDuration = 25000.millisecond,
                                     noOfEventsExpected: Int,
                                     shouldCheckTraceToken: Boolean = true,
-                                    consumer: KafkaConsumer[String, Option[OrchestratedPrintV2]]) = {
+                                    consumer: KafkaConsumer[String, OrchestratedPrintV2]) = {
     val orchestratedPrintEvents = consumer.pollFor(noOfEventsExpected = noOfEventsExpected)
 
     orchestratedPrintEvents.map { orchestratedPrint =>
