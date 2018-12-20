@@ -27,7 +27,6 @@ class SchedulingServiceTest
     with KafkaTesting
     with FakeS3Configuration
     with ScalaFutures
-    with Arbitraries
     with ArbGenerator
     with BeforeAndAfterAll {
 

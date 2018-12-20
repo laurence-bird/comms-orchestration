@@ -3,30 +3,21 @@ package com.ovoenergy.orchestration.kafka
 import java.nio.file.Paths
 import java.util.UUID
 
-import akka.dispatch.ExecutionContexts
-import cats.effect.{Async, IO, Timer}
-
-import scala.util.control.NonFatal
+import cats.effect.{IO, Timer}
 import com.ovoenergy.comms.helpers.Topic
-import com.ovoenergy.comms.serialisation.Retry
 import com.sksamuel.avro4s.{SchemaFor, ToRecord}
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.producer.{Callback, KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.config.SslConfigs
 import org.apache.kafka.common.serialization.StringSerializer
 import cats.syntax.flatMap._
-import cats.syntax.functor._
-import com.ovoenergy.orchestration.ErrorHandling.{exitAppOnFailure, info}
-import com.ovoenergy.orchestration.logging.Loggable
-import org.slf4j.LoggerFactory
+import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import scala.reflect.ClassTag
 
-object Producer {
-
-  private val log = LoggerFactory.getLogger(getClass)
+object Producer extends LoggingWithMDC {
 
   def apply[E: SchemaFor: ToRecord](topic: Topic[E]): KafkaProducer[String, E] = {
 
