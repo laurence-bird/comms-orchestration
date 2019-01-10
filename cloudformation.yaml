@@ -9,8 +9,7 @@ Resources:
     Properties:
       AssumeRolePolicyDocument:
         Statement:
-          -
-            Effect: Allow
+          - Effect: Allow
             Principal:
               Service:
                 - ecs-tasks.amazonaws.com
@@ -35,8 +34,7 @@ Resources:
               Resource:
                 - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SchedulingTable}*"
                 - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SchedulingTableV2}*"
-        -
-          PolicyName: read-templates-bucket
+        - PolicyName: read-templates-bucket
           PolicyDocument:
             Statement:
             - Effect: Allow
@@ -46,8 +44,7 @@ Resources:
               Resource:
                 - 'arn:aws:s3:::ovo-comms-templates'
                 - 'arn:aws:s3:::ovo-comms-templates/*'
-        -
-          PolicyName: read-credstash
+        - PolicyName: read-credstash
           PolicyDocument:
             Statement:
             - Effect: Allow
@@ -61,8 +58,7 @@ Resources:
                 - 'dynamodb:Query'
               Resource:
                 - !Sub "arn:aws:dynamodb:eu-west-1:${AWS::AccountId}:table/credential-store"
-        -
-          PolicyName: read-aiven-bucket
+        - PolicyName: read-aiven-bucket
           PolicyDocument:
             Statement:
             - Effect: Allow
@@ -72,8 +68,7 @@ Resources:
               Resource:
                 - 'arn:aws:s3:::ovo-comms-aiven'
                 - 'arn:aws:s3:::ovo-comms-aiven/*'
-        -
-          PolicyName: read-template-summary-table
+        - PolicyName: read-template-summary-table
           PolicyDocument:
             Statement:
             - Effect: Allow
@@ -87,6 +82,7 @@ Resources:
   SchedulingTable:
     Type: AWS::DynamoDB::Table
     Properties:
+      BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
       - AttributeName: scheduleId
         AttributeType: S
@@ -101,9 +97,6 @@ Resources:
       KeySchema:
       - AttributeName: scheduleId
         KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: 5
-        WriteCapacityUnits: 10
       GlobalSecondaryIndexes:
       - IndexName: customerId-commName-index
         KeySchema:
@@ -113,9 +106,6 @@ Resources:
           KeyType: RANGE
         Projection:
           ProjectionType: ALL
-        ProvisionedThroughput:
-          ReadCapacityUnits: 5
-          WriteCapacityUnits: 10
       - IndexName: status-orchestrationExpiry-index
         KeySchema:
         - AttributeName: status
@@ -124,132 +114,13 @@ Resources:
           KeyType: RANGE
         Projection:
           ProjectionType: ALL
-        ProvisionedThroughput:
-          ReadCapacityUnits: 5
-          WriteCapacityUnits: 10
-
-  SchedulingTableReadCapacityAlarm:
-    Type: "AWS::CloudWatch::Alarm"
-    Properties:
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Namespace: "AWS/DynamoDB"
-      Dimensions:
-        - Name: TableName
-          Value: !Ref SchedulingTable
-      MetricName: ConsumedReadCapacityUnits
-      AlarmActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      OKActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      Period: 60
-      EvaluationPeriods: 3
-      Statistic: Sum
-      Threshold: 240 # Alert when greater than 4 units per second (4/sec * 60 seconds = 240)
-
-  SchedulingTableWriteCapacityAlarm:
-    Type: "AWS::CloudWatch::Alarm"
-    Properties:
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Namespace: "AWS/DynamoDB"
-      Dimensions:
-        - Name: TableName
-          Value: !Ref SchedulingTable
-      MetricName: ConsumedWriteCapacityUnits
-      AlarmActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      OKActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      Period: 60
-      EvaluationPeriods: 3
-      Statistic: Sum
-      Threshold: 480 # Alert when greater than 8 units per second (8/sec * 60 seconds = 480)
-
-  SchedulingTableStatusExpiryIndexReadCapacityAlarm:
-    Type: "AWS::CloudWatch::Alarm"
-    Properties:
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Namespace: "AWS/DynamoDB"
-      Dimensions:
-        - Name: TableName
-          Value: !Ref SchedulingTable
-        - Name: GlobalSecondaryIndexName
-          Value: status-orchestrationExpiry-index
-      MetricName: ConsumedReadCapacityUnits
-      AlarmActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      OKActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      Period: 60
-      EvaluationPeriods: 3
-      Statistic: Sum
-      Threshold: 240 # Alert when greater than 4 units per second (4/sec * 60 seconds = 240)
-
-  SchedulingTableCustomerCommIndexWriteCapacityAlarm:
-    Type: "AWS::CloudWatch::Alarm"
-    Properties:
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Namespace: "AWS/DynamoDB"
-      Dimensions:
-        - Name: TableName
-          Value: !Ref SchedulingTable
-        - Name: GlobalSecondaryIndexName
-          Value: customerId-commName-index
-      MetricName: ConsumedWriteCapacityUnits
-      AlarmActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      OKActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      Period: 60
-      EvaluationPeriods: 3
-      Statistic: Sum
-      Threshold: 480 # Alert when greater than 8 units per second (8/sec * 60 seconds = 480)
-
-  SchedulingTableCustomerCommIndexReadCapacityAlarm:
-    Type: "AWS::CloudWatch::Alarm"
-    Properties:
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Namespace: "AWS/DynamoDB"
-      Dimensions:
-        - Name: TableName
-          Value: !Ref SchedulingTable
-        - Name: GlobalSecondaryIndexName
-          Value: customerId-commName-index
-      MetricName: ConsumedReadCapacityUnits
-      AlarmActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      OKActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      Period: 60
-      EvaluationPeriods: 3
-      Statistic: Sum
-      Threshold: 240 # Alert when greater than 4 units per second (4/sec * 60 seconds = 240)
-
-  SchedulingTableStatusExpiryIndexWriteCapacityAlarm:
-    Type: "AWS::CloudWatch::Alarm"
-    Properties:
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Namespace: "AWS/DynamoDB"
-      Dimensions:
-        - Name: TableName
-          Value: !Ref SchedulingTable
-        - Name: GlobalSecondaryIndexName
-          Value: status-orchestrationExpiry-index
-      MetricName: ConsumedWriteCapacityUnits
-      AlarmActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      OKActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      Period: 60
-      EvaluationPeriods: 3
-      Statistic: Sum
-      Threshold: 480 # Alert when greater than 8 units per second (8/sec * 60 seconds = 480)
-
 
 # Scheduling table with template id
 
   SchedulingTableV2:
     Type: AWS::DynamoDB::Table
     Properties:
+      BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
       - AttributeName: scheduleId
         AttributeType: S
@@ -264,9 +135,6 @@ Resources:
       KeySchema:
       - AttributeName: scheduleId
         KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: 5
-        WriteCapacityUnits: 10
       GlobalSecondaryIndexes:
       - IndexName: customerId-templateId-index
         KeySchema:
@@ -276,9 +144,6 @@ Resources:
           KeyType: RANGE
         Projection:
           ProjectionType: ALL
-        ProvisionedThroughput:
-          ReadCapacityUnits: 5
-          WriteCapacityUnits: 10
       - IndexName: status-orchestrationExpiry-index
         KeySchema:
         - AttributeName: status
@@ -287,122 +152,4 @@ Resources:
           KeyType: RANGE
         Projection:
           ProjectionType: ALL
-        ProvisionedThroughput:
-          ReadCapacityUnits: 5
-          WriteCapacityUnits: 10
 
-  SchedulingTableV2ReadCapacityAlarm:
-    Type: "AWS::CloudWatch::Alarm"
-    Properties:
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Namespace: "AWS/DynamoDB"
-      Dimensions:
-        - Name: TableName
-          Value: !Ref SchedulingTableV2
-      MetricName: ConsumedReadCapacityUnits
-      AlarmActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      OKActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      Period: 60
-      EvaluationPeriods: 3
-      Statistic: Sum
-      Threshold: 240 # Alert when greater than 4 units per second (4/sec * 60 seconds = 240)
-
-  SchedulingTableV2WriteCapacityAlarm:
-    Type: "AWS::CloudWatch::Alarm"
-    Properties:
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Namespace: "AWS/DynamoDB"
-      Dimensions:
-        - Name: TableName
-          Value: !Ref SchedulingTableV2
-      MetricName: ConsumedWriteCapacityUnits
-      AlarmActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      OKActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      Period: 60
-      EvaluationPeriods: 3
-      Statistic: Sum
-      Threshold: 480 # Alert when greater than 8 units per second (8/sec * 60 seconds = 480)
-
-  SchedulingTableV2StatusExpiryIndexReadCapacityAlarm:
-    Type: "AWS::CloudWatch::Alarm"
-    Properties:
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Namespace: "AWS/DynamoDB"
-      Dimensions:
-        - Name: TableName
-          Value: !Ref SchedulingTableV2
-        - Name: GlobalSecondaryIndexName
-          Value: status-orchestrationExpiry-index
-      MetricName: ConsumedReadCapacityUnits
-      AlarmActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      OKActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      Period: 60
-      EvaluationPeriods: 3
-      Statistic: Sum
-      Threshold: 240 # Alert when greater than 4 units per second (4/sec * 60 seconds = 240)
-
-  SchedulingTableV2CustomerCommIndexWriteCapacityAlarm:
-    Type: "AWS::CloudWatch::Alarm"
-    Properties:
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Namespace: "AWS/DynamoDB"
-      Dimensions:
-        - Name: TableName
-          Value: !Ref SchedulingTableV2
-        - Name: GlobalSecondaryIndexName
-          Value: customerId-templateId-index
-      MetricName: ConsumedWriteCapacityUnits
-      AlarmActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      OKActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      Period: 60
-      EvaluationPeriods: 3
-      Statistic: Sum
-      Threshold: 480 # Alert when greater than 8 units per second (8/sec * 60 seconds = 480)
-
-  SchedulingTableV2CustomerCommIndexReadCapacityAlarm:
-    Type: "AWS::CloudWatch::Alarm"
-    Properties:
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Namespace: "AWS/DynamoDB"
-      Dimensions:
-        - Name: TableName
-          Value: !Ref SchedulingTableV2
-        - Name: GlobalSecondaryIndexName
-          Value: customerId-templateId-index
-      MetricName: ConsumedReadCapacityUnits
-      AlarmActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      OKActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      Period: 60
-      EvaluationPeriods: 3
-      Statistic: Sum
-      Threshold: 240 # Alert when greater than 4 units per second (4/sec * 60 seconds = 240)
-
-  SchedulingTableV2StatusExpiryIndexWriteCapacityAlarm:
-    Type: "AWS::CloudWatch::Alarm"
-    Properties:
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Namespace: "AWS/DynamoDB"
-      Dimensions:
-        - Name: TableName
-          Value: !Ref SchedulingTableV2
-        - Name: GlobalSecondaryIndexName
-          Value: status-orchestrationExpiry-index
-      MetricName: ConsumedWriteCapacityUnits
-      AlarmActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      OKActions:
-        - !ImportValue "CloudwatchPagerDutyTopic"
-      Period: 60
-      EvaluationPeriods: 3
-      Statistic: Sum
-      Threshold: 480 # Alert when greater than 8 units per second (8/sec * 60 seconds = 480)
