@@ -8,9 +8,10 @@ val commsKafkaSerialisationVersion = "3.21"
 val commsKafkaMessagesVersion = "1.79.3"
 val dockerTestkitVersion = "0.9.5"
 val monocleVersion = "1.5.0"
-val fs2KafkaClientVersion = "0.1.9"
-val fs2Version = "0.10.3"
-val http4sVersion = "0.18.9"
+val fs2KafkaVersion = "0.18.1"
+
+val fs2Version = "1.0.2"
+val http4sVersion = "0.20.0-M4"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka"          %% "akka-slf4j"                % "2.4.18",
@@ -23,10 +24,11 @@ libraryDependencies ++= Seq(
   "me.moocar"                  % "logback-gelf"               % "0.2",
   "org.slf4j"                  % "jcl-over-slf4j"             % "1.7.25",
   "io.logz.logback"            % "logzio-logback-appender"    % "1.0.11",
-  "org.typelevel"              %% "cats-core"                 % "1.1.0",
-  "org.typelevel"              %% "cats-effect"               % "0.10",
+  "org.typelevel"              %% "cats-core"                 % "1.5.0",
+  "org.typelevel"              %% "cats-effect"               % "1.1.0",
   "co.fs2"                     %% "fs2-core"                  % fs2Version,
-  "com.ovoenergy"              %% "fs2-kafka-client"          % fs2KafkaClientVersion,
+  "co.fs2"                     %% "fs2-io"                    % fs2Version,
+  "com.ovoenergy"              %% "fs2-kafka"                 % fs2KafkaVersion,
   "io.circe"                   %% "circe-core"                % circeVersion,
   "io.circe"                   %% "circe-shapes"              % circeVersion,
   "io.circe"                   %% "circe-generic-extras"      % circeVersion,

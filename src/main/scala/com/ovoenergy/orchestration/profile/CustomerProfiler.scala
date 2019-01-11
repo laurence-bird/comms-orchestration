@@ -40,7 +40,7 @@ object CustomerProfiler extends LoggingWithMDC {
 
   case class ServerErrorException(message: String) extends Exception(message)
 
-  def apply[F[_]: Async](client: Client[F], uri: Uri, retry: Retry, apiKey: String)(
+  def apply[F[_]: Async](client: Client[F], uri: Uri, retry: Retry[F], apiKey: String)(
       implicit ec: ExecutionContext): ProfileCustomer => F[Either[ErrorDetails, CustomerProfile]] = {
     profileCustomer: ProfileCustomer =>
       val dsl = new Http4sClientDsl[F] {}

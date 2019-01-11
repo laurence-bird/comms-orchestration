@@ -21,53 +21,52 @@ object RetrieveTemplateDetails extends LoggingWithMDC {
 
   implicit val ec = scala.concurrent.ExecutionContext.global
 
-  val retry = Retry()
-
   def apply[F[_]: Async](templatesContext: TemplatesContext,
                          templateMetadataContext: TemplateMetadataContext,
-                         cachingStrategy: CachingStrategy[TemplateId, ErrorsOr[CommType]])
-    : TemplateManifest => F[ErrorsOr[TemplateDetails]] = { (templateManifest: TemplateManifest) =>
-    info(s"Fetching template details for: $templateManifest")
-    val templateId = TemplateId(templateManifest.id)
-    def template(): ErrorsOr[CommTemplate[Id]] = {
-      TemplatesRepo
-        .getTemplate(templatesContext, templateManifest)
-        .leftMap { error =>
-          cachingStrategy.remove(templateId)
-          error
-        }
-    }
-    def templateSummary(): ErrorsOr[CommType] = {
-      cachingStrategy
-        .get(templateId) {
-          TemplateMetadataRepo
-            .getTemplateSummary(templateMetadataContext, templateId)
-            .getOrElse(
-              Invalid(NonEmptyList.of(s"Template summary does not exist for template ${templateManifest.id}")))
-            .map(_.commType)
-        }
-        .leftMap { error =>
-          cachingStrategy.remove(templateId)
-          error
-        }
-    }
+                         cachingStrategy: CachingStrategy[TemplateId, ErrorsOr[CommType]],
+                         retry: Retry[F]): TemplateManifest => F[ErrorsOr[TemplateDetails]] = {
+    (templateManifest: TemplateManifest) =>
+      info(s"Fetching template details for: $templateManifest")
+      val templateId = TemplateId(templateManifest.id)
+      def template(): ErrorsOr[CommTemplate[Id]] = {
+        TemplatesRepo
+          .getTemplate(templatesContext, templateManifest)
+          .leftMap { error =>
+            cachingStrategy.remove(templateId)
+            error
+          }
+      }
+      def templateSummary(): ErrorsOr[CommType] = {
+        cachingStrategy
+          .get(templateId) {
+            TemplateMetadataRepo
+              .getTemplateSummary(templateMetadataContext, templateId)
+              .getOrElse(
+                Invalid(NonEmptyList.of(s"Template summary does not exist for template ${templateManifest.id}")))
+              .map(_.commType)
+          }
+          .leftMap { error =>
+            cachingStrategy.remove(templateId)
+            error
+          }
+      }
 
-    val templateDetails: F[ErrorsOr[TemplateDetails]] = for {
-      _        <- Async.shift[F](ec)
-      commType <- Async[F].delay(templateSummary())
-      templ    <- Async[F].delay(template())
-      _        <- Async.shift[F](ec)
-    } yield {
-      (commType, templ)
-        .mapN { (commType, template) =>
-          TemplateDetails(template, commType)
-        }
-        .leftMap { errs =>
-          warn(s"Failed to retrieve template details: ${errs.toList.mkString(",")}")
-          errs
-        }
-    }
+      val templateDetails: F[ErrorsOr[TemplateDetails]] = for {
+        _        <- Async.shift[F](ec)
+        commType <- Async[F].delay(templateSummary())
+        templ    <- Async[F].delay(template())
+        _        <- Async.shift[F](ec)
+      } yield {
+        (commType, templ)
+          .mapN { (commType, template) =>
+            TemplateDetails(template, commType)
+          }
+          .leftMap { errs =>
+            warn(s"Failed to retrieve template details: ${errs.toList.mkString(",")}")
+            errs
+          }
+      }
 
-    retry(templateDetails, _.isInstanceOf[ProvisionedThroughputExceededException])
+      retry(templateDetails, _.isInstanceOf[ProvisionedThroughputExceededException])
   }
 }
