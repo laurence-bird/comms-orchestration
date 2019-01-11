@@ -10,7 +10,7 @@ import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.kafka.common.event.EventMetadata
 import com.ovoenergy.orchestration.domain.BuildFeedback.{extractCustomer, _}
 import com.ovoenergy.orchestration.domain.{CommId, EventId, FailureDetails, InternalFailure, TraceToken}
-import com.ovoenergy.orchestration.kafka.IssueFeedback
+import com.ovoenergy.orchestration.kafka.producers.IssueFeedback
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.processes.TriggeredDataValidator
@@ -21,7 +21,7 @@ import scala.concurrent.ExecutionContext
 object TriggeredConsumer extends LoggingWithMDC {
 
   def apply[F[_]](scheduleTask: TriggeredV4 => F[Either[ErrorDetails, Boolean]],
-                  issueFeedback: IssueFeedback[F],
+                  issueFeedback: IssueFeedback,
                   sendOrchestrationStartedEvent: OrchestrationStartedV3 => F[RecordMetadata],
                   generateTraceToken: () => String,
                   orchestrateComm: (TriggeredV4, InternalMetadata) => F[Either[ErrorDetails, RecordMetadata]])(

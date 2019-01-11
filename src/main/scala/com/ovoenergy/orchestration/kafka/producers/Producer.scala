@@ -1,17 +1,17 @@
-package com.ovoenergy.orchestration.kafka
+package com.ovoenergy.orchestration.kafka.producers
 
 import java.nio.file.Paths
 import java.util.UUID
 
 import cats.effect.{IO, Timer}
+import cats.syntax.flatMap._
 import com.ovoenergy.comms.helpers.Topic
+import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
 import com.sksamuel.avro4s.{SchemaFor, ToRecord}
 import org.apache.kafka.clients.CommonClientConfigs
-import org.apache.kafka.clients.producer.{Callback, KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata}
+import org.apache.kafka.clients.producer._
 import org.apache.kafka.common.config.SslConfigs
 import org.apache.kafka.common.serialization.StringSerializer
-import cats.syntax.flatMap._
-import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext

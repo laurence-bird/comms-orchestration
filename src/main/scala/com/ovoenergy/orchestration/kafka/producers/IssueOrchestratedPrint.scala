@@ -1,20 +1,23 @@
-package com.ovoenergy.orchestration.kafka
+package com.ovoenergy.orchestration.kafka.producers
 
 import java.util.UUID
 
-import cats.effect.Async
-import com.ovoenergy.comms.model.print.{OrchestratedPrint, OrchestratedPrintV2}
+import cats.effect.{Async, IO}
+import com.ovoenergy.comms.helpers.Topic
 import com.ovoenergy.comms.model._
-import com.ovoenergy.comms.templates.util.Hash
+import com.ovoenergy.comms.model.print.OrchestratedPrintV2
 import com.ovoenergy.orchestration.domain.ContactAddress
 import org.apache.kafka.clients.producer.RecordMetadata
 
-class IssueOrchestratedPrint[F[_]: Async](sendEvent: OrchestratedPrintV2 => F[RecordMetadata])
-    extends IssueOrchestratedComm[ContactAddress, F] {
+class IssueOrchestratedPrint(topic: Topic[OrchestratedPrintV2])
+    extends IssueOrchestratedComm[ContactAddress] {
+
+  val produceOrchestratedPrint =
+    Producer.publisherFor[OrchestratedPrintV2](topic, _.metadata.commId)
 
   override def send(customerProfile: Option[CustomerProfile],
                     contactInfo: ContactAddress,
-                    triggered: TriggeredV4): F[RecordMetadata] = {
+                    triggered: TriggeredV4): IO[RecordMetadata] = {
 
     val orchestratedPrintEvent = OrchestratedPrintV2(
       metadata = MetadataV3.fromSourceMetadata(
@@ -34,6 +37,6 @@ class IssueOrchestratedPrint[F[_]: Async](sendEvent: OrchestratedPrintV2 => F[Re
                                 contactInfo.country)
     )
 
-    sendEvent(orchestratedPrintEvent)
+    produceOrchestratedPrint(orchestratedPrintEvent)
   }
 }

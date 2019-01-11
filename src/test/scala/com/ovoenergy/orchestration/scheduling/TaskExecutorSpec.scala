@@ -4,14 +4,9 @@ import cats.effect.IO
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.ExecutionContexts
-import com.ovoenergy.orchestration.kafka.IssueFeedback
+import com.ovoenergy.orchestration.kafka.producers.IssueFeedback
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.scheduling.Persistence.{
-  AlreadyBeingOrchestrated,
-  SetAsOrchestratingResult,
-  Successful,
-  Failed => FailedPersistence
-}
+import com.ovoenergy.orchestration.scheduling.Persistence.{AlreadyBeingOrchestrated, SetAsOrchestratingResult, Successful, Failed => FailedPersistence}
 import com.ovoenergy.orchestration.util.{ArbInstances, TestUtil}
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition

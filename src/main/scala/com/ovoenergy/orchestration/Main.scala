@@ -37,6 +37,7 @@ import scala.concurrent.duration._
 import com.ovoenergy.comms.templates.cache.CachingStrategy
 import com.ovoenergy.comms.templates.model.template.metadata.TemplateId
 import com.ovoenergy.orchestration.kafka.consumers.KafkaConsumer.Record
+import com.ovoenergy.orchestration.kafka.producers._
 import com.ovoenergy.orchestration.templates.RetrieveTemplateDetails
 import com.ovoenergy.orchestration.util.Retry
 import fs2.StreamApp
@@ -103,24 +104,18 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
   val determineChannel = new ChannelSelectorWithTemplate(retrieveTemplateDetails)
 
   // TODO: Clean this stuff up into a separate object/package
-  val sendFailedEvent    = Producer.publisherFor[FailedV3](Kafka.aiven.failed.v3, _.metadata.commId)
+
   val sendCancelledEvent = Producer.publisherFor[CancelledV3](Kafka.aiven.cancelled.v3, _.metadata.commId)
   val sendFailedCancellationEvent =
     Producer.publisherFor[FailedCancellationV3](Kafka.aiven.failedCancellation.v3, _.metadata.commId)
   val sendOrchestrationStartedEvent: OrchestrationStartedV3 => IO[RecordMetadata] =
     Producer.publisherFor[OrchestrationStartedV3](Kafka.aiven.orchestrationStarted.v3, _.metadata.commId)
-  val sendOrchestratedEmailEvent =
-    Producer.publisherFor[OrchestratedEmailV4](Kafka.aiven.orchestratedEmail.v4, _.metadata.commId)
-  val sendOrchestratedSMSEvent =
-    Producer.publisherFor[OrchestratedSMSV3](Kafka.aiven.orchestratedSMS.v3, _.metadata.commId)
-  val sendOrchestratedPrintEvent =
-    Producer.publisherFor[OrchestratedPrintV2](Kafka.aiven.orchestratedPrint.v2, _.metadata.commId)
-  val sendFeedbackEvent = Producer.publisherFor[Feedback](Kafka.aiven.feedback.v1, _.commId)
 
-  val orchestrateEmail = new IssueOrchestratedEmail(sendOrchestratedEmailEvent)
-  val orchestrateSMS   = new IssueOrchestratedSMS(sendOrchestratedSMSEvent)
-  val orchestratePrint = new IssueOrchestratedPrint(sendOrchestratedPrintEvent)
-  val issueFeedback    = new IssueFeedback(sendFeedbackEvent, sendFailedEvent)
+
+  val orchestrateEmail = new IssueOrchestratedEmail(Kafka.aiven.orchestratedEmail.v4)
+  val orchestrateSMS   = new IssueOrchestratedSMS(Kafka.aiven.orchestratedSMS.v3)
+  val orchestratePrint = new IssueOrchestratedPrint(Kafka.aiven.orchestratedPrint.v2)
+  val issueFeedback    = new IssueFeedback(Kafka.aiven.feedback.v1, Kafka.aiven.failed.v3)
 
   private val httpClient: Client[IO] = Http1Client[IO]().unsafeRunSync
 
@@ -190,7 +185,7 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
       sendSuccessfulCancellationEvent = sendCancelledEvent,
       descheduleComm = descheduleComm,
       generateTraceToken = () => UUID.randomUUID().toString,
-      issueFeedback: IssueFeedback[IO]
+      issueFeedback: IssueFeedback
     )
   }
 

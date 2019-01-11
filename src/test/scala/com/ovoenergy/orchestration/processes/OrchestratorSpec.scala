@@ -3,15 +3,8 @@ package com.ovoenergy.orchestration.processes
 import cats.effect.IO
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.domain.{
-  CommunicationPreference,
-  ContactAddress,
-  ContactProfile,
-  CustomerProfile,
-  EmailAddress,
-  MobilePhoneNumber
-}
-import com.ovoenergy.orchestration.kafka.IssueOrchestratedComm
+import com.ovoenergy.orchestration.domain.{CommunicationPreference, ContactAddress, ContactProfile, CustomerProfile, EmailAddress, MobilePhoneNumber}
+import com.ovoenergy.orchestration.kafka.producers.IssueOrchestratedComm
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.util.{ArbInstances, TestUtil}
 import org.apache.kafka.clients.producer.RecordMetadata

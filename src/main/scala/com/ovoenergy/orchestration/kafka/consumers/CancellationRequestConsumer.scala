@@ -4,7 +4,7 @@ import cats.effect.Sync
 import cats.implicits._
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.util.Hash
-import com.ovoenergy.orchestration.kafka.IssueFeedback
+import com.ovoenergy.orchestration.kafka.producers.IssueFeedback
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import org.apache.kafka.clients.producer.RecordMetadata
@@ -17,7 +17,7 @@ object CancellationRequestConsumer extends LoggingWithMDC {
                   sendSuccessfulCancellationEvent: CancelledV3 => F[RecordMetadata],
                   descheduleComm: CancellationRequestedV3 => List[Either[ErrorDetails, MetadataV3]],
                   generateTraceToken: () => String,
-                  issueFeedback: IssueFeedback[F])(implicit ec: ExecutionContext,
+                  issueFeedback: IssueFeedback)(implicit ec: ExecutionContext,
                                                    F: Sync[F]): CancellationRequestedV3 => F[Unit] = {
 
     cancellationRequest: CancellationRequestedV3 =>

@@ -7,16 +7,9 @@ import com.ovoenergy.orchestration.domain
 import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
 import org.apache.kafka.clients.producer.RecordMetadata
 import com.ovoenergy.comms.model.{ContactDetails, _}
-import com.ovoenergy.orchestration.domain.{
-  CommunicationPreference,
-  ContactAddress,
-  ContactInfo,
-  ContactProfile,
-  EmailAddress,
-  MobilePhoneNumber
-}
-import com.ovoenergy.orchestration.kafka.IssueOrchestratedComm
+import com.ovoenergy.orchestration.domain.{CommunicationPreference, ContactAddress, ContactInfo, ContactProfile, EmailAddress, MobilePhoneNumber}
 import cats.implicits._
+import com.ovoenergy.orchestration.kafka.producers.IssueOrchestratedComm
 
 import scala.concurrent.ExecutionContext
 
@@ -38,9 +31,9 @@ object Orchestrator extends LoggingWithMDC {
                            ErrorDetails,
                            domain.CustomerProfile]], // TODO: Handle this throwing naughty exceptions
                          getValidatedContactProfile: ContactProfile => Either[ErrorDetails, ContactProfile],
-                         issueOrchestratedEmail: IssueOrchestratedComm[EmailAddress, F],
-                         issueOrchestratedSMS: IssueOrchestratedComm[MobilePhoneNumber, F],
-                         issueOrchestratedPrint: IssueOrchestratedComm[ContactAddress, F])(
+                         issueOrchestratedEmail: IssueOrchestratedComm[EmailAddress],
+                         issueOrchestratedSMS: IssueOrchestratedComm[MobilePhoneNumber],
+                         issueOrchestratedPrint: IssueOrchestratedComm[ContactAddress])(
       triggered: TriggeredV4,
       internalMetadata: InternalMetadata)(implicit ec: ExecutionContext): F[Either[ErrorDetails, RecordMetadata]] = {
 

@@ -5,15 +5,11 @@ import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.BuildFeedback._
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.scheduling.Persistence.{
-  AlreadyBeingOrchestrated,
-  Successful,
-  Failed => FailedPersistence
-}
+import com.ovoenergy.orchestration.scheduling.Persistence.{AlreadyBeingOrchestrated, Successful, Failed => FailedPersistence}
 import org.apache.kafka.clients.producer.RecordMetadata
 import cats.implicits._
 import com.ovoenergy.orchestration.domain.{CommId, EventId, FailureDetails, InternalFailure, TraceToken}
-import com.ovoenergy.orchestration.kafka.IssueFeedback
+import com.ovoenergy.orchestration.kafka.producers.IssueFeedback
 
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
@@ -23,7 +19,7 @@ object TaskExecutor extends LoggingWithMDC {
               orchestrateTrigger: (TriggeredV4, InternalMetadata) => IO[Either[ErrorDetails, RecordMetadata]],
               sendOrchestrationStartedEvent: OrchestrationStartedV3 => IO[RecordMetadata],
               generateTraceToken: () => String,
-              issueFeedback: IssueFeedback[IO])(scheduleId: ScheduleId): Unit = {
+              issueFeedback: IssueFeedback)(scheduleId: ScheduleId): Unit = {
 
     def buildAndSendFailedEvents(triggered: TriggeredV4,
                                  errorDetails: ErrorDetails,
