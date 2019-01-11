@@ -17,7 +17,7 @@ object CancellationRequestConsumer extends LoggingWithMDC {
                   sendSuccessfulCancellationEvent: CancelledV3 => F[RecordMetadata],
                   descheduleComm: CancellationRequestedV3 => List[Either[ErrorDetails, MetadataV3]],
                   generateTraceToken: () => String,
-                  issueFeedback: IssueFeedback)(implicit ec: ExecutionContext,
+                  issueFeedback: IssueFeedback[F])(implicit ec: ExecutionContext,
                                                    F: Sync[F]): CancellationRequestedV3 => F[Unit] = {
 
     cancellationRequest: CancellationRequestedV3 =>

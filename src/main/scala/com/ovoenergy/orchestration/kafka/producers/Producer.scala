@@ -3,7 +3,7 @@ package com.ovoenergy.orchestration.kafka.producers
 import java.nio.file.Paths
 import java.util.UUID
 
-import cats.effect.{IO, Timer}
+import cats.effect.{Async, IO, Timer}
 import cats.syntax.flatMap._
 import com.ovoenergy.comms.helpers.Topic
 import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
@@ -49,8 +49,8 @@ object Producer extends LoggingWithMDC {
     new KafkaProducer[String, E](producerSettings.asJava, new StringSerializer(), topic.serializer)
   }
 
-  def publisher[E](getKey: E => String, producer: KafkaProducer[String, E], topicName: String)(t: E)(
-      implicit ec: ExecutionContext = ExecutionContext.global) = {
+  def publisher[E, F[_]](getKey: E => String, producer: KafkaProducer[String, E], topicName: String)(
+      t: E)(implicit ec: ExecutionContext = ExecutionContext.global, F: Async[F]) = {
 
     val record = new ProducerRecord[String, E](
       topicName,
@@ -58,7 +58,7 @@ object Producer extends LoggingWithMDC {
       t
     )
 
-    val produce = IO.async[RecordMetadata] { cb =>
+    F.async[RecordMetadata] { cb =>
       producer.send(
         record,
         new Callback {
@@ -67,24 +67,18 @@ object Producer extends LoggingWithMDC {
           }
         }
       )
-    }
-
-    for {
-      rm <- produce
-      _  <- IO.shift(Timer[IO])
-    } yield rm
+    } // TODO: Confirm if shift was working previously, pass in blocking ec potentially (though everything is blocking anyway)
   }
 
-  def publisherFor[E: Loggable](topic: Topic[E], key: E => String)(implicit schemaFor: SchemaFor[E],
-                                                                   toRecord: ToRecord[E],
-                                                                   classTag: ClassTag[E]): E => IO[RecordMetadata] = {
+  def publisherFor[E: Loggable, F[_]](topic: Topic[E], key: E => String)(implicit schemaFor: SchemaFor[E],
+                                                                         toRecord: ToRecord[E],
+                                                                         classTag: ClassTag[E],
+                                                                         F: Async[F]): E => F[RecordMetadata] = {
     val producer: KafkaProducer[String, E] = Producer[E](topic)
-    val publisher = { e: E =>
-      Producer
-        .publisher[E](key, producer, topic.name)(e)
-        .flatTap((rm: RecordMetadata) => IO(info((rm, e))(s"Sent event to ${topic.name}")))
+    val pub: E => F[RecordMetadata] = { e: E =>
+      publisher[E, F](key, producer, topic.name)(e)
+        .flatTap((rm: RecordMetadata) => F.delay(info((rm, e))(s"Sent event to ${topic.name}")))
     }
-
-    publisher
+    pub
   }
 }

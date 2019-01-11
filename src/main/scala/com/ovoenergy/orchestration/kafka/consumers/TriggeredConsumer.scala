@@ -21,7 +21,7 @@ import scala.concurrent.ExecutionContext
 object TriggeredConsumer extends LoggingWithMDC {
 
   def apply[F[_]](scheduleTask: TriggeredV4 => F[Either[ErrorDetails, Boolean]],
-                  issueFeedback: IssueFeedback,
+                  issueFeedback: IssueFeedback[F],
                   sendOrchestrationStartedEvent: OrchestrationStartedV3 => F[RecordMetadata],
                   generateTraceToken: () => String,
                   orchestrateComm: (TriggeredV4, InternalMetadata) => F[Either[ErrorDetails, RecordMetadata]])(

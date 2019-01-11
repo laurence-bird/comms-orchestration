@@ -3,10 +3,16 @@ package com.ovoenergy.orchestration.scheduling
 import cats.effect.IO
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.ExecutionContexts
+import com.ovoenergy.orchestration.domain.BuildFeedback
+import com.ovoenergy.orchestration.{ExecutionContexts, domain}
 import com.ovoenergy.orchestration.kafka.producers.IssueFeedback
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.scheduling.Persistence.{AlreadyBeingOrchestrated, SetAsOrchestratingResult, Successful, Failed => FailedPersistence}
+import com.ovoenergy.orchestration.scheduling.Persistence.{
+  AlreadyBeingOrchestrated,
+  SetAsOrchestratingResult,
+  Successful,
+  Failed => FailedPersistence
+}
 import com.ovoenergy.orchestration.util.{ArbInstances, TestUtil}
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
@@ -54,12 +60,11 @@ class TaskExecutorSpec
 
   val traceToken         = "ssfifjsof"
   val generateTraceToken = () => traceToken
-
-  val issueFeedback = {
-    val f = (f: Feedback) => {
-      IO.pure(recordMetadata)
-    }
-    new IssueFeedback[IO](f, sendFailedEvent)
+  val issueFeedback = new IssueFeedback[IO] {
+    override def send[T](t: T)(implicit buildFeedback: BuildFeedback[T]): IO[RecordMetadata] = IO.pure(recordMetadata)
+    override def sendWithLegacy(failureDetails: domain.FailureDetails,
+                                metadata: MetadataV3,
+                                internalMetadata: InternalMetadata): IO[RecordMetadata] = IO.pure(recordMetadata)
   }
 
   behavior of "TaskExecutor"
@@ -202,14 +207,17 @@ class TaskExecutorSpec
     }
 
     var sendFailedEventInvoked = false
-    val timedOutIssueFeedback = {
-      val func = (feedback: Feedback) => {
-        sendFailedEventInvoked = true
-        val f = Future { Thread.sleep(6000); recordMetadata }
-        IO.fromFuture(IO(f))
+    val timedOutIssueFeedback =
+      new IssueFeedback[IO] {
+        override def send[T](t: T)(implicit buildFeedback: BuildFeedback[T]): IO[RecordMetadata] = IO(recordMetadata)
+        override def sendWithLegacy(failureDetails: domain.FailureDetails,
+                                    metadata: MetadataV3,
+                                    internalMetadata: InternalMetadata): IO[RecordMetadata] = {
+          sendFailedEventInvoked = true
+          val f = Future { Thread.sleep(6000); recordMetadata }
+          IO.fromFuture(IO(f))
+        }
       }
-      new IssueFeedback[IO](func, sendFailedEvent)
-    }
 
     TaskExecutor.execute(Orchestrating,
                          orchestrateTrigger,
@@ -243,20 +251,23 @@ class TaskExecutorSpec
       IO.pure(Left(ErrorDetails("Some error", OrchestrationError)))
     }
 
-    val sendFeedbackEvent = {
-      val f = (failed: Feedback) => {
-        IO.pure(recordMetadata)
-      }
-      val failingSendFailed = (failed: FailedV3) => IO.raiseError(new RuntimeException("Failed, uh oh"))
+    val issueFeedback = {
+      new IssueFeedback[IO] {
+        override def send[T](t: T)(implicit buildFeedback: BuildFeedback[T]): IO[RecordMetadata] =
+          IO.pure(recordMetadata)
 
-      new IssueFeedback[IO](f, sendFailedEvent)
+        override def sendWithLegacy(failureDetails: domain.FailureDetails,
+                                    metadata: MetadataV3,
+                                    internalMetadata: InternalMetadata): IO[RecordMetadata] =
+          IO.raiseError(new RuntimeException("Failed, uh oh"))
+      }
     }
 
     TaskExecutor.execute(Orchestrating,
                          orchestrateTrigger,
                          sendOrchestrationStartedEvent,
                          generateTraceToken,
-                         sendFeedbackEvent)(scheduleId)
+                         issueFeedback)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe Some(scheduleWithTriggeredV4.triggeredV4.get, InternalMetadata(traceToken))

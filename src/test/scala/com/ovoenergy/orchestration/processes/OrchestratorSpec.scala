@@ -3,7 +3,14 @@ package com.ovoenergy.orchestration.processes
 import cats.effect.IO
 import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
-import com.ovoenergy.orchestration.domain.{CommunicationPreference, ContactAddress, ContactProfile, CustomerProfile, EmailAddress, MobilePhoneNumber}
+import com.ovoenergy.orchestration.domain.{
+  CommunicationPreference,
+  ContactAddress,
+  ContactProfile,
+  CustomerProfile,
+  EmailAddress,
+  MobilePhoneNumber
+}
 import com.ovoenergy.orchestration.kafka.producers.IssueOrchestratedComm
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.util.{ArbInstances, TestUtil}
@@ -40,7 +47,7 @@ class OrchestratorSpec
   val printOrchestratedMetadata =
     new RecordMetadata(new TopicPartition("comms.orchestrated.print", 1), 1, 1, 100l, -1, -1, -1)
 
-  object StubEmailOrchestrator extends IssueOrchestratedComm[EmailAddress, IO] {
+  object StubEmailOrchestrator extends IssueOrchestratedComm[IO, EmailAddress] {
     override def send(customerProfile: Option[model.CustomerProfile],
                       contactInfo: EmailAddress,
                       triggered: TriggeredV4) = {
@@ -50,7 +57,7 @@ class OrchestratorSpec
     }
   }
 
-  object StubSmsOrchestrator extends IssueOrchestratedComm[MobilePhoneNumber, IO] {
+  val StubSmsOrchestrator = new IssueOrchestratedComm[IO, MobilePhoneNumber] {
     override def send(customerProfile: Option[model.CustomerProfile],
                       contactInfo: MobilePhoneNumber,
                       triggered: TriggeredV4) = {
@@ -60,7 +67,7 @@ class OrchestratorSpec
     }
   }
 
-  object StubPrintOrchestrator extends IssueOrchestratedComm[ContactAddress, IO] {
+  val StubPrintOrchestrator = new IssueOrchestratedComm[IO, ContactAddress] {
     override def send(customerProfile: Option[model.CustomerProfile],
                       contactInfo: ContactAddress,
                       triggered: TriggeredV4) = {
@@ -92,7 +99,7 @@ class OrchestratorSpec
   behavior of "Orchestrator"
 
   it should "Specify no postal address available for triggers to be orchestrated via print, where a customer ID is provided" in {
-    object SelectNonSupportedChannel extends ChannelSelector[IO] {
+    val SelectNonSupportedChannel = new ChannelSelector[IO] {
       override def determineChannel(contactProfile: ContactProfile,
                                     customerPreferences: Seq[CommunicationPreference],
                                     triggered: TriggeredV4) = IO.pure(Right(Print))
@@ -109,7 +116,7 @@ class OrchestratorSpec
   }
 
   it should "handle customer delivery - failed channel selection" in {
-    object FailedChannelSelection extends ChannelSelector[IO] {
+    val FailedChannelSelection = new ChannelSelector[IO] {
       override def determineChannel(contactProfile: ContactProfile,
                                     customerPreferences: Seq[CommunicationPreference],
                                     triggered: TriggeredV4) =
@@ -236,7 +243,7 @@ class OrchestratorSpec
     passedTriggered shouldBe Some(nonCustomerTriggered)
   }
 
-  object SelectSMSChannel extends ChannelSelector[IO] {
+  val SelectSMSChannel = new ChannelSelector[IO] {
     override def determineChannel(contactProfile: ContactProfile,
                                   customerPreferences: Seq[CommunicationPreference],
                                   triggered: TriggeredV4) = {
@@ -245,7 +252,7 @@ class OrchestratorSpec
     }
   }
 
-  object SelectEmailChannel extends ChannelSelector[IO] {
+  val SelectEmailChannel = new ChannelSelector[IO] {
     override def determineChannel(contactProfile: ContactProfile,
                                   customerPreferences: Seq[CommunicationPreference],
                                   triggered: TriggeredV4) = {

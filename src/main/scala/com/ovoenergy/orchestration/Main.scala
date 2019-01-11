@@ -15,12 +15,8 @@ import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.{AmazonDynamoDBException, ProvisionedThroughputExceededException}
 import com.ovoenergy.comms.helpers.{Kafka, Topic}
 import com.ovoenergy.comms.model._
-import com.ovoenergy.comms.model.email.OrchestratedEmailV4
-import com.ovoenergy.comms.model.print.OrchestratedPrintV2
-import com.ovoenergy.comms.model.sms.OrchestratedSMSV3
 import com.ovoenergy.comms.templates.{ErrorsOr, TemplateMetadataContext}
 import com.ovoenergy.orchestration.aws.AwsProvider
-import com.ovoenergy.orchestration.kafka._
 import com.ovoenergy.orchestration.kafka.consumers._
 import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
 import com.ovoenergy.orchestration.processes.{ChannelSelectorWithTemplate, Orchestrator, Scheduler}
@@ -103,19 +99,12 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
     CachingStrategy.caffeine[TemplateId, ErrorsOr[CommType]](250))
   val determineChannel = new ChannelSelectorWithTemplate(retrieveTemplateDetails)
 
-  // TODO: Clean this stuff up into a separate object/package
-
-  val sendCancelledEvent = Producer.publisherFor[CancelledV3](Kafka.aiven.cancelled.v3, _.metadata.commId)
-  val sendFailedCancellationEvent =
-    Producer.publisherFor[FailedCancellationV3](Kafka.aiven.failedCancellation.v3, _.metadata.commId)
-  val sendOrchestrationStartedEvent: OrchestrationStartedV3 => IO[RecordMetadata] =
-    Producer.publisherFor[OrchestrationStartedV3](Kafka.aiven.orchestrationStarted.v3, _.metadata.commId)
-
-
-  val orchestrateEmail = new IssueOrchestratedEmail(Kafka.aiven.orchestratedEmail.v4)
-  val orchestrateSMS   = new IssueOrchestratedSMS(Kafka.aiven.orchestratedSMS.v3)
-  val orchestratePrint = new IssueOrchestratedPrint(Kafka.aiven.orchestratedPrint.v2)
-  val issueFeedback    = new IssueFeedback(Kafka.aiven.feedback.v1, Kafka.aiven.failed.v3)
+  val produceCancelledEvent = Producer.publisherFor[CancelledV3, IO](Kafka.aiven.cancelled.v3, _.metadata.commId)
+  val produceFailedCancellationEvent =
+    Producer.publisherFor[FailedCancellationV3, IO](Kafka.aiven.failedCancellation.v3, _.metadata.commId)
+  val produceOrchestrationStartedEvent: OrchestrationStartedV3 => IO[RecordMetadata] =
+    Producer.publisherFor[OrchestrationStartedV3, IO](Kafka.aiven.orchestrationStarted.v3, _.metadata.commId)
+  val issueFeedback = IssueFeedback[IO](Kafka.aiven.feedback.v1, Kafka.aiven.failed.v3)
 
   private val httpClient: Client[IO] = Http1Client[IO]().unsafeRunSync
 
@@ -134,14 +123,14 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
     channelSelector = determineChannel,
     getValidatedCustomerProfile = ProfileValidation.getValidatedCustomerProfile(profileCustomer),
     getValidatedContactProfile = ProfileValidation.validateContactProfile,
-    issueOrchestratedEmail = orchestrateEmail,
-    issueOrchestratedSMS = orchestrateSMS,
-    issueOrchestratedPrint = orchestratePrint
+    issueOrchestratedEmail = IssueOrchestratedEmail.apply[IO](Kafka.aiven.orchestratedEmail.v4),
+    issueOrchestratedSMS = IssueOrchestratedSMS.apply[IO](Kafka.aiven.orchestratedSMS.v3),
+    issueOrchestratedPrint = IssueOrchestratedPrint.apply[IO](Kafka.aiven.orchestratedPrint.v2)
   )
 
   val executeScheduledTask = TaskExecutor.execute(schedulingPersistence,
                                                   orchestrateComm,
-                                                  sendOrchestrationStartedEvent,
+                                                  produceOrchestrationStartedEvent,
                                                   () => UUID.randomUUID.toString,
                                                   issueFeedback) _
   val addSchedule = QuartzScheduling.addSchedule(executeScheduledTask) _
@@ -175,17 +164,17 @@ object Main extends StreamApp[IO] with LoggingWithMDC with ExecutionContexts {
       scheduleTask = scheduleTask,
       issueFeedback = issueFeedback,
       generateTraceToken = () => UUID.randomUUID().toString,
-      sendOrchestrationStartedEvent = sendOrchestrationStartedEvent
+      sendOrchestrationStartedEvent = produceOrchestrationStartedEvent
     )
   }
 
   val cancellationRequestV3Consumer = {
     CancellationRequestConsumer(
-      sendFailedCancellationEvent = sendFailedCancellationEvent,
-      sendSuccessfulCancellationEvent = sendCancelledEvent,
+      sendFailedCancellationEvent = produceFailedCancellationEvent,
+      sendSuccessfulCancellationEvent = produceCancelledEvent,
       descheduleComm = descheduleComm,
       generateTraceToken = () => UUID.randomUUID().toString,
-      issueFeedback: IssueFeedback
+      issueFeedback = issueFeedback
     )
   }
 
