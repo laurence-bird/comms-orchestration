@@ -1,7 +1,18 @@
 name                  := "orchestration"
 organization          := "com.ovoenergy"
 scalaVersion          := "2.12.4"
-scalacOptions         := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
+scalacOptions         := Seq(
+    "-unchecked",
+    "-deprecation",
+    "-encoding",
+    "utf8",
+    "-target:jvm-1.8",
+    "-feature",
+    "-language:implicitConversions",
+    "-language:higherKinds",
+    "-language:existentials",
+    "-Ypartial-unification"
+  )
 
 val circeVersion = "0.9.0"
 val commsKafkaSerialisationVersion = "3.21"
@@ -37,9 +48,8 @@ libraryDependencies ++= Seq(
   "org.http4s"                 %% "http4s-dsl"                % http4sVersion,
   "org.http4s"                 %% "http4s-blaze-client"       % http4sVersion,
   "org.http4s"                 %% "http4s-circe"              % http4sVersion,
-
   "org.quartz-scheduler"       % "quartz"                     % "2.2.3",
-  "com.gu"                     %% "scanamo"                   % "1.0.0-M6",
+  "com.gu"                     %% "scanamo"                   % "1.0.0-M8",
   "com.github.tomakehurst"     % "wiremock"                   % "2.16.0" % Test,
   "org.scalacheck"             %% "scalacheck"                % "1.13.4" % Test,
   "org.scalatest"              %% "scalatest"                 % "3.0.3" % Test,

@@ -22,12 +22,11 @@ import com.ovoenergy.orchestration.profile.CustomerProfiler.ProfileCustomer
 
 object ProfileValidation extends LoggingWithMDC {
 
-  def getValidatedCustomerProfile[F[_]: Async](
-      retrieveCustomerProfile: ProfileCustomer => F[Either[ErrorDetails, CustomerProfile]])(
+  def getValidatedCustomerProfile[F[_]: Async](customerProfiler: CustomerProfiler[F])(
       triggered: TriggeredV4,
       customer: Customer): F[Either[ErrorDetails, domain.CustomerProfile]] = {
 
-    val customerProfileF = retrieveCustomerProfile(
+    val customerProfileF = customerProfiler(
       ProfileCustomer(customer.customerId, triggered.metadata.canary, triggered.metadata.traceToken))
 
     customerProfileF.map { cp =>
