@@ -61,7 +61,6 @@ class SchedulingServiceTest
         .lens(_.metadata.traceToken)
         .set("yolo321321")
     }
-//    feedbackConsumer.poll(50l)
     populateTemplateSummaryTable(triggered.metadata.templateManifest)
 
     Kafka.aiven.triggered.v4.publishOnce(triggered)

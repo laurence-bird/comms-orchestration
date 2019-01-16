@@ -1,13 +1,31 @@
 package com.ovoenergy.orchestration.processes
 
-import com.ovoenergy.comms.model.{OrchestrationError, TemplateData, TriggeredV4}
-import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.util.ArbInstances
-import org.scalatest.{Matchers, WordSpec}
-import org.scalacheck.Shapeless._
-import monocle.macros.syntax.lens._
+import java.time.Instant
+import java.util.UUID
 
-class TriggeredDataValidatorSpec extends WordSpec with Matchers with ArbInstances {
+import com.ovoenergy.comms.model.{OrchestrationError, TriggeredV4}
+import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
+import com.ovoenergy.orchestration.util.ArbGenerator
+import org.scalatest.{Matchers, WordSpec}
+import monocle.macros.syntax.lens._
+import org.scalacheck.Arbitrary
+import org.scalacheck.Shapeless._
+
+import scala.util.Random
+
+class TriggeredDataValidatorSpec extends WordSpec with Matchers with ArbGenerator {
+
+  implicit def arbUUID: Arbitrary[UUID] = Arbitrary {
+    UUID.randomUUID()
+  }
+  implicit def arbInstant: Arbitrary[Instant] = Arbitrary {
+    Instant.now().plusSeconds(Random.nextInt(5))
+  }
+
+  // Ensure we don't get empty strings
+  implicit def arbString: Arbitrary[String] = Arbitrary {
+    UUID.randomUUID().toString
+  }
 
   val triggeredV4 = generate[TriggeredV4]
 

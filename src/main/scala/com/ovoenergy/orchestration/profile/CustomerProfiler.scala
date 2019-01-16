@@ -7,7 +7,6 @@ import io.circe.generic.auto._
 import cats.syntax.either._
 import cats.implicits._
 import com.ovoenergy.comms.model.OrchestrationError
-import com.ovoenergy.orchestration.Main.{config, ec}
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.profile.CustomerProfiler.ProfileCustomer
 import com.ovoenergy.orchestration.util.Retry
@@ -116,8 +115,8 @@ object CustomerProfiler extends LoggingWithMDC {
     }
 
   def resource[F[_]: ConcurrentEffect](retry: Retry[F], apiKey: String, profileUri: Uri)(
-      implicit ec: ExecutionContext): Resource[F, CustomerProfiler[F]] = {
-    BlazeClientBuilder[F](ec)
+      implicit executionContext: ExecutionContext): Resource[F, CustomerProfiler[F]] = {
+    BlazeClientBuilder[F](executionContext)
       .withResponseHeaderTimeout(60.seconds)
       .resource
       .map { httpClient =>

@@ -4,16 +4,15 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
 import cats.effect.IO
+import cats.effect._
+import cats.implicits._
 import com.github.tomakehurst.wiremock.WireMockServer
-import com.github.tomakehurst.wiremock.client.{MappingBuilder, WireMock}
+import com.github.tomakehurst.wiremock.client.WireMock
 import com.ovoenergy.comms.model._
-import org.http4s.client.Client
-import org.http4s.client.blaze.Http1Client
 import org.scalatest._
 import WireMock.{get, _}
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration._
 import com.github.tomakehurst.wiremock.http.UniformDistribution
-import com.github.tomakehurst.wiremock.matching.{EqualToPattern, StringValuePattern}
 import com.ovoenergy.orchestration.domain.{CustomerProfile => CProfile}
 import com.ovoenergy.orchestration.domain.{
   CommunicationPreference,
@@ -23,11 +22,13 @@ import com.ovoenergy.orchestration.domain.{
   MobilePhoneNumber
 }
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.profile.CustomerProfiler.{ServerErrorException, ProfileCustomer}
+import com.ovoenergy.orchestration.profile.CustomerProfiler.{ProfileCustomer, ServerErrorException}
 import com.ovoenergy.orchestration.util.Retry
 import org.http4s.{InvalidMessageBodyFailure, Uri}
+
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.util.{Failure, Try}
+import scala.util.Try
 
 class CustomerProfilerSpec
     extends FlatSpec
@@ -41,18 +42,23 @@ class CustomerProfilerSpec
   val profileApiKey = "apiKey"
   val profileHost   = "http://somehost.com"
   val traceToken    = "token"
-  val retry: Retry  = Retry.fixed(4, 10.millisecond)
-  lazy val uri      = Uri.unsafeFromString(s"http://localhost:${wireMockServer.port()}/yolo")
-  val customerId    = "whatever"
-  val path          = s"/yolo/api/customers/$customerId"
+
+  lazy val uri   = Uri.unsafeFromString(s"http://localhost:${wireMockServer.port()}/yolo")
+  val customerId = "whatever"
+  val path       = s"/yolo/api/customers/$customerId"
   val validResponseJson =
     new String(Files.readAllBytes(Paths.get("src/test/resources/profile_valid_response.json")), StandardCharsets.UTF_8)
 
-  implicit lazy val ec = scala.concurrent.ExecutionContext.Implicits.global
+  import cats.effect.IO._
+
+  implicit lazy val ec: ExecutionContext                    = scala.concurrent.ExecutionContext.Implicits.global
+  implicit lazy val t: Timer[IO]                            = timer(ec)
+  implicit lazy val concurrenctEffect: ConcurrentEffect[IO] = cats.effect.IO.ioConcurrentEffect(contextShift(ec))
+
+  lazy val customerProfiler = CustomerProfiler.resource[IO](Retry.fixed[IO](4, 10.millisecond), profileApiKey, uri)
 
   behavior of "Customer Profiler"
 
-  private val httpClient: Client[IO] = Http1Client[IO]().unsafeRunSync
   val wireMockServer: WireMockServer = new WireMockServer(wireMockConfig().dynamicPort())
 
   it should "Return an appropriate error code for 4xx (non-recoverable errors), without retry" in {
@@ -65,13 +71,13 @@ class CustomerProfilerSpec
             .withBody("You're not allowed here")
             .withStatus(401)))
 
-    val result =
-      CustomerProfiler(httpClient, uri, retry, profileApiKey).apply(
-        ProfileCustomer("whatever", canary = false, traceToken))
+    customerProfiler
+      .use(_.apply(ProfileCustomer("whatever", canary = false, traceToken)))
+      .unsafeRunSync()
+      .left
+      .value shouldBe ErrorDetails("Error response (401) retrieving customer profile: You're not allowed here",
+                                   OrchestrationError)
 
-    result.unsafeRunSync().left.value shouldBe ErrorDetails(
-      "Error response (401) retrieving customer profile: You're not allowed here",
-      OrchestrationError)
     verify(1,
            getRequestedFor(urlPathEqualTo(path))
              .withQueryParam("apikey", equalTo(profileApiKey)))
@@ -87,9 +93,8 @@ class CustomerProfilerSpec
             .withBody(s"Profile service is dead")
             .withStatus(500)))
 
-    val resultIo =
-      CustomerProfiler(httpClient, uri, retry, profileApiKey).apply(
-        ProfileCustomer("whatever", canary = false, traceToken))
+    val resultIo = customerProfiler
+      .use(_.apply(ProfileCustomer("whatever", canary = false, traceToken)))
 
     val result = Try(resultIo.unsafeRunSync())
     verify(5,
@@ -109,9 +114,8 @@ class CustomerProfilerSpec
             .withBody(s"""{\"some\":\"value\"}""")
             .withStatus(200)))
 
-    val resultIo =
-      CustomerProfiler(httpClient, uri, retry, profileApiKey).apply(
-        ProfileCustomer("whatever", canary = false, traceToken))
+    val resultIo = customerProfiler
+      .use(_.apply(ProfileCustomer("whatever", canary = false, traceToken)))
 
     assertThrows[InvalidMessageBodyFailure](resultIo.unsafeRunSync())
   }
@@ -126,9 +130,8 @@ class CustomerProfilerSpec
             .withBody(validResponseJson)
             .withStatus(200)))
 
-    val resultIo =
-      CustomerProfiler(httpClient, uri, retry, profileApiKey).apply(
-        ProfileCustomer("whatever", canary = false, traceToken))
+    val resultIo = customerProfiler
+      .use(_.apply(ProfileCustomer("whatever", canary = false, traceToken)))
 
     resultIo.unsafeRunSync() shouldBe Right(
       CProfile(
@@ -164,12 +167,12 @@ class CustomerProfilerSpec
             .withBody(validResponseJson)
             .withStatus(200)))
 
-    val resultIo =
-      CustomerProfiler(httpClient, uri, retry, profileApiKey).apply(
-        ProfileCustomer("whatever", canary = true, traceToken))
-    val result = resultIo.unsafeRunSync()
+    val result: Either[ErrorDetails, CProfile] = customerProfiler
+      .use(_.apply(ProfileCustomer("whatever", canary = true, traceToken)))
+      .unsafeRunSync()
+
     result match {
-      case Right(customerProfile) =>
+      case Right(customerProfile) => succeed
       // ok
       case Left(err) =>
         fail(s"Unexpected failure: ${err.reason}")

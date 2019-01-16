@@ -16,7 +16,7 @@ scalacOptions         := Seq(
 
 val circeVersion = "0.9.0"
 val commsKafkaSerialisationVersion = "3.21"
-val commsKafkaMessagesVersion = "1.79.3"
+val commsKafkaMessagesVersion = "1.79.4"
 val dockerTestkitVersion = "0.9.5"
 val monocleVersion = "1.5.0"
 val fs2KafkaVersion = "0.18.1"
@@ -30,7 +30,7 @@ libraryDependencies ++= Seq(
   "com.ovoenergy"              %% "comms-kafka-messages"      % commsKafkaMessagesVersion classifier "tests",
   "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
   "com.ovoenergy"              %% "comms-kafka-helpers"       % commsKafkaSerialisationVersion,
-  "com.ovoenergy"              %% "comms-templates"           % "0.32",
+  "com.ovoenergy"              %% "comms-templates"           % "0.33",
   "ch.qos.logback"             % "logback-classic"            % "1.1.7",
   "me.moocar"                  % "logback-gelf"               % "0.2",
   "org.slf4j"                  % "jcl-over-slf4j"             % "1.7.25",

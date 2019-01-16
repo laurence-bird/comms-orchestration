@@ -37,8 +37,11 @@ class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues wit
                     Nil,
                     ContactProfile(validEmail, validPhoneNumber, validAddress)))
 
-  def buildProfileRetriever(response: Either[ErrorDetails, CustomerProfile]) = { (profileCustomer: ProfileCustomer) =>
-    IO.pure(response)
+  def buildProfileRetriever(response: Either[ErrorDetails, CustomerProfile]) = {
+    new CustomerProfiler[IO] {
+      override def apply(profileCustomer: ProfileCustomer): IO[Either[ErrorDetails, CustomerProfile]] =
+        IO.pure(response)
+    }
   }
 
   val customerProfile = generate[CustomerProfile]
@@ -76,7 +79,7 @@ class ProfileValidationSpec extends FlatSpec with Matchers with EitherValues wit
     val customer         = generate[Customer]
 
     ProfileValidation
-      .getValidatedCustomerProfile(profileRetriever)(triggered, customer)
+      .getValidatedCustomerProfile[IO](profileRetriever)(triggered, customer)
       .unsafeRunSync() shouldBe errorResponse
   }
 

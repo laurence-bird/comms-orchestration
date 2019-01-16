@@ -4,15 +4,43 @@ import java.time.{Clock, Instant, ZoneId}
 
 import cats.effect.IO
 import com.ovoenergy.comms.model._
+import com.ovoenergy.comms.model.Arbitraries
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
-import com.ovoenergy.orchestration.processes.Scheduler.{TemplateId, CustomerId}
+import com.ovoenergy.orchestration.processes.Scheduler.{CustomerId, TemplateId}
 import com.ovoenergy.orchestration.scheduling.ScheduleStatus.Pending
 import com.ovoenergy.orchestration.scheduling._
-import com.ovoenergy.orchestration.util.{ArbInstances, TestUtil}
+import com.ovoenergy.orchestration.util.{ArbGenerator, TestUtil}
+import org.scalacheck.{Arbitrary, Gen}
 import org.scalatest.{FlatSpec, Matchers, OneInstancePerTest}
-import org.scalacheck.Shapeless._
 
-class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with ArbInstances {
+class SchedulerSpec extends FlatSpec with Matchers with OneInstancePerTest with ArbGenerator with Arbitraries {
+
+  implicit val genChange = for {
+    inst      <- genInstant()
+    operation <- genNonEmptyString
+  } yield Change(inst, operation)
+
+  implicit val arbSchedule = Arbitrary(
+    for {
+      id  <- genNonEmptyString
+      t   <- Gen.option(arbTriggeredV4.arbitrary)
+      in  <- genInstant(genZoneOffset)
+      st  <- Gen.const[ScheduleStatus](ScheduleStatus.Pending)
+      c   <- Gen.listOf(genChange)
+      cId <- Gen.option(genNonEmptyString)
+      tId <- genNonEmptyString
+    } yield
+      Schedule(
+        scheduleId = id,
+        triggeredV4 = t,
+        deliverAt = in,
+        status = st,
+        history = c,
+        orchestrationExpiry = in,
+        customerId = cId,
+        templateId = tId
+      )
+  )
 
   val now   = Instant.now()
   val clock = Clock.fixed(now, ZoneId.of("UTC"))

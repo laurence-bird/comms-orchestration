@@ -14,7 +14,7 @@ import cats.implicits._
 import fs2._
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.{AmazonDynamoDBException, ProvisionedThroughputExceededException}
-import com.ovoenergy.comms.helpers.{Kafka, KafkaClusterConfig, Topic}
+import com.ovoenergy.comms.helpers.{Kafka, Topic}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.{ErrorsOr, TemplateMetadataContext}
 import com.ovoenergy.orchestration.aws.AwsProvider
@@ -77,10 +77,7 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
     context = dynamoContext
   )
 
-  private val retryMaxRetries: Int       = 5
-  private val retryDelay: FiniteDuration = 5.seconds
-
-  def retry = Retry[IO](retryMaxRetries, retryDelay)
+  def retry: Retry[IO] = Retry.instance[IO](5.seconds, 5)
 
   val dbClients = AwsProvider.dynamoClients(isRunningInLocalDocker, region)
 
@@ -117,12 +114,12 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
         apiKey = config.getString("profile.service.apiKey")
       )
 
-  // We're having 2 clients for now, 1 for quartz
-  val r1 = customerProfilerResource.allocated.unsafeRunSync()._1
+  // We're having 2 clients for now, 1 for quartz // TODO: Make better/clean up on app shutdown
+  val customerProfileResource = customerProfilerResource.allocated.unsafeRunSync()._1
 
   val orchestrateComm: (TriggeredV4, InternalMetadata) => IO[Either[ErrorDetails, RecordMetadata]] = Orchestrator[IO](
     channelSelector = determineChannel,
-    getValidatedCustomerProfile = ProfileValidation.getValidatedCustomerProfile(r1),
+    getValidatedCustomerProfile = ProfileValidation.getValidatedCustomerProfile(customerProfileResource),
     getValidatedContactProfile = ProfileValidation.validateContactProfile,
     issueOrchestratedEmail = IssueOrchestratedEmail.apply[IO](Kafka.aiven.orchestratedEmail.v4),
     issueOrchestratedSMS = IssueOrchestratedSMS.apply[IO](Kafka.aiven.orchestratedSMS.v3),
@@ -137,9 +134,10 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
   val addSchedule = QuartzScheduling.addSchedule(executeScheduledTask) _
 
   val scheduleTask: TriggeredV4 => IO[Either[ErrorDetails, Boolean]] = { t: TriggeredV4 =>
-    val res = Scheduler.scheduleComm(consumerSchedulingPersistence.storeSchedule[IO], addSchedule).apply(t)
     retry(
-      res,
+      Scheduler
+        .scheduleComm(consumerSchedulingPersistence.storeSchedule[IO], addSchedule)
+        .apply(t),
       _.isInstanceOf[ProvisionedThroughputExceededException]
     ).recoverWith {
       case e: ProvisionedThroughputExceededException =>
@@ -181,24 +179,23 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
 
   QuartzScheduling.init()
 
-//  /*
-//  For pending schedules, we only need to load them once at startup.
-//  Actually a few minutes after startup, as we need to wait until this instance
-//  is consuming Kafka events. If we load the pending schedules while a previous
-//  instance is still processing events, we might miss some.
-//   */
+  /*
+    For pending schedules, we only need to load them once at startup.
+    Actually a few minutes after startup, as we need to wait until this instance
+    is consuming Kafka events. If we load the pending schedules while a previous
+    instance is still processing events, we might miss some.
+   */
 // TODO: Change to use FS2
-
   actorSystem.scheduler.scheduleOnce(config.getDuration("scheduling.loadPending.delay").toFiniteDuration) {
     val scheduledCount = Restore.pickUpPendingSchedules(schedulingPersistence, addSchedule)
     log.info(s"Loaded $scheduledCount pending schedules")
   }(akkaExecutionContext)
-//
-//  /*
-//  For expired schedules, we poll every few minutes.
-//  They should be very rare. Expiry only happens when an instance starts orchestrating
-//  and then dies half way through.
-//   */
+
+  /*
+  For expired schedules, we poll every few minutes.
+  They should be very rare. Expiry only happens when an instance starts orchestrating
+  and then dies half way through.
+   */
   val pollForExpiredInterval = config.getDuration("scheduling.pollForExpired.interval")
   log.info(s"Polling for expired schedules with interval: $pollForExpiredInterval")
   actorSystem.scheduler.schedule(1.second, pollForExpiredInterval.toFiniteDuration) {
@@ -230,5 +227,6 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
       Stream.eval(IO(info("Orchestration started")))
     ).parJoinUnbounded.compile.drain
       .as(ExitCode.Success)
+
   }
 }
