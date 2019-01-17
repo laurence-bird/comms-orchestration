@@ -82,8 +82,10 @@ object KafkaConsumer {
         executionContext <- consumerExecutionContextStream[F]
         consumer         <- consumerStream[F].using(consumerSettings(executionContext))
         _                <- Stream.eval(consumer.subscribe(topics.map(_.name)))
-        _ <- consumer.stream
-          .mapAsync(1) { message =>
+        _ <- consumer
+          .partitionedStream
+          .parJoinUnbounded
+          .mapAsync(25) { message =>
             f(message.record).as(message.committableOffset) // TODO: Use producer stream
           }
           .to(commitBatchWithin(500, 15.seconds))
