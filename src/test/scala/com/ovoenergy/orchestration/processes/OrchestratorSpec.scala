@@ -110,7 +110,7 @@ class OrchestratorSpec
                        validContactProfile,
                        StubEmailOrchestrator,
                        StubSmsOrchestrator,
-                       StubPrintOrchestrator)(customerTriggered, internalMetadata)
+                       StubPrintOrchestrator).apply(customerTriggered, internalMetadata)
 
     orchestrator.unsafeRunSync().left.value shouldBe ErrorDetails("No valid postal address provided", InvalidProfile)
   }
@@ -128,7 +128,7 @@ class OrchestratorSpec
                        validContactProfile,
                        StubEmailOrchestrator,
                        StubSmsOrchestrator,
-                       StubPrintOrchestrator)(customerTriggered, internalMetadata)
+                       StubPrintOrchestrator).apply(customerTriggered, internalMetadata)
     orchestrator.unsafeRunSync().left.value shouldBe ErrorDetails("whatever", OrchestrationError)
   }
 
@@ -142,7 +142,7 @@ class OrchestratorSpec
                        validContactProfile,
                        StubEmailOrchestrator,
                        StubSmsOrchestrator,
-                       StubPrintOrchestrator)(customerTriggered, internalMetadata)
+                       StubPrintOrchestrator).apply(customerTriggered, internalMetadata)
 
     orchestrator.unsafeRunSync().left.value shouldBe ErrorDetails("whatever", ProfileRetrievalFailed)
   }
@@ -160,7 +160,7 @@ class OrchestratorSpec
                        validContactProfile,
                        StubEmailOrchestrator,
                        StubSmsOrchestrator,
-                       StubPrintOrchestrator)(customerTriggered, internalMetadata)
+                       StubPrintOrchestrator).apply(customerTriggered, internalMetadata)
 
     val resultMetadata = orchestrationResult.unsafeRunSync().right.value
     resultMetadata shouldBe emailOrchestratedMetadata
@@ -183,7 +183,7 @@ class OrchestratorSpec
                        validContactProfile,
                        StubEmailOrchestrator,
                        StubSmsOrchestrator,
-                       StubPrintOrchestrator)(customerTriggered, internalMetadata)
+                       StubPrintOrchestrator).apply(customerTriggered, internalMetadata)
 
     val resultMetadata = orchestrationResult.unsafeRunSync().right.value
     resultMetadata shouldBe SMSOrchestratedMetadata
@@ -211,7 +211,7 @@ class OrchestratorSpec
                        validContactProfile,
                        StubEmailOrchestrator,
                        StubSmsOrchestrator,
-                       StubPrintOrchestrator)(nonCustomerTriggered, internalMetadata)
+                       StubPrintOrchestrator).apply(nonCustomerTriggered, internalMetadata)
 
     val resultMetadata = orchestrationResult.unsafeRunSync().right.value
     resultMetadata shouldBe emailOrchestratedMetadata
@@ -233,7 +233,7 @@ class OrchestratorSpec
                        validContactProfile,
                        StubEmailOrchestrator,
                        StubSmsOrchestrator,
-                       StubPrintOrchestrator)(nonCustomerTriggered, internalMetadata)
+                       StubPrintOrchestrator).apply(nonCustomerTriggered, internalMetadata)
 
     val resultMetadata = orchestrationResult.unsafeRunSync().right.value
     resultMetadata shouldBe SMSOrchestratedMetadata

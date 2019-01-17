@@ -14,13 +14,14 @@ import org.apache.kafka.clients.producer.RecordMetadata
 import cats.implicits._
 import com.ovoenergy.orchestration.domain.{CommId, EventId, FailureDetails, InternalFailure, TraceToken}
 import com.ovoenergy.orchestration.kafka.producers.IssueFeedback
+import com.ovoenergy.orchestration.processes.Orchestrator
 
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
 object TaskExecutor extends LoggingWithMDC {
   def execute(persistence: Persistence.Orchestration,
-              orchestrateTrigger: (TriggeredV4, InternalMetadata) => IO[Either[ErrorDetails, RecordMetadata]],
+              orchestrator: Orchestrator[IO],
               sendOrchestrationStartedEvent: OrchestrationStartedV3 => IO[RecordMetadata],
               generateTraceToken: () => String,
               issueFeedback: IssueFeedback[IO])(scheduleId: ScheduleId): Unit = {
@@ -92,7 +93,7 @@ object TaskExecutor extends LoggingWithMDC {
             val orchResult: IO[Either[ErrorDetails, RecordMetadata]] = for {
               _   <- issueFeedback.send(OrchestrationStartedV3(triggered.metadata, internalMetadata))
               _   <- sendOrchestrationStartedEvent(OrchestrationStartedV3(triggered.metadata, internalMetadata))
-              res <- orchestrateTrigger(triggered, internalMetadata)
+              res <- orchestrator(triggered, internalMetadata)
             } yield res
 
             awaitOrchestrationFuture(triggered, internalMetadata, orchResult)

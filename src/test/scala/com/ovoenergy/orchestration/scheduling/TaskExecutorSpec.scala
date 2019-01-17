@@ -1,11 +1,11 @@
 package com.ovoenergy.orchestration.scheduling
 
 import cats.effect.IO
-import com.ovoenergy.comms.model
 import com.ovoenergy.comms.model._
 import com.ovoenergy.orchestration.domain.BuildFeedback
 import com.ovoenergy.orchestration.{ExecutionContexts, domain}
 import com.ovoenergy.orchestration.kafka.producers.IssueFeedback
+import com.ovoenergy.orchestration.processes.Orchestrator
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
 import com.ovoenergy.orchestration.scheduling.Persistence.{
   AlreadyBeingOrchestrated,
@@ -49,9 +49,12 @@ class TaskExecutorSpec
 
   val recordMetadata      = new RecordMetadata(new TopicPartition("test", 1), 1, 1, 100l, -1, -1, -1)
   var triggerOrchestrated = Option.empty[(TriggeredV4, InternalMetadata)]
-  val orchestrateTrigger = (triggeredV4: TriggeredV4, internalMetadata: InternalMetadata) => {
-    triggerOrchestrated = Some(triggeredV4, internalMetadata)
-    IO.pure(Right(recordMetadata))
+  val orchestrateTrigger = new Orchestrator[IO] {
+    override def apply(triggeredV4: TriggeredV4,
+                       internalMetadata: InternalMetadata): IO[Either[ErrorDetails, RecordMetadata]] = {
+      triggerOrchestrated = Some(triggeredV4, internalMetadata)
+      IO.pure(Right(recordMetadata))
+    }
   }
 
   val sendFailedEvent = (failed: FailedV3) => IO.pure(recordMetadata)
@@ -117,9 +120,12 @@ class TaskExecutorSpec
         scheduleFailedPersist = Some(sId, reason)
       }
     }
-    val orchestrateTrigger = (triggeredV4: TriggeredV4, internalMetadata: InternalMetadata) => {
-      triggerOrchestrated = Some(triggeredV4, internalMetadata)
-      IO.pure(Left(ErrorDetails("Some error", OrchestrationError)))
+    val orchestrateTrigger = new Orchestrator[IO] {
+      override def apply(triggeredV4: TriggeredV4,
+                         internalMetadata: InternalMetadata): IO[Either[ErrorDetails, RecordMetadata]] = {
+        triggerOrchestrated = Some(triggeredV4, internalMetadata)
+        IO.pure(Left(ErrorDetails("Some error", OrchestrationError)))
+      }
     }
 
     TaskExecutor.execute(Orchestrating,
@@ -141,10 +147,13 @@ class TaskExecutorSpec
         scheduleAsFailed = Some(sId, reason)
       }
     }
-    val orchestrateTrigger = (triggeredV4: TriggeredV4, internalMetadata: InternalMetadata) => {
-      triggerOrchestrated = Some(triggeredV4, internalMetadata)
-      val future = Future[RecordMetadata] { Thread.sleep(22000); recordMetadata }
-      IO.fromFuture(IO(future.map(r => Right(r))))
+    val orchestrateTrigger = new Orchestrator[IO] {
+      def apply(triggeredV4: TriggeredV4,
+                internalMetadata: InternalMetadata): IO[Either[ErrorDetails, RecordMetadata]] = {
+        triggerOrchestrated = Some(triggeredV4, internalMetadata)
+        val future = Future[RecordMetadata] { Thread.sleep(22000); recordMetadata }
+        IO.fromFuture(IO(future.map(r => Right(r))))
+      }
     }
 
     TaskExecutor.execute(Orchestrating,
@@ -170,9 +179,12 @@ class TaskExecutorSpec
         scheduleAsComplete = Some(sId)
       }
     }
-    val orchestrateTrigger = (triggeredV4: TriggeredV4, internalMetadata: InternalMetadata) => {
-      triggerOrchestrated = Some(triggeredV4, internalMetadata)
-      IO.pure(Right(recordMetadata))
+    val orchestrateTrigger = new Orchestrator[IO] {
+      override def apply(triggeredV4: TriggeredV4,
+                         internalMetadata: InternalMetadata): IO[Either[ErrorDetails, RecordMetadata]] = {
+        triggerOrchestrated = Some(triggeredV4, internalMetadata)
+        IO.pure(Right(recordMetadata))
+      }
     }
 
     TaskExecutor.execute(Orchestrating,
@@ -201,9 +213,12 @@ class TaskExecutorSpec
         scheduleFailedPersist = Some(sId, reason)
       }
     }
-    val orchestrateTrigger = (triggeredV4: TriggeredV4, internalMetadata: InternalMetadata) => {
-      triggerOrchestrated = Some(triggeredV4, internalMetadata)
-      IO.pure(Left(ErrorDetails("Some error", OrchestrationError)))
+    val orchestrateTrigger = new Orchestrator[IO] {
+      def apply(triggeredV4: TriggeredV4,
+                internalMetadata: InternalMetadata): IO[Either[ErrorDetails, RecordMetadata]] = {
+        triggerOrchestrated = Some(triggeredV4, internalMetadata)
+        IO.pure(Left(ErrorDetails("Some error", OrchestrationError)))
+      }
     }
 
     var sendFailedEventInvoked = false
@@ -246,9 +261,12 @@ class TaskExecutorSpec
         scheduleFailedPersist = Some(sId, reason)
       }
     }
-    val orchestrateTrigger = (triggeredV4: TriggeredV4, internalMetadata: InternalMetadata) => {
-      triggerOrchestrated = Some(triggeredV4, internalMetadata)
-      IO.pure(Left(ErrorDetails("Some error", OrchestrationError)))
+    val orchestrateTrigger = new Orchestrator[IO] {
+      def apply(triggeredV4: TriggeredV4,
+                internalMetadata: InternalMetadata): IO[Either[ErrorDetails, RecordMetadata]] = {
+        triggerOrchestrated = Some(triggeredV4, internalMetadata)
+        IO.pure(Left(ErrorDetails("Some error", OrchestrationError)))
+      }
     }
 
     val issueFeedback = {

@@ -114,12 +114,12 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
         apiKey = config.getString("profile.service.apiKey")
       )
 
-  // We're having 2 clients for now, 1 for quartz // TODO: Make better/clean up on app shutdown
-  val customerProfileResource = customerProfilerResource.allocated.unsafeRunSync()._1
+  // Currently this has a shared profiler which is used by quartz and the stream. This isn't being cleaned up properly
+  val customerProfiler= customerProfilerResource.allocated.unsafeRunSync()._1
 
-  val orchestrateComm: (TriggeredV4, InternalMetadata) => IO[Either[ErrorDetails, RecordMetadata]] = Orchestrator[IO](
+  val orchestrateComm = Orchestrator[IO](
     channelSelector = determineChannel,
-    getValidatedCustomerProfile = ProfileValidation.getValidatedCustomerProfile(customerProfileResource),
+    getValidatedCustomerProfile = ProfileValidation.getValidatedCustomerProfile(customerProfiler),
     getValidatedContactProfile = ProfileValidation.validateContactProfile,
     issueOrchestratedEmail = IssueOrchestratedEmail.apply[IO](Kafka.aiven.orchestratedEmail.v4),
     issueOrchestratedSMS = IssueOrchestratedSMS.apply[IO](Kafka.aiven.orchestratedSMS.v3),
@@ -159,7 +159,7 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
 
   val triggeredV4Consumer: TriggeredV4 => IO[Unit] = {
     TriggeredConsumer[IO](
-      orchestrateComm = orchestrateComm,
+      orchestrator = orchestrateComm,
       scheduleTask = scheduleTask,
       issueFeedback = issueFeedback,
       generateTraceToken = () => UUID.randomUUID().toString,
@@ -222,11 +222,12 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
         f = recordProcessor(cancellationRequestV3Consumer))
 
     Stream(
-      triggeredV4Stream,
-      cancellationRequestV3Stream,
-      Stream.eval(IO(info("Orchestration started")))
-    ).parJoinUnbounded.compile.drain
+        triggeredV4Stream,
+        cancellationRequestV3Stream,
+        Stream.eval(IO(info("Orchestration started")))
+      ).parJoinUnbounded
+      .compile
+      .drain
       .as(ExitCode.Success)
-
   }
 }
