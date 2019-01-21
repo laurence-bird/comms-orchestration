@@ -27,7 +27,10 @@ object ProfileValidation extends LoggingWithMDC {
       customer: Customer): F[Either[ErrorDetails, domain.CustomerProfile]] = {
 
     val customerProfileF = customerProfiler(
-      ProfileCustomer(customer.customerId, triggered.metadata.canary, triggered.metadata.traceToken))
+      ProfileCustomer(customer.customerId,
+                      triggered.metadata.canary,
+                      triggered.metadata.traceToken,
+                      triggered.metadata.commId))
 
     customerProfileF.map { cp =>
       for {

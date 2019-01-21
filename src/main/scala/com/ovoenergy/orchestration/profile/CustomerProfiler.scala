@@ -4,7 +4,6 @@ import cats.effect.{Async, ConcurrentEffect, IO, Resource}
 import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
 import com.ovoenergy.orchestration.domain._
 import io.circe.generic.auto._
-import cats.syntax.either._
 import cats.implicits._
 import com.ovoenergy.comms.model.OrchestrationError
 import com.ovoenergy.orchestration.processes.Orchestrator.ErrorDetails
@@ -33,7 +32,7 @@ object CustomerProfiler extends LoggingWithMDC {
                                      phoneNumber: Option[String],
                                      communicationPreferences: Seq[CommunicationPreference])
 
-  case class ProfileCustomer(customerId: String, canary: Boolean, traceToken: String)
+  case class ProfileCustomer(customerId: String, canary: Boolean, traceToken: String, commId: String)
   case class ProfileCustomerRequest(pc: ProfileCustomer, uri: Uri)
 
   implicit val loggableProfilerCustomerRequest = Loggable.instance[ProfileCustomerRequest] { profileCustomerRequest =>
@@ -41,7 +40,8 @@ object CustomerProfiler extends LoggingWithMDC {
       "isCanary"   -> profileCustomerRequest.pc.canary.toString,
       "traceToken" -> profileCustomerRequest.pc.traceToken,
       "customerId" -> profileCustomerRequest.pc.customerId,
-      "uri"        -> profileCustomerRequest.uri.renderString
+      "uri"        -> profileCustomerRequest.uri.renderString,
+      "commId"     -> profileCustomerRequest.pc.commId
     )
   }
 

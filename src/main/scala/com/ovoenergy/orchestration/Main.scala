@@ -115,7 +115,7 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
       )
 
   // Currently this has a shared profiler which is used by quartz and the stream. This isn't being cleaned up properly
-  val customerProfiler= customerProfilerResource.allocated.unsafeRunSync()._1
+  val customerProfiler = customerProfilerResource.allocated.unsafeRunSync()._1
 
   val orchestrateComm = Orchestrator[IO](
     channelSelector = determineChannel,
@@ -222,12 +222,10 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
         f = recordProcessor(cancellationRequestV3Consumer))
 
     Stream(
-        triggeredV4Stream,
-        cancellationRequestV3Stream,
-        Stream.eval(IO(info("Orchestration started")))
-      ).parJoinUnbounded
-      .compile
-      .drain
+      triggeredV4Stream,
+      cancellationRequestV3Stream,
+      Stream.eval(IO(info("Orchestration started")))
+    ).parJoinUnbounded.compile.drain
       .as(ExitCode.Success)
   }
 }

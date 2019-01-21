@@ -82,11 +82,13 @@ object KafkaConsumer {
         executionContext <- consumerExecutionContextStream[F]
         consumer         <- consumerStream[F].using(consumerSettings(executionContext))
         _                <- Stream.eval(consumer.subscribe(topics.map(_.name)))
-        _ <- consumer
-          .partitionedStream
-          .parJoinUnbounded
+        _ <- consumer.partitionedStream.parJoinUnbounded
           .mapAsync(25) { message =>
-            f(message.record).as(message.committableOffset) // TODO: Use producer stream
+            f(message.record).as(message.committableOffset)
+          /*
+                TODO:  separate the business logic from the Kafka producer, as currently the producer is embedded within the orchestration logic.
+                Similar to that done in the composer
+           */
           }
           .to(commitBatchWithin(500, 15.seconds))
       } yield ()

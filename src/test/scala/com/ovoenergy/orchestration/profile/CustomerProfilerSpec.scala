@@ -42,6 +42,7 @@ class CustomerProfilerSpec
   val profileApiKey = "apiKey"
   val profileHost   = "http://somehost.com"
   val traceToken    = "token"
+  val commId        = "id"
 
   lazy val uri   = Uri.unsafeFromString(s"http://localhost:${wireMockServer.port()}/yolo")
   val customerId = "whatever"
@@ -72,7 +73,7 @@ class CustomerProfilerSpec
             .withStatus(401)))
 
     customerProfiler
-      .use(_.apply(ProfileCustomer("whatever", canary = false, traceToken)))
+      .use(_.apply(ProfileCustomer("whatever", canary = false, traceToken, commId)))
       .unsafeRunSync()
       .left
       .value shouldBe ErrorDetails("Error response (401) retrieving customer profile: You're not allowed here",
@@ -94,7 +95,7 @@ class CustomerProfilerSpec
             .withStatus(500)))
 
     val resultIo = customerProfiler
-      .use(_.apply(ProfileCustomer("whatever", canary = false, traceToken)))
+      .use(_.apply(ProfileCustomer("whatever", canary = false, traceToken, commId)))
 
     val result = Try(resultIo.unsafeRunSync())
     verify(5,
@@ -115,7 +116,7 @@ class CustomerProfilerSpec
             .withStatus(200)))
 
     val resultIo = customerProfiler
-      .use(_.apply(ProfileCustomer("whatever", canary = false, traceToken)))
+      .use(_.apply(ProfileCustomer("whatever", canary = false, traceToken, commId)))
 
     assertThrows[InvalidMessageBodyFailure](resultIo.unsafeRunSync())
   }
@@ -131,7 +132,7 @@ class CustomerProfilerSpec
             .withStatus(200)))
 
     val resultIo = customerProfiler
-      .use(_.apply(ProfileCustomer("whatever", canary = false, traceToken)))
+      .use(_.apply(ProfileCustomer("whatever", canary = false, traceToken, commId)))
 
     resultIo.unsafeRunSync() shouldBe Right(
       CProfile(
@@ -168,7 +169,7 @@ class CustomerProfilerSpec
             .withStatus(200)))
 
     val result: Either[ErrorDetails, CProfile] = customerProfiler
-      .use(_.apply(ProfileCustomer("whatever", canary = true, traceToken)))
+      .use(_.apply(ProfileCustomer("whatever", canary = true, traceToken, commId)))
       .unsafeRunSync()
 
     result match {
