@@ -64,7 +64,7 @@ object CustomerProfiler extends LoggingWithMDC {
         implicit val decoder = jsonOf[F, CustomerProfileResponse]
 
         val baseuri = uri
-          ./(s"api")
+          ./(s"v1")
           ./(s"customers")
           ./(profileCustomer.customerId)
           .withQueryParam("apikey", apiKey)

@@ -41,7 +41,7 @@ trait MockProfileResponses {
       .when(
         request()
           .withMethod("GET")
-          .withPath(s"/api/customers/${TestUtil.customerId}")
+          .withPath(s"/v1/customers/${TestUtil.customerId}")
           .withQueryStringParameter("apikey", "someApiKey")
       )
       .respond(
@@ -62,7 +62,7 @@ trait MockProfileResponses {
       .when(
         request()
           .withMethod("GET")
-          .withPath(s"/api/customers/${TestUtil.customerId}")
+          .withPath(s"/v1/customers/${TestUtil.customerId}")
           .withQueryStringParameter("apikey", "someApiKey")
       )
       .respond(
@@ -79,7 +79,7 @@ trait MockProfileResponses {
       .when(
         request()
           .withMethod("GET")
-          .withPath(s"/api/customers/${TestUtil.customerId}")
+          .withPath(s"/v1/customers/${TestUtil.customerId}")
           .withQueryStringParameter("apikey", "someApiKey")
       )
       .respond(
@@ -103,7 +103,7 @@ trait MockProfileResponses {
       .when(
         request()
           .withMethod("GET")
-          .withPath(s"/api/customers/${TestUtil.customerId}")
+          .withPath(s"/v1/customers/${TestUtil.customerId}")
           .withQueryStringParameter("apikey", "someApiKey"),
         Times.exactly(3)
       )
@@ -116,7 +116,7 @@ trait MockProfileResponses {
       .when(
         request()
           .withMethod("GET")
-          .withPath(s"/api/customers/${TestUtil.customerId}")
+          .withPath(s"/v1/customers/${TestUtil.customerId}")
           .withQueryStringParameter("apikey", "someApiKey")
       )
       .respond(

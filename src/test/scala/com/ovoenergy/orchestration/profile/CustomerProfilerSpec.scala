@@ -46,7 +46,7 @@ class CustomerProfilerSpec
 
   lazy val uri   = Uri.unsafeFromString(s"http://localhost:${wireMockServer.port()}/yolo")
   val customerId = "whatever"
-  val path       = s"/yolo/api/customers/$customerId"
+  val path       = s"/yolo/v1/customers/$customerId"
   val validResponseJson =
     new String(Files.readAllBytes(Paths.get("src/test/resources/profile_valid_response.json")), StandardCharsets.UTF_8)
 
