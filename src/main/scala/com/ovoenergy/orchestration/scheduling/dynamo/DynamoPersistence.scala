@@ -3,6 +3,8 @@ package com.ovoenergy.orchestration.scheduling.dynamo
 import java.time.{Clock, DateTimeException, Instant}
 import java.util.{UUID, Map => JMap}
 
+import scala.concurrent.duration._
+
 import cats.effect.Async
 import com.amazonaws.services.dynamodbv2.{AmazonDynamoDB, AmazonDynamoDBAsync}
 import com.amazonaws.services.dynamodbv2.model.{AttributeValue, QueryRequest}
@@ -36,20 +38,13 @@ object DynamoPersistence extends DynamoFormats with LoggingWithMDC {
   def generateScheduleId(): ScheduleId = {
     UUID.randomUUID().toString
   }
-  case class Context(asyncDb: AmazonDynamoDBAsync, db: AmazonDynamoDB, table: Table[Schedule])
 
-  object Context {
-    def apply(dbClients: DbClients, tableName: String): Context = {
-      Context(
-        dbClients.async,
-        dbClients.db,
-        Table[Schedule](tableName)
-      )
-    }
+  case class Context(db: AmazonDynamoDBAsync, tableName: String) {
+    val table = Table[Schedule](tableName)
   }
 }
 
-class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock: Clock = Clock.systemUTC())(
+class DynamoPersistence(orchestrationExpiry: FiniteDuration, context: Context, clock: Clock = Clock.systemUTC())(
     implicit ec: ExecutionContext)
     extends Persistence.Orchestration
     with Persistence.Listing {
@@ -68,7 +63,7 @@ class DynamoPersistence(orchestrationExpiryMinutes: Int, context: Context, clock
       .update(
         'scheduleId -> scheduleId,
         set('status -> (ScheduleStatus.Orchestrating: ScheduleStatus))
-          and set('orchestrationExpiry, now.plusSeconds(60 * orchestrationExpiryMinutes).toEpochMilli)
+          and set('orchestrationExpiry, now.plusSeconds(orchestrationExpiry.toSeconds).toEpochMilli)
           and append('history, Change(now, "Start orchestrating"))
       )
     Scanamo.exec(context.db)(operation) match {

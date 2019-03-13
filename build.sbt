@@ -1,108 +1,220 @@
-name                  := "orchestration"
-organization          := "com.ovoenergy"
-scalaVersion          := "2.12.4"
-scalacOptions         := Seq(
-    "-unchecked",
-    "-deprecation",
-    "-encoding",
-    "utf8",
-    "-target:jvm-1.8",
-    "-feature",
-    "-language:implicitConversions",
-    "-language:higherKinds",
-    "-language:existentials",
-    "-Ypartial-unification"
-  )
+import com.amazonaws.regions.{Region, Regions}
 
-val circeVersion = "0.9.0"
+lazy val IT = config("it") extend Test
+lazy val ServiceTest = config("servicetest") extend Test
+
+val circeVersion = "0.11.1"
 val commsKafkaSerialisationVersion = "3.21"
 val commsKafkaMessagesVersion = "1.79.4"
 val dockerTestkitVersion = "0.9.5"
 val monocleVersion = "1.5.0"
-val fs2KafkaVersion = "0.18.1"
+val fs2KafkaVersion = "0.19.4"
+val kafkaSerializationVersion = "0.4.1"
 
-val fs2Version = "1.0.2"
-val http4sVersion = "0.20.0-M4"
+val fs2Version = "1.0.4"
+val http4sVersion = "0.20.0-M6"
+val slf4jVersion = "1.7.26"
+val awsSdkVersion = "1.11.490"
+val commsDockerkitVersion = "1.8.11"
 
-libraryDependencies ++= Seq(
-  "com.typesafe.akka"          %% "akka-slf4j"                % "2.4.18",
-  "com.ovoenergy"              %% "comms-kafka-messages"      % commsKafkaMessagesVersion  ,
-  "com.ovoenergy"              %% "comms-kafka-messages"      % commsKafkaMessagesVersion classifier "tests",
-  "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion,
-  "com.ovoenergy"              %% "comms-kafka-helpers"       % commsKafkaSerialisationVersion,
-  "com.ovoenergy"              %% "comms-templates"           % "0.33",
-  "ch.qos.logback"             % "logback-classic"            % "1.1.7",
-  "me.moocar"                  % "logback-gelf"               % "0.2",
-  "org.slf4j"                  % "jcl-over-slf4j"             % "1.7.25",
-  "io.logz.logback"            % "logzio-logback-appender"    % "1.0.11",
-  "org.typelevel"              %% "cats-core"                 % "1.5.0",
-  "org.typelevel"              %% "cats-effect"               % "1.1.0",
-  "co.fs2"                     %% "fs2-core"                  % fs2Version,
-  "co.fs2"                     %% "fs2-io"                    % fs2Version,
-  "com.ovoenergy"              %% "fs2-kafka"                 % fs2KafkaVersion,
-  "io.circe"                   %% "circe-core"                % circeVersion,
-  "io.circe"                   %% "circe-shapes"              % circeVersion,
-  "io.circe"                   %% "circe-generic-extras"      % circeVersion,
-  "io.circe"                   %% "circe-parser"              % circeVersion,
-  "io.circe"                   %% "circe-generic"             % circeVersion,
-  "org.http4s"                 %% "http4s-dsl"                % http4sVersion,
-  "org.http4s"                 %% "http4s-blaze-client"       % http4sVersion,
-  "org.http4s"                 %% "http4s-circe"              % http4sVersion,
-  "org.quartz-scheduler"       % "quartz"                     % "2.2.3",
-  "com.gu"                     %% "scanamo"                   % "1.0.0-M8",
-  "com.github.tomakehurst"     % "wiremock"                   % "2.16.0" % Test,
-  "org.scalacheck"             %% "scalacheck"                % "1.13.4" % Test,
-  "org.scalatest"              %% "scalatest"                 % "3.0.3" % Test,
-  "com.github.alexarchambault" %% "scalacheck-shapeless_1.13" % "1.1.4" % Test,
-  "org.mock-server"            % "mockserver-client-java"     % "3.12" % Test,
-  "com.github.julien-truffaut" %%  "monocle-core"             % monocleVersion % Test,
-  "com.github.julien-truffaut" %%  "monocle-macro"            % monocleVersion % Test,
-  "com.github.julien-truffaut" %%  "monocle-law"              % monocleVersion % Test,
-  "com.whisk" %% "docker-testkit-scalatest" % dockerTestkitVersion % ServiceTest,
-  "com.whisk" %% "docker-testkit-impl-docker-java" % dockerTestkitVersion % ServiceTest,
-  "com.whisk" %% "docker-testkit-core"             % dockerTestkitVersion % ServiceTest,
-  "com.ovoenergy" %% "comms-kafka-test-helpers" % commsKafkaSerialisationVersion % ServiceTest,
-  "commons-io" % "commons-io" % "2.5" % ServiceTest
-).map(_.exclude("commons-logging", "commons-logging"))
+val cirisVersion = "0.12.1"
+val cirisCredstashVersion = "0.6"
+val cirisKafkaVersion = "0.13"
 
-resolvers ++= Seq(
-  Resolver.bintrayRepo("ovotech", "maven"),
-  Resolver.bintrayRepo("cakesolutions", "maven"),
-"confluent-release" at "http://packages.confluent.io/maven/"
+inThisBuild(
+    List(
+      organization := "com.ovoenergy",
+      scalaVersion := "2.12.8",
+      scalacOptions := Seq(
+        "-unchecked",
+        "-deprecation",
+        "-encoding",
+        "utf8",
+        "-target:jvm-1.8",
+        "-feature",
+        "-language:implicitConversions",
+        "-language:higherKinds",
+        "-language:existentials",
+        "-Ypartial-unification"
+      ),
+      resolvers ++= Seq(
+        Resolver.bintrayRepo("ovotech", "maven"),
+        Resolver.bintrayRepo("cakesolutions", "maven"),
+      "confluent-release" at "http://packages.confluent.io/maven/"
+      ),
+      scalafmtOnCompile := true,
+      dependencyOverrides ++= Seq(
+        "com.amazonaws" % "aws-java-sdk-core" % awsSdkVersion,
+        "com.amazonaws" % "aws-java-sdk-s3" % awsSdkVersion,
+        "com.amazonaws" % "aws-java-sdk-dynamodb" % awsSdkVersion,
+        "com.amazonaws" % "aws-java-sdk-kms" % awsSdkVersion
+      ),
+      excludeDependencies ++= Seq(
+        ExclusionRule("commons-logging", "commons-logging"),
+        ExclusionRule("org.slf4j", "slf4j-log4j12"),
+        ExclusionRule("log4j", "log4j")
+      )
+    )
 )
 
-enablePlugins(JavaServerAppPackaging, DockerPlugin)
+lazy val orchestration = (project in file("."))
+  .enablePlugins(
+    BuildInfoPlugin,
+    JavaServerAppPackaging,
+    AshScriptPlugin,
+    DockerPlugin,
+    EcrPlugin,
+    CloudFormation
+  )
+  .configs(IT, ServiceTest)
+  .settings(
+    name := "orchestrator",
+    version ~= (_.replace('+', '-')),
+    dynver ~= (_.replace('+', '-')),
+  )
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.ovoenergy"              %% "comms-kafka-messages"      % commsKafkaMessagesVersion ,
+      "com.ovoenergy"              %% "comms-templates"           % "0.33",
+      "is.cir" %% "ciris-core" % cirisVersion,
+      "is.cir" %% "ciris-cats" % cirisVersion,
+      "is.cir" %% "ciris-cats-effect" % cirisVersion,
+      "is.cir" %% "ciris-generic" % cirisVersion,
+      "is.cir" %% "ciris-enumeratum" % cirisVersion,
+      "com.ovoenergy" %% "ciris-credstash" % cirisCredstashVersion,
+      "com.ovoenergy" %% "ciris-aiven-kafka" % cirisKafkaVersion,
+      "com.ovoenergy" %% "kafka-serialization-core" % kafkaSerializationVersion,
+      "com.ovoenergy" %% "kafka-serialization-avro4s" % kafkaSerializationVersion,
+      "org.slf4j" % "slf4j-api" % slf4jVersion,
+      "org.slf4j" % "log4j-over-slf4j" % slf4jVersion,
+      "org.slf4j" % "jcl-over-slf4j" % slf4jVersion,
+      "ch.qos.logback"             % "logback-classic"            % "1.2.3",
+      "io.logz.logback"            % "logzio-logback-appender"    % "1.0.11",
+      "org.typelevel"              %% "cats-core"                 % "1.6.0",
+      "org.typelevel"              %% "cats-effect"               % "1.2.0",
+      "co.fs2"                     %% "fs2-core"                  % fs2Version,
+      "co.fs2"                     %% "fs2-io"                    % fs2Version,
+      "com.ovoenergy"              %% "fs2-kafka"                 % fs2KafkaVersion,
+      "io.circe"                   %% "circe-core"                % circeVersion,
+      "io.circe"                   %% "circe-shapes"              % circeVersion,
+      "io.circe"                   %% "circe-generic-extras"      % circeVersion,
+      "io.circe"                   %% "circe-parser"              % circeVersion,
+      "io.circe"                   %% "circe-generic"             % circeVersion,
+      "org.http4s"                 %% "http4s-dsl"                % http4sVersion,
+      "org.http4s"                 %% "http4s-blaze-client"       % http4sVersion,
+      "org.http4s"                 %% "http4s-circe"              % http4sVersion,
+      "org.quartz-scheduler"       % "quartz"                     % "2.2.3",
+      "com.gu"                     %% "scanamo"                   % "1.0.0-M8",
+      ("com.ovoenergy"              %% "comms-kafka-messages"      % commsKafkaMessagesVersion classifier "tests") % Test,
+      "com.github.tomakehurst"     % "wiremock"                   % "2.16.0" % Test,
+      "org.scalacheck"             %% "scalacheck"                % "1.14.0" % Test,
+      "org.scalatest"              %% "scalatest"                 % "3.0.6" % Test,
+      "com.github.alexarchambault" %% "scalacheck-shapeless_1.13" % "1.1.4" % Test,
+      "org.mock-server"            % "mockserver-client-java"     % "3.12" % Test,
+      "com.github.julien-truffaut" %%  "monocle-core"             % monocleVersion % Test,
+      "com.github.julien-truffaut" %%  "monocle-macro"            % monocleVersion % Test,
+      "com.github.julien-truffaut" %%  "monocle-law"              % monocleVersion % Test,
+      "com.ovoenergy" %% "comms-docker-testkit-core" % commsDockerkitVersion % s"$IT,$ServiceTest",
+      "com.ovoenergy" %% "comms-docker-testkit-clients" % commsDockerkitVersion % s"$IT,$ServiceTest",
+      "com.whisk" %% "docker-testkit-scalatest" % dockerTestkitVersion % ServiceTest,
+      "com.whisk" %% "docker-testkit-impl-docker-java" % dockerTestkitVersion % ServiceTest,
+      "com.whisk" %% "docker-testkit-core"             % dockerTestkitVersion % ServiceTest,
+      "com.ovoenergy" %% "comms-kafka-test-helpers" % commsKafkaSerialisationVersion % ServiceTest,
+      "commons-io" % "commons-io" % "2.5" % ServiceTest,
+      "com.ovoenergy"              %% "comms-kafka-serialisation" % commsKafkaSerialisationVersion % ServiceTest,
+      "com.ovoenergy"              %% "comms-kafka-helpers"       % commsKafkaSerialisationVersion % ServiceTest,
+    ),
+  )
+  .settings(
+    testOptions += Tests.Argument("-oF"),
+    inConfig(ServiceTest)(
+      Defaults.testSettings ++ Seq(
+        test := test.dependsOn(publishLocal in Docker).value,
+        testOnly := testOnly.dependsOn(publishLocal in Docker).inputTaskValue
+      )
+    ),
+    inConfig(IT)(Defaults.testSettings),
+  )
+  .settings (
+    publishLocal := (Docker / publishLocal).value,
+    publish := (Ecr / push).value,
 
-commsPackagingMaxMetaspaceSize := 256
-commsPackagingHeapSize := 512
+    buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
+    buildInfoPackage := "com.ovoenergy.comms.orchestrator",
 
-test in Test := (test in Test).dependsOn(startDynamoDBLocal).value
-testOptions in Test += dynamoDBLocalTestCleanup.value
-val testWithDynamo = taskKey[Unit]("start dynamo, run the tests, shut down dynamo")
-testWithDynamo := Def.sequential(
-  startDynamoDBLocal,
-  test in Test,
-  stopDynamoDBLocal
-).value
+    dockerBaseImage := "openjdk:8-alpine",
+    // TODO as we use ECR plugin this is not necessary anymore, the docker repository can be omitted
+    dockerRepository := Some("852955754882.dkr.ecr.eu-west-1.amazonaws.com"),
+    dockerUpdateLatest := true,
 
-// Make ScalaTest write test reports that CircleCI understands
-val testReportsDir = sys.env.getOrElse("CI_REPORTS", "target/reports")
-testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-o", "-u", testReportsDir)
+    Ecr / region := Region.getRegion(Regions.EU_WEST_1),
+    Ecr / repositoryName := (Docker / packageName).value,
+    Ecr / repositoryTags ++= Seq(version.value),
+    Ecr / localDockerImage := (Docker / dockerAlias).value.toString,
+    Ecr / login := ((Ecr / login) dependsOn (Ecr / createRepository)).value,
+    Ecr / push := ((Ecr / push) dependsOn (Docker / publishLocal, Ecr / login)).value,
 
-lazy val ServiceTest = config("servicetest") extend(Test)
-configs(ServiceTest)
-inConfig(ServiceTest)(Defaults.testSettings)
-inConfig(ServiceTest)(Seq(
-  (parallelExecution in test) := false,
-  (parallelExecution in testOnly) := false
-))
-(test in ServiceTest) := (test in ServiceTest).dependsOn(publishLocal in Docker).value
+    stackTemplateFile := (templatesSourceFolder.value / s"${name.value}.yml"),
+    stackRegion := "eu-west-1",
+    stackCapabilities ++= Seq(
+      "CAPABILITY_IAM",
+      "CAPABILITY_AUTO_EXPAND"
+    ),
+    Staging / stackName := { stackName.value ++ "-" ++ "uat" },
+    Staging / stackParams := Map(
+      "Environment" -> "uat",
+      "Version" -> version.value
+    ),
+    Staging / stackTags := Map(
+      "Team" -> "Comms",
+      "Environment" -> "uat",
+      "Service" -> name.value
+    ),
+    Staging / deploy := deployOnConfiguration(Staging).value,
+    Production / stackName := { stackName.value ++ "-" ++ "prd" },
+    Production / stackParams := Map(
+      "Environment" -> "prd",
+      "Version" -> version.value
+    ),
+    Production / stackTags := Map(
+      "Team" -> "Comms",
+      "Environment" -> "prd",
+      "Service" -> name.value
+    ),
+    Production / deploy := deployOnConfiguration(Production).value,
+  )
 
-val scalafmtAll = taskKey[Unit]("Run scalafmt in non-interactive mode with no arguments")
-scalafmtAll := {
-  import org.scalafmt.bootstrap.ScalafmtBootstrap
-  streams.value.log.info("Running scalafmt ...")
-  ScalafmtBootstrap.main(Seq("--non-interactive"))
-  streams.value.log.info("Done")
-}
-(compile in Compile) := (compile in Compile).dependsOn(scalafmtAll).value
+  val deploy = taskKey[Unit]("Deploy the service")
+
+  def deployOnConfiguration(s: Configuration): Def.Initialize[Task[Unit]] = {
+    Def
+      .sequential(
+        Def.taskDyn {
+          val log = streams.value.log
+          (s / stackDescribe).value match {
+            case Some(stack) =>
+              log.info(s"Updating stack ${stack.getStackName} (${stack.getStackId})...")
+              s / stackUpdate
+            case None =>
+              log.info(s"Creating stack...")
+              s / stackCreate
+          }
+        },
+        s / stackWait,
+        Def.task {
+          val log = streams.value.log
+          (s / stackDescribe).value.fold(
+            throw new RuntimeException("CloudFormation stack not found")
+          )(
+            stack =>
+              if (!Set("UPDATE_COMPLETE", "CREATE_COMPLETE").contains(stack.getStackStatus))
+                throw new RuntimeException(
+                  s"CloudFormation Deployment failed to complete ${stack.getStackStatus}")
+              else
+                log.info(
+                  s"Stack ${stack.getStackName} (${stack.getStackId}) create or updated correctly: ${stack.getStackStatus}")
+          )
+        }
+      )
+  }
+  

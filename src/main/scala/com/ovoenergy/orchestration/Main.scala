@@ -6,15 +6,18 @@ import java.time.{Duration => JDuration}
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-import akka.actor.ActorSystem
-import akka.stream.ActorMaterializer
+import scala.util.control.NonFatal
+import scala.concurrent.ExecutionContext
+
 import cats.data.NonEmptyList
 import cats.effect._
 import cats.implicits._
 import fs2._
+
+import ciris.cats.effect._
+
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.dynamodbv2.model.{AmazonDynamoDBException, ProvisionedThroughputExceededException}
-import com.ovoenergy.comms.helpers.{Kafka, Topic}
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.templates.{ErrorsOr, TemplateMetadataContext}
 import com.ovoenergy.orchestration.aws.AwsProvider
@@ -23,7 +26,6 @@ import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
 import com.ovoenergy.orchestration.processes.{ChannelSelectorWithTemplate, Orchestrator, Scheduler}
 import com.ovoenergy.orchestration.profile.{CustomerProfiler, ProfileValidation}
 import com.ovoenergy.orchestration.scheduling.dynamo.{AsyncPersistence, DynamoPersistence}
-import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.kafka.clients.producer.RecordMetadata
 
 import scala.collection.JavaConverters._
@@ -38,56 +40,53 @@ import com.ovoenergy.orchestration.templates.RetrieveTemplateDetails
 import com.ovoenergy.orchestration.util.Retry
 import org.http4s.Uri
 
-import scala.util.control.NonFatal
+import com.amazonaws.auth._
+import com.amazonaws.auth.profile.ProfileCredentialsProvider
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
+import com.amazonaws.internal.CredentialsEndpointProvider
+import com.amazonaws.regions.Regions
+import com.amazonaws.services.dynamodbv2.{
+  AmazonDynamoDB,
+  AmazonDynamoDBAsync,
+  AmazonDynamoDBAsyncClientBuilder,
+  AmazonDynamoDBClientBuilder
+}
+import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
+import com.ovoenergy.comms.templates.TemplatesContext
+import org.slf4j.LoggerFactory
 
 object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
 
-  Files.readAllLines(new File("banner.txt").toPath).asScala.foreach(println(_))
   private implicit class RichDuration(val duration: JDuration) extends AnyVal {
     def toFiniteDuration: FiniteDuration = FiniteDuration.apply(duration.toNanos, TimeUnit.NANOSECONDS)
   }
 
-  implicit val ec = executionContext
+  implicit val ec: ExecutionContext = executionContext
 
-  implicit val config: Config                                           = ConfigFactory.load()
-  implicit val actorSystem                                              = ActorSystem()
-  implicit val materializer                                             = ActorMaterializer()
-  lazy val kafka                                                        = Kafka.aiven
-  lazy val triggeredV4Topic: Topic[TriggeredV4]                         = kafka.triggered.v4
-  lazy val triggeredV4PriorityTopic: Topic[TriggeredV4]                 = kafka.triggered.p0V4
-  lazy val cancellationRequestedV3Topic: Topic[CancellationRequestedV3] = kafka.cancellationRequested.v3
-  lazy val kafkaConfig                                                  = kafka.kafkaConfig
+  lazy val config: Config = Config.load[IO].orRaiseThrowable.unsafeRunSync()
 
-  val region = Regions.fromName(config.getString("aws.region"))
-  val isRunningInLocalDocker = sys.env.get("ENV").contains("LOCAL") && sys.env
-      .get("RUNNING_IN_DOCKER")
-      .contains("true")
-
-  val templateSummaryTableName = config.getString("template.summary.table")
+  val dbClient = config.amazonDynamoDbClientBuilder.build()
 
   val dynamoContext = DynamoPersistence.Context(
-    dbClients = AwsProvider.dynamoClients(isRunningInLocalDocker, region),
-    tableName = config.getString("scheduling.persistence.table")
+    db = dbClient,
+    tableName = config.schedulingTable
   )
 
   // Until we rethink our scheduling architecture, we need to use the bloking synchronous
   // db client for the task executor, due to multithreading hell
   val schedulingPersistence = new DynamoPersistence(
-    orchestrationExpiryMinutes = config.getInt("scheduling.orchestration.expiry"),
+    orchestrationExpiry = config.schedulingExpiration,
+    context = dynamoContext
+  )
+
+  val consumerSchedulingPersistence = new AsyncPersistence(
     context = dynamoContext
   )
 
   def retry: Retry[IO] = Retry.instance[IO](5.seconds, 5)
 
-  val dbClients = AwsProvider.dynamoClients(isRunningInLocalDocker, region)
-
-  val consumerSchedulingPersistence = new AsyncPersistence(
-    orchestrationExpiryMinutes = config.getInt("scheduling.orchestration.expiry"),
-    context = dynamoContext
-  )
-
-  val templatesContext        = AwsProvider.templatesContext(isRunningInLocalDocker, region)
-  val templateMetadataContext = TemplateMetadataContext(dynamoContext.asyncDb, templateSummaryTableName)
+  val templatesContext        = TemplatesContext.cachingContext(new DefaultAWSCredentialsProviderChain)
+  val templateMetadataContext = TemplateMetadataContext(dynamoContext.db, config.templateSummaryTable)
   val retrieveTemplateDetails = RetrieveTemplateDetails[IO](
     templatesContext,
     templateMetadataContext,
@@ -95,23 +94,22 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
     Retry.backOff())
   val determineChannel = new ChannelSelectorWithTemplate(retrieveTemplateDetails)
 
-  val produceCancelledEvent = Producer.publisherFor[CancelledV3, IO](Kafka.aiven.cancelled.v3, _.metadata.commId)
-  val produceFailedCancellationEvent =
-    Producer.publisherFor[FailedCancellationV3, IO](Kafka.aiven.failedCancellation.v3, _.metadata.commId)
   val produceOrchestrationStartedEvent: OrchestrationStartedV3 => IO[RecordMetadata] =
-    Producer.publisherFor[OrchestrationStartedV3, IO](Kafka.aiven.orchestrationStarted.v3, _.metadata.commId)
-  val issueFeedback = IssueFeedback[IO](Kafka.aiven.feedback.v1, Kafka.aiven.failed.v3)
+    Producer.publisherFor[OrchestrationStartedV3, IO](config.kafka, config.orchestrationStartedTopic, _.metadata.commId)
+  val issueFeedback = IssueFeedback[IO](config.kafka, config.feedbackTopic, config.failedTopic)
 
   private val customerProfilerResource: Resource[IO, CustomerProfiler[IO]] =
     CustomerProfiler
       .resource[IO](
-        profileUri = Uri.unsafeFromString(config.getString("profile.service.host")),
+        profileUri = config.profilesEndpoint,
+        // This means we spend a max of just over 2 minutes retrying,
+        // which is hopefully long enough to recover from flaky DNS
         retry = Retry.backOff(
-          config.getInt("profile.http.retry.attempts"),
-          config.getDuration("profile.http.retry.initialInterval").toFiniteDuration,
-          config.getDouble("profile.http.retry.exponent")
+          8,
+          1.second,
+          2.0
         ),
-        apiKey = config.getString("profile.service.apiKey")
+        apiKey = config.profilesApiKey
       )
 
   // Currently this has a shared profiler which is used by quartz and the stream. This isn't being cleaned up properly
@@ -121,9 +119,9 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
     channelSelector = determineChannel,
     getValidatedCustomerProfile = ProfileValidation.getValidatedCustomerProfile(customerProfiler),
     getValidatedContactProfile = ProfileValidation.validateContactProfile,
-    issueOrchestratedEmail = IssueOrchestratedEmail.apply[IO](Kafka.aiven.orchestratedEmail.v4),
-    issueOrchestratedSMS = IssueOrchestratedSMS.apply[IO](Kafka.aiven.orchestratedSMS.v3),
-    issueOrchestratedPrint = IssueOrchestratedPrint.apply[IO](Kafka.aiven.orchestratedPrint.v2)
+    issueOrchestratedEmail = IssueOrchestratedEmail.apply[IO](config.kafka, config.orchestratedEmailTopic),
+    issueOrchestratedSMS = IssueOrchestratedSMS.apply[IO](config.kafka, config.orchestratedSmsTopic),
+    issueOrchestratedPrint = IssueOrchestratedPrint.apply[IO](config.kafka, config.orchestratedPrintTopic)
   )
 
   val executeScheduledTask = TaskExecutor.execute(schedulingPersistence,
@@ -167,46 +165,46 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
     )
   }
 
-  val cancellationRequestV3Consumer = {
-    CancellationRequestConsumer(
-      sendFailedCancellationEvent = produceFailedCancellationEvent,
-      sendSuccessfulCancellationEvent = produceCancelledEvent,
-      descheduleComm = descheduleComm,
-      generateTraceToken = () => UUID.randomUUID().toString,
-      issueFeedback = issueFeedback
-    )
-  }
+  val schedulingStream = {
 
-  QuartzScheduling.init()
+    val initShutdown = Stream.bracket(IO(QuartzScheduling.init()))(_ => IO(QuartzScheduling.shutdown()))
 
-  /*
-    For pending schedules, we only need to load them once at startup.
-    Actually a few minutes after startup, as we need to wait until this instance
-    is consuming Kafka events. If we load the pending schedules while a previous
-    instance is still processing events, we might miss some.
-   */
-// TODO: Change to use FS2
-  actorSystem.scheduler.scheduleOnce(config.getDuration("scheduling.loadPending.delay").toFiniteDuration) {
-    val scheduledCount = Restore.pickUpPendingSchedules(schedulingPersistence, addSchedule)
-    log.info(s"Loaded $scheduledCount pending schedules")
-  }(akkaExecutionContext)
+    /*
+      For pending schedules, we only need to load them once at startup.
+      Actually a few minutes after startup, as we need to wait until this instance
+      is consuming Kafka events. If we load the pending schedules while a previous
+      instance is still processing events, we might miss some.
+     */
 
-  /*
-  For expired schedules, we poll every few minutes.
-  They should be very rare. Expiry only happens when an instance starts orchestrating
-  and then dies half way through.
-   */
-  val pollForExpiredInterval = config.getDuration("scheduling.pollForExpired.interval")
-  log.info(s"Polling for expired schedules with interval: $pollForExpiredInterval")
-  actorSystem.scheduler.schedule(1.second, pollForExpiredInterval.toFiniteDuration) {
-    try {
-      val scheduledCount = Restore.pickUpExpiredSchedules(schedulingPersistence, addSchedule)
-      log.info(s"Recovered $scheduledCount expired schedules")
-    } catch {
-      case e: AmazonDynamoDBException =>
-        log.warn("Failed to poll for expired schedules", e)
+    val loadPendingStream = Stream
+      .eval {
+        IO(Restore.pickUpPendingSchedules(schedulingPersistence, addSchedule)).flatMap { scheduledCount =>
+          IO(log.info(s"Loaded $scheduledCount pending schedules"))
+        }
+      }
+      .delayBy(config.loadPendingDelay)
+
+    /*
+    For expired schedules, we poll every few minutes.
+    They should be very rare. Expiry only happens when an instance starts orchestrating
+    and then dies half way through.
+     */
+    val pollForExpiredStream = Stream
+      .awakeDelay[IO](config.pollForExpiredInterval)
+      .zip(Stream.repeatEval {
+        IO(Restore.pickUpExpiredSchedules(schedulingPersistence, addSchedule)).flatMap { count =>
+          IO(log.info(s"Recovered $count expired schedules"))
+        }
+      })
+      .delayBy(config.pollForExpiredDelay)
+
+    initShutdown.flatMap { _ =>
+      Stream(
+        pollForExpiredStream,
+        loadPendingStream
+      ).parJoinUnbounded
     }
-  }(akkaExecutionContext)
+  }
 
   override def run(args: List[String]): IO[ExitCode] = {
     // TODO: Improve error handling here
@@ -214,16 +212,12 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
       IO(info((record, record.value()))("Consumed Kafka Message")) >> consume(record.value) >> IO.pure(())
     }
 
-    val triggeredV4Stream = KafkaConsumer[IO](topics = NonEmptyList.of(triggeredV4Topic, triggeredV4PriorityTopic),
-                                              kafkaConfig = kafkaConfig)()(f = recordProcessor(triggeredV4Consumer))
-
-    val cancellationRequestV3Stream =
-      KafkaConsumer[IO](topics = NonEmptyList.of(cancellationRequestedV3Topic), kafkaConfig = kafkaConfig)()(
-        f = recordProcessor(cancellationRequestV3Consumer))
+    val triggeredV4Stream =
+      KafkaConsumer[IO](config.kafka, config.triggeredTopics)()(f = recordProcessor(triggeredV4Consumer))
 
     Stream(
       triggeredV4Stream,
-      cancellationRequestV3Stream,
+      schedulingStream,
       Stream.eval(IO(info("Orchestration started")))
     ).parJoinUnbounded.compile.drain
       .as(ExitCode.Success)

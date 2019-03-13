@@ -1,0 +1,121 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Persistence and task role for the ECS service
+
+Resources:
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: read-credstash
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+                - 'kms:Decrypt'
+              Resource:
+                - !Sub "arn:aws:kms:eu-west-1:${AWS::AccountId}:key/*"
+            - Effect: Allow
+              Action:
+                - 'dynamodb:GetItem'
+                - 'dynamodb:Query'
+              Resource:
+                - !Sub "arn:aws:dynamodb:eu-west-1:${AWS::AccountId}:table/credential-store"
+        - PolicyName: read-template-summary-table
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+                - 'dynamodb:Query'
+                - 'dynamodb:Get*'
+              Resource:
+                Fn::ImportValue:
+                  TemplateSummaryTableArn # <- Exported from Template manager cloudformation.yml
+        - PolicyName: read-templates-bucket
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+                - 's3:Get*'
+                - 's3:List*'
+              Resource:
+                - 'arn:aws:s3:::ovo-comms-templates'
+                - 'arn:aws:s3:::ovo-comms-templates/*'
+        - PolicyName: read-write-scheduling-table
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+                - 'dynamodb:Put*'
+                - 'dynamodb:Update*'
+                - 'dynamodb:Query'
+                - 'dynamodb:Scan'
+                - 'dynamodb:Get*'
+                - 'dynamodb:List*'
+                - 'dynamodb:BatchGetItem'
+                - 'dynamodb:DescribeTable'
+              Resource:
+                Fn::ImportValue:
+                  !Sub "${Environment}-Sheduling-TableArn"
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      RetentionInDays: 30
+
+  Task:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "orchestrator-${Environment}"
+      TaskRoleArn: !Ref TaskRole
+      ContainerDefinitions:
+      - MemoryReservation: 712
+        DockerLabels:
+          Service: orchestrator
+          Version: !Ref Version
+        Environment:
+        - Name: ENV
+          Value: !Ref Environment
+        - Name: LOGZIO_TOKEN
+          Value:
+            'Fn::Transform':
+             - Name: 'fetch-secret'
+               Parameters:
+                 ssm_key: logzio_token
+                 env: !Ref Environment
+        - Name: TEMPLATE_SUMMARY_TABLE_NAME
+          Value:
+            Fn::ImportValue:
+              !Sub "${Environment}-TemplateSummary-TableName"
+        Essential: True
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/profiles-ingester:${Version}"
+        Name: orchestrator
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-region: !Sub "${AWS::Region}"
+            awslogs-group: !Ref LogGroup
+            awslogs-stream-prefix: "orchestrator"
+            awslogs-datetime-format: "%Y-%m-%d %H:%M:%S"
+
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster:
+        Fn::ImportValue:
+          !Sub "${Environment}-Cluster-Arn"
+      DesiredCount: 5
+      TaskDefinition: !Ref Task
+      LaunchType: EC2
+      SchedulingStrategy: REPLICA
+      ServiceName: orchestrator

@@ -1,8 +1,10 @@
-package com.ovoenergy.orchestration.kafka.producers
+package com.ovoenergy.orchestration
+package kafka
+package producers
 
 import cats.effect.Async
 import cats.implicits._
-import com.ovoenergy.comms.helpers.Topic
+
 import com.ovoenergy.comms.model.{FailedV3, Feedback}
 import com.ovoenergy.orchestration.domain.{BuildFeedback, FailureDetails}
 import org.apache.kafka.clients.producer.RecordMetadata
@@ -16,10 +18,12 @@ trait IssueFeedback[F[_]] {
 }
 
 object IssueFeedback {
-  def apply[F[_]: Async](feedbackTopic: Topic[Feedback], failedTopic: Topic[FailedV3]) = {
+  def apply[F[_]: Async](config: Config.Kafka,
+                         feedbackTopic: Config.Topic[Feedback],
+                         failedTopic: Config.Topic[FailedV3]) = {
     new IssueFeedback[F] {
-      val produceFeedback = Producer.publisherFor[Feedback, F](feedbackTopic, _.commId)
-      val produceFailed   = Producer.publisherFor[FailedV3, F](failedTopic, _.metadata.commId)
+      val produceFeedback = Producer.publisherFor[Feedback, F](config, feedbackTopic, _.commId)
+      val produceFailed   = Producer.publisherFor[FailedV3, F](config, failedTopic, _.metadata.commId)
 
       override def send[T](t: T)(implicit buildFeedback: BuildFeedback[T]): F[RecordMetadata] = {
         val feedback: Feedback = buildFeedback(t)

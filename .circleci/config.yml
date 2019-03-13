@@ -1,73 +1,382 @@
-version: 2
+version: 2.1
+
+defaults:
+- &save-cache
+  save_cache:
+    key: dependencies-{{ .Branch }}-{{ checksum "build.sbt" }}
+    paths:
+    - /home/circleci/.ivy2
+    - /home/circleci/.sbt
+
+- &restore-cache
+  restore_cache:
+    keys:
+    - dependencies-{{ .Branch }}-{{ checksum "build.sbt" }}
+    - dependencies-{{ .Branch }}
+    - dependencies
+
+- &install-python-pip
+  run:
+    name: Install python-dev, pip
+    command: sudo apt-get update && sudo apt-get install -y libpython2.7-dev python-pip
+
+- &install-awscli
+  run:
+    name: Install awscli
+    command: sudo pip install awscli
+
+- &install-credstash
+  run:
+    name: Install awscli
+    command: sudo pip install credstash==1.14.0
+
+- &add-github-host-ssh-key
+  run:
+    name: Configure git credentials
+    command: |
+      echo 'Adding the github host SSH key...'
+      mkdir -p -m 0700 ~/.ssh/
+      ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+
+- &configure-git-credentials
+  run:
+    name: Configure git credentials
+    command: |
+      git config user.name ovo-comms-circleci
+      git config user.email "hello.comms@ovoenergy.com"
+
+- &create-aws-credentials
+  run:
+    name: Create the AWS credentials file so that it will be available in the profile docker image
+    command: |
+      mkdir ~/.aws
+      echo "[default]" >> ~/.aws/credentials
+      echo "aws_access_key_id = $AWS_ACCESS_KEY_ID" >> ~/.aws/credentials
+      echo "aws_secret_access_key = $AWS_SECRET_ACCESS_KEY" >> ~/.aws/credentials
+
+executors:
+  docker:
+    docker:
+    - image: circleci/openjdk:8-jdk
+    environment:
+      JAVA_OPTS: "-Xmx1g -XX:MaxMetaspaceSize=1g -XX:MetaspaceSize=1g -XX:+CMSClassUnloadingEnabled"
+      AWS_REGION: "eu-west-1"
+      AWS_DEFAULT_REGION: "eu-west-1"
+      TEST_TIME_SCALE_FACTOR: 3
+  machine:
+    machine:
+      enabled: true
+    environment:
+      JAVA_OPTS: "-Xmx1g -XX:MaxMetaspaceSize=1g -XX:MetaspaceSize=1g -XX:+CMSClassUnloadingEnabled"
+      AWS_REGION: "eu-west-1"
+      AWS_DEFAULT_REGION: "eu-west-1"
+      TEST_TIME_SCALE_FACTOR: 3
+
+
+
 jobs:
   build:
-    working_directory: ~/comms-orchestration
-    machine:
-      image: circleci/classic:edge
+    
+    executor: docker
+
     steps:
-      - checkout
 
-      # Install credstash
-      - restore_cache:
-          keys:
-            - "{{ .Environment.CIRCLE_PROJECT_REPONAME }}-credstash"
-      - run:
-          name: Install python-dev, pip
-          command: sudo apt-get update && sudo apt-get install -y libpython2.7-dev python-pip
-      - run: pip install credstash
-      - save_cache:
-          key: "{{ .Environment.CIRCLE_PROJECT_REPONAME }}-credstash"
-          paths:
-            - /home/circleci/.cache/pip
+    - checkout
 
-      - run:
-          name: Logn to AWS as circleci seems to ignore the setting
-          command: |
-            mkdir ~/.aws
-            echo "[default]" >> ~/.aws/credentials
-            echo "aws_access_key_id = $AWS_ACCESS_KEY_ID" >> ~/.aws/credentials
-            echo "aws_secret_access_key = $AWS_SECRET_ACCESS_KEY" >> ~/.aws/credentials
-      - restore_cache:
-          keys:
-            - "{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Branch }}"
-            - "{{ .Environment.CIRCLE_PROJECT_REPONAME }}-master"
-      - run: sbt test:compile
-      - save_cache:
-          key: "{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Branch }}"
-          paths:
-            - /home/circleci/.ivy2
-            - /home/circleci/.sbt
-            - /home/circleci/.coursier
-            - project/target/resolution-cache
-            - target/resolution-cache
-            # TODO docker image cache?
-      - run: sbt testWithDynamo
-      - run: sbt servicetest:test
-      - store_artifacts:
-                path: /home/circleci/comms-orchestration/target/integration-test-logs
-      - deploy:
-          name: Deploy if master branch
-          command: |
-            if [ "${CIRCLE_BRANCH}" == "master" -a "${CIRCLE_PROJECT_USERNAME}" == "ovotech" ]; then
-              git clone git@github.com:ovotech/comms-ci-scripts
-              comms-ci-scripts/publish_docker_image.sh
-              comms-ci-scripts/deploy_to_ecs.sh -s orchestration UAT aws/container-definition.json
-              git clone git@github.com:ovotech/comms-e2e-tests && cd comms-e2e-tests && sbt test && cd ..
-              comms-ci-scripts/deploy_to_ecs.sh -s orchestration PRD aws/container-definition.json
-              comms-ci-scripts/send_librato_deployment_event.sh
-              comms-ci-scripts/comment_on_last_merged_pr.sh
-              comms-ci-scripts/notify_shipit.sh
-            fi
-      - deploy:
-          name: Deploy to UAT only if deploy-to-uat branch
-          command: |
-            if [ "${CIRCLE_BRANCH}" == "deploy-to-uat" -a "${CIRCLE_PROJECT_USERNAME}" == "ovotech" ]; then
-              git clone git@github.com:ovotech/comms-ci-scripts
-              comms-ci-scripts/publish_docker_image.sh
-              comms-ci-scripts/deploy_to_ecs.sh -s orchestration UAT aws/container-definition.json
-            fi
-experimental:
-  notify:
-    branches:
-      only:
-        - master
+    - *restore-cache
+
+    - run:
+        command: sbt update
+        no_output_timeout: 20m
+
+    - *save-cache
+
+    - run: sbt scalafmtCheck
+    - run: sbt test:scalafmtCheck
+    - run: sbt it:scalafmtCheck
+    - run: sbt servicetest:scalafmtCheck
+
+    - run:
+        command: sbt test:compile
+        no_output_timeout: 20m
+
+    - run:
+        command: sbt it:compile
+        no_output_timeout: 20m
+
+    - run:
+        command: sbt servicetest:compile
+        no_output_timeout: 20m
+
+    - persist_to_workspace:
+        root: .
+        paths:
+        - target
+        - project/target
+        - project/project
+
+  unit_test:
+
+    executor: docker
+
+    steps:
+
+    - checkout
+
+    - *restore-cache
+
+    - attach_workspace:
+        at: .
+
+    - run:
+        command: sbt test
+
+    - store_test_results:
+        path: target/test-reports
+
+    - store_artifacts:
+        path: target/unit-test.log
+        destination: logs/unit-test.log
+
+  integration_test:
+    executor: machine
+
+    steps:
+
+    - checkout
+
+    - *restore-cache
+
+    - attach_workspace:
+        at: .
+
+    - run:
+        command: sbt it:test
+
+    - store_test_results:
+        path: target/test-reports
+
+    - store_artifacts:
+        path: target/integration-test.log
+        destination: logs/integration-test.log
+
+    - store_artifacts:
+        path: target/integration-test-docker.log
+        destination: logs/integration-test-docker.log
+
+  service_test:
+    executor: machine
+
+    steps:
+
+    - *install-python-pip
+    - *install-awscli
+    - *install-credstash
+    - *create-aws-credentials
+
+    - checkout
+
+    - *restore-cache
+
+    - attach_workspace:
+        at: .
+
+    - run:
+        command: sbt servicetest:test
+
+    - store_test_results:
+        path: target/test-reports
+
+    - store_artifacts:
+        path: target/service-test.log
+        destination: logs/service-test.log
+
+    - store_artifacts:
+        path: target/service-test-docker.log
+        destination: logs/service-test-docker.log
+
+  tag:
+
+    executor: docker
+
+    steps:
+
+    - checkout
+
+    - attach_workspace:
+        at: .
+
+    - *add-github-host-ssh-key
+
+    - *configure-git-credentials
+
+    - run:
+        command: "build/tag.sh"
+
+    # Update the workspace to make sure the git tags are available to the
+    # downstream jobs
+    - persist_to_workspace:
+        root: .
+        paths:
+        - .git
+
+  publish:
+
+    executor: docker
+
+    steps:
+
+    - setup_remote_docker:
+        docker_layer_caching: true
+
+    - checkout
+
+    - *restore-cache
+
+    - attach_workspace:
+        at: .
+
+    - run:
+        command: "sbt publish"
+        no_output_timeout: 20m
+
+  deploy_uat:
+
+    executor: docker
+
+    steps:
+
+    - setup_remote_docker:
+        docker_layer_caching: true
+
+    - checkout
+
+    - attach_workspace:
+        at: .
+
+    - *restore-cache
+
+    - run:
+        command: sbt staging:deploy
+        no_output_timeout: 20m
+
+  deploy_prd:
+
+    executor: docker
+
+    steps:
+
+    - setup_remote_docker:
+        docker_layer_caching: true
+
+    - checkout
+
+    - attach_workspace:
+        at: .
+
+    - *restore-cache
+
+    - run:
+        command: sbt production:deploy
+        no_output_timeout: 20m
+
+  e2e_test:
+
+    executor: docker
+
+    steps:
+
+    - *add-github-host-ssh-key
+
+    - run:
+        name: Clone the e2e test project
+        command: git clone git@github.com:ovotech/comms-e2e-tests
+
+    - *install-python-pip
+    - *install-awscli
+    - *install-credstash
+    - *create-aws-credentials
+
+    - run:
+        name: Run e2e tests
+        command: cd comms-e2e-tests && sbt test
+
+workflows:
+
+  main:
+    jobs:
+    - build:
+        filters:
+          branches:
+            ignore:
+            - deploy-to-uat
+            - deploy-to-uat-no-tests
+
+    - unit_test:
+        requires:
+        - build
+
+    - integration_test:
+        requires:
+        - build
+
+    - service_test:
+        requires:
+        - build
+
+    - tag:
+        requires:
+        - build
+        - unit_test
+        - integration_test
+        - service_test
+        filters:
+          branches:
+            only: master
+
+    - publish:
+        requires:
+        - tag
+
+    - deploy_uat:
+        requires:
+        - publish
+
+    - e2e_test:
+        requires:
+        - deploy_uat
+
+    - deploy_prd:
+        requires:
+        - e2e_test
+
+  deploy_to_uat:
+    jobs:
+    - build:
+        filters:
+          branches:
+            only:
+            - deploy-to-uat
+
+    - unit_test:
+        requires:
+        - build
+
+    - integration_test:
+        requires:
+        - build
+
+    - service_test:
+        requires:
+        - build
+
+    - publish:
+        requires:
+        - build
+        - unit_test
+        - integration_test
+        - service_test
+
+    - deploy_uat:
+        requires:
+        - publish

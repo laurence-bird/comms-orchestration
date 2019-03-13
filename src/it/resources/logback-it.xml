@@ -1,0 +1,23 @@
+<configuration>
+  <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+    <file>target/integration-test.log</file>
+    <append>false</append>
+    <encoder>
+      <pattern>%date{ISO8601} %-5level[%thread] %logger{0} %X{} - %msg%n</pattern>
+    </encoder>
+  </appender>
+  <appender name="DOCKER" class="ch.qos.logback.core.FileAppender">
+    <file>target/integration-test-docker.log</file>
+    <append>false</append>
+    <encoder>
+      <pattern>%msg</pattern>
+    </encoder>
+  </appender>
+  <logger name="DOCKER" level="DEBUG" additivity="false">
+    <appender-ref ref="DOCKER"/>
+  </logger>
+  <logger name="com.spotify.docker.client.LoggingPullHandler" level="OFF"/>
+  <root level="INFO">
+    <appender-ref ref="FILE"/>
+  </root>
+</configuration>  

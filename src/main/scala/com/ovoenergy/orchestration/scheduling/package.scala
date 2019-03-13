@@ -47,16 +47,17 @@ package object scheduling extends LoggingWithMDC {
                       history: Seq[Change],
                       orchestrationExpiry: Instant,
                       customerId: Option[String],
-                      templateId: String
-  ) extends LoggableEvent{
+                      templateId: String)
+      extends LoggableEvent {
     override def loggableString: Option[String] = None
-    override def mdcMap: Map[String, String] = Map(
-      "scheduleId" -> scheduleId,
-      "deliverAt" -> deliverAt.toString,
-      "status" -> status.toString,
-      "templateId" -> templateId,
-    ) ++
-      customerId.map(cId => Map("customerId" -> cId)).getOrElse(Map.empty) ++
-      triggeredV4.map(_.mdcMap).getOrElse(Map.empty)
+    override def mdcMap: Map[String, String] =
+      Map(
+        "scheduleId" -> scheduleId,
+        "deliverAt"  -> deliverAt.toString,
+        "status"     -> status.toString,
+        "templateId" -> templateId,
+      ) ++
+        customerId.map(cId => Map("customerId" -> cId)).getOrElse(Map.empty) ++
+        triggeredV4.map(_.mdcMap).getOrElse(Map.empty)
   }
 }

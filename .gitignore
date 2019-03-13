@@ -17,7 +17,14 @@ project/plugins/project/
 .scala_dependencies
 .worksheet
 .idea/
+
+# Metals
+.bloop/
+.metals/
+
 # Created by .ignore support plugin (hsz.mobi)
 
 dynamodb-local/
 .init-env.sh
+
+

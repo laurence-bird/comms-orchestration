@@ -1,20 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
+    <appender name="Logzio" class="io.logz.logback.LogzioLogbackAppender">
+        <token>${LOGZIO_TOKEN}</token>
+        <logzioType>java</logzioType>
+        <addHostname>true</addHostname>
+        <additionalFields>service=orchestrator;environment=${ENV}</additionalFields>
+    </appender>
+    <appender name="Console" class="ch.qos.logback.core.ConsoleAppender">
         <target>System.out</target>
         <encoder>
-            <pattern>%date{ISO8601} %-5level[%thread] %logger{5} %X{} - %msg%n</pattern>
+            <pattern>%date{ISO8601} %-5level[%thread] %logger{0} %X{} - %msg%n</pattern>
         </encoder>
     </appender>
 
     <logger name="akka" level="INFO" />
-    <logger name="org.apache" level="ERROR" />
-    <logger name="com.amazonaws" level="INFO" />
-    <logger name="com.amazonaws.request" level="INFO" />
+    <logger name="org.apache" level="WARN" />
     <logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="INFO" />
+    
     <root level="INFO">
-        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="LogzioLogbackAppender"/>
+        <appender-ref ref="GELF UDP APPENDER"/>
     </root>
 
 </configuration>

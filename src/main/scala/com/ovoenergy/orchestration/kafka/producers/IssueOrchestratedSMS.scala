@@ -1,9 +1,11 @@
-package com.ovoenergy.orchestration.kafka.producers
+package com.ovoenergy.orchestration
+package kafka
+package producers
 
 import java.util.UUID
 
 import cats.effect.{Async, IO}
-import com.ovoenergy.comms.helpers.{Kafka, Topic}
+
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.model.sms.OrchestratedSMSV3
 import com.ovoenergy.orchestration.domain.MobilePhoneNumber
@@ -11,10 +13,11 @@ import org.apache.kafka.clients.producer.RecordMetadata
 
 object IssueOrchestratedSMS {
 
-  def apply[F[_]: Async](topic: Topic[OrchestratedSMSV3]): IssueOrchestratedComm[F, MobilePhoneNumber] =
+  def apply[F[_]: Async](config: Config.Kafka,
+                         topic: Config.Topic[OrchestratedSMSV3]): IssueOrchestratedComm[F, MobilePhoneNumber] =
     new IssueOrchestratedComm[F, MobilePhoneNumber] {
       val produceOrchestratedSMSEvent =
-        Producer.publisherFor[OrchestratedSMSV3, F](topic, _.metadata.commId)
+        Producer.publisherFor[OrchestratedSMSV3, F](config, topic, _.metadata.commId)
 
       override def send(customerProfile: Option[CustomerProfile],
                         mobileNumber: MobilePhoneNumber,

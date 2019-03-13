@@ -130,9 +130,6 @@ trait DockerIntegrationTest
     "comms.feedback",
     "comms.failed.v3",
     "comms.triggered.v4",
-    "comms.cancellation.requested.v3",
-    "comms.cancelled.v3",
-    "comms.failed.cancellation.v3",
     "comms.orchestrated.email.v4",
     "comms.orchestrated.sms.v3",
     "comms.orchestration.started.v3"
@@ -213,9 +210,8 @@ trait DockerIntegrationTest
     })
 
   lazy val orchestration = {
-    val awsAccountId = sys.env.getOrElse(
-      "AWS_ACCOUNT_ID",
-      sys.error("Environment variable AWS_ACCOUNT_ID must be set in order to run the integration tests"))
+    
+    val awsAccountId = "852955754882"
 
     val envVars = List(
       sys.env.get("AWS_ACCESS_KEY_ID").map(envVar => s"AWS_ACCESS_KEY_ID=$envVar"),

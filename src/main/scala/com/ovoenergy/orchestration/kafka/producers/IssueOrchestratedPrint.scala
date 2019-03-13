@@ -1,9 +1,10 @@
-package com.ovoenergy.orchestration.kafka.producers
+package com.ovoenergy.orchestration
+package kafka
+package producers
 
 import java.util.UUID
 
 import cats.effect.Async
-import com.ovoenergy.comms.helpers.Topic
 import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.model.print.OrchestratedPrintV2
 import com.ovoenergy.orchestration.domain.ContactAddress
@@ -11,10 +12,11 @@ import org.apache.kafka.clients.producer.RecordMetadata
 
 object IssueOrchestratedPrint {
 
-  def apply[F[_]: Async](topic: Topic[OrchestratedPrintV2]): IssueOrchestratedComm[F, ContactAddress] =
+  def apply[F[_]: Async](config: Config.Kafka,
+                         topic: Config.Topic[OrchestratedPrintV2]): IssueOrchestratedComm[F, ContactAddress] =
     new IssueOrchestratedComm[F, ContactAddress] {
       val produceOrchestratedPrint =
-        Producer.publisherFor[OrchestratedPrintV2, F](topic, _.metadata.commId)
+        Producer.publisherFor[OrchestratedPrintV2, F](config, topic, _.metadata.commId)
 
       override def send(customerProfile: Option[CustomerProfile],
                         contactInfo: ContactAddress,

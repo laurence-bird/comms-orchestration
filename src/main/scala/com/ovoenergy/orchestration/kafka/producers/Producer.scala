@@ -1,11 +1,13 @@
-package com.ovoenergy.orchestration.kafka.producers
+package com.ovoenergy.orchestration
+package kafka
+package producers
 
 import java.nio.file.Paths
 import java.util.UUID
 
 import cats.effect.{Async, IO, Timer}
 import cats.syntax.flatMap._
-import com.ovoenergy.comms.helpers.Topic
+
 import com.ovoenergy.orchestration.logging.{Loggable, LoggingWithMDC}
 import com.sksamuel.avro4s.{SchemaFor, ToRecord}
 import org.apache.kafka.clients.CommonClientConfigs
@@ -13,40 +15,20 @@ import org.apache.kafka.clients.producer._
 import org.apache.kafka.common.config.SslConfigs
 import org.apache.kafka.common.serialization.StringSerializer
 
+import com.ovoenergy.kafka.serialization.avro4s._
+
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import scala.reflect.ClassTag
 
 object Producer extends LoggingWithMDC {
 
-  def apply[E: SchemaFor: ToRecord](topic: Topic[E]): KafkaProducer[String, E] = {
+  def apply[E: SchemaFor: ToRecord](config: Config.Kafka): KafkaProducer[String, E] = {
 
-    val initialSettings = Map(
-      ProducerConfig.BOOTSTRAP_SERVERS_CONFIG -> topic.kafkaConfig.hosts,
-      ProducerConfig.CLIENT_ID_CONFIG         -> s"comms-orchestrator-${topic.name}-${UUID.randomUUID()}",
-      // TODO Enable idempotency back when https://issues.apache.org/jira/browse/KAFKA-6817 is solved
-      ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG             -> "false",
-      ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION -> "1",
-      ProducerConfig.RETRIES_CONFIG                        -> "5",
-      ProducerConfig.ACKS_CONFIG                           -> "all"
-    )
+    val producerSettings: Map[String, AnyRef] = config.producer.mapValues(x => x: AnyRef)
 
-    val sslSettings = topic.kafkaConfig.ssl.map { ssl =>
-      Map(
-        CommonClientConfigs.SECURITY_PROTOCOL_CONFIG -> "SSL",
-        SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG      -> Paths.get(ssl.keystore.location).toAbsolutePath.toString,
-        SslConfigs.SSL_KEYSTORE_TYPE_CONFIG          -> "PKCS12",
-        SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG      -> ssl.keystore.password,
-        SslConfigs.SSL_KEY_PASSWORD_CONFIG           -> ssl.keyPassword,
-        SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG    -> Paths.get(ssl.truststore.location).toString,
-        SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG        -> "JKS",
-        SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG    -> ssl.truststore.password
-      ) ++ initialSettings
-    }
-
-    val producerSettings: Map[String, AnyRef] = sslSettings.getOrElse(initialSettings)
-
-    new KafkaProducer[String, E](producerSettings.asJava, new StringSerializer(), topic.serializer)
+    val serializer = avroBinarySchemaIdSerializer[E](config.schemaRegistry, isKey = false, includesFormatByte = true)
+    new KafkaProducer[String, E](producerSettings.asJava, new StringSerializer(), serializer)
   }
 
   def publisher[E, F[_]](getKey: E => String, producer: KafkaProducer[String, E], topicName: String)(
@@ -70,14 +52,15 @@ object Producer extends LoggingWithMDC {
     } // TODO: Confirm if shift was working previously, pass in blocking ec potentially (though everything is blocking anyway)
   }
 
-  def publisherFor[E: Loggable, F[_]](topic: Topic[E], key: E => String)(implicit schemaFor: SchemaFor[E],
-                                                                         toRecord: ToRecord[E],
-                                                                         classTag: ClassTag[E],
-                                                                         F: Async[F]): E => F[RecordMetadata] = {
-    val producer: KafkaProducer[String, E] = Producer[E](topic)
+  def publisherFor[E: Loggable, F[_]](config: Config.Kafka, topic: Config.Topic[E], key: E => String)(
+      implicit schemaFor: SchemaFor[E],
+      toRecord: ToRecord[E],
+      classTag: ClassTag[E],
+      F: Async[F]): E => F[RecordMetadata] = {
+    val producer: KafkaProducer[String, E] = Producer[E](config)
     val pub: E => F[RecordMetadata] = { e: E =>
-      publisher[E, F](key, producer, topic.name)(e)
-        .flatTap((rm: RecordMetadata) => F.delay(info((rm, e))(s"Sent event to ${topic.name}")))
+      publisher[E, F](key, producer, topic.value)(e)
+        .flatTap((rm: RecordMetadata) => F.delay(info((rm, e))(s"Sent event to ${topic.value}")))
     }
     pub
   }
