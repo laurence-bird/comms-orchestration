@@ -152,9 +152,6 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
     }
   }
 
-  val removeSchedule = QuartzScheduling.removeSchedule _
-  val descheduleComm = Scheduler.descheduleComm(schedulingPersistence.cancelSchedules, removeSchedule) _
-
   val triggeredV4Consumer: TriggeredV4 => IO[Unit] = {
     TriggeredConsumer[IO](
       orchestrator = orchestrateComm,

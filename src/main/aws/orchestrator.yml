@@ -1,6 +1,19 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
-Description: Persistence and task role for the ECS service
+Description: AWS resources for Orchestrator
+
+Parameters:
+  Version:
+    Type: String
+  Environment:
+    Type: String
+    AllowedValues: [ uat, prd ]
+
+Conditions:
+
+  IsPrd: !Equals [ !Ref Environment, prd ]
+
+  IsUat: !Equals [ !Ref Environment, uat ]
 
 Resources:
 
@@ -97,6 +110,17 @@ Resources:
           Value:
             Fn::ImportValue:
               !Sub "${Environment}-TemplateSummary-TableName"
+        - Name: SCHEDULER_TABLE
+          Value:
+            Fn::ImportValue:
+              !Sub "${Environment}-SchedulingTable-TableName"
+        - Name: PROFILES_ENDPOINT
+          Value:
+            Fn::If:
+              - IsPrd
+              - "https://profiles.ovo-comms.co.uk"
+              - "https://profiles.ovo-comms-uat.co.uk"
+
         Essential: True
         Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/profiles-ingester:${Version}"
         Name: orchestrator

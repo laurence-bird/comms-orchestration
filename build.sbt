@@ -129,6 +129,7 @@ lazy val orchestration = (project in file("."))
     testOptions += Tests.Argument("-oF"),
     inConfig(ServiceTest)(
       Defaults.testSettings ++ Seq(
+        parallelExecution := false,
         test := test.dependsOn(publishLocal in Docker).value,
         testOnly := testOnly.dependsOn(publishLocal in Docker).inputTaskValue
       )

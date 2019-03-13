@@ -1,0 +1,17 @@
+<configuration>
+    <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
+
+    <appender name="Console" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.out</target>
+        <encoder>
+            <pattern>%date{ISO8601} %-5level[%thread] %logger{0} %X{} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="org.http4s.blaze.channel.ServerChannelGroup" level="WARN" />
+    <logger name="com.ovoenergy.comms.profiles" level="DEBUG" />
+
+    <root level="INFO">
+        <appender-ref ref="Console"/>
+    </root>
+</configuration>

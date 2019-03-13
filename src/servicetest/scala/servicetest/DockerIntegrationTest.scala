@@ -26,6 +26,8 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
 import scala.util.Try
 
+import com.ovoenergy.comms.orchestrator.BuildInfo
+
 trait DockerIntegrationTest
     extends DockerKit
     with ScalaFutures
@@ -214,20 +216,18 @@ trait DockerIntegrationTest
     val awsAccountId = "852955754882"
 
     val envVars = List(
-      sys.env.get("AWS_ACCESS_KEY_ID").map(envVar => s"AWS_ACCESS_KEY_ID=$envVar"),
-      sys.env.get("AWS_ACCOUNT_ID").map(envVar => s"AWS_ACCOUNT_ID=$envVar"),
-      sys.env.get("AWS_SECRET_ACCESS_KEY").map(envVar => s"AWS_SECRET_ACCESS_KEY=$envVar"),
-      Some("ENV=LOCAL"),
-      Some("RUNNING_IN_DOCKER=true"),
-      Some("PROFILE_SERVICE_API_KEY=someApiKey"),
-      Some("PROFILE_SERVICE_HOST=http://profiles:1080"),
-      Some("POLL_FOR_EXPIRED_INTERVAL=5 seconds"),
-      Some("KAFKA_HOSTS_AIVEN=aivenKafka:29093"),
-      Some("LOCAL_DYNAMO=http://dynamodb:8000"),
-      Some("SCHEMA_REGISTRY_URL=http://schema-registry:8081")
+      Some("JAVA_OPTS=-Dlogback.configurationFile=logback-local.xml -Dcom.amazonaws.sdk.disableCertChecking=true"),
+      Some(s"TEMPLATE_SUMMARY_TABLE=$templateSummaryTableName"),
+      Some(s"SCHEDULER_TABLE=$tableName"),
+      Some("PROFILES_ENDPOINT=http://profiles:1080"),
+      Some("PROFILES_API_KEY=someApiKey"),
+      Some("DYNAMO_DB_ENDPOINT=http://dynamodb:8000"),
+      Some("KAFKA_BOOTSTRAP_SERVERS=aivenKafka:29093"),
+      Some("KAFKA_CONSUMER_GROUP_ID=orchestrator-test"),
+      Some("SCHEMA_REGISTRY_ENDPOINT=http://schema-registry:8081")
     ).flatten
 
-    DockerContainer(s"$awsAccountId.dkr.ecr.eu-west-1.amazonaws.com/orchestration:0.1-SNAPSHOT",
+    DockerContainer(s"$awsAccountId.dkr.ecr.eu-west-1.amazonaws.com/orchestrator:${BuildInfo.version}",
                     name = Some("orchestration"))
       .withLinks(
         ContainerLink(profiles, "profiles"),
@@ -235,7 +235,7 @@ trait DockerIntegrationTest
         ContainerLink(aivenKafka, "aivenKafka"),
         ContainerLink(schemaRegistry, "schema-registry"),
         ContainerLink(dynamodb, "dynamodb"),
-        ContainerLink(fakes3ssl, "ovo-comms-templates.s3.eu-west-1.amazonaws.com") // NB: This used to be ovo-comms-templates.s3-eu-west-1.amazonaws.com :rage:
+        ContainerLink(fakes3ssl, "ovo-comms-templates.s3.eu-west-1.amazonaws.com") 
       )
       .withEnv(envVars: _*)
       .withVolumes(List(VolumeMapping(host = s"${sys.env("HOME")}/.aws", container = "/sbin/.aws"))) // share AWS creds so that credstash works

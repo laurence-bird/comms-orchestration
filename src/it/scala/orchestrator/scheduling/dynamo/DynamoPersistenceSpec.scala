@@ -132,52 +132,6 @@ class DynamoPersistenceSpec
     }.unsafeRunSync()
   }
 
-  it should "cancel pending and expired orchestrating schedules" in {
-
-    testResources.use { case (async, sync, now) =>
-
-      val templateId = Hash("some-comm")
-      val customerId = "23141141241"
-      val completedSchedule =
-        generate[Schedule].copy(customerId = Some(customerId),
-                                templateId = templateId,
-                                status = ScheduleStatus.Complete)
-      val pendingSchedule = generate[Schedule].copy(history = List(),
-                                                    customerId = Some(customerId),
-                                                    templateId = templateId,
-                                                    status = ScheduleStatus.Pending)
-      val expiredOrchestratingSchedule = generate[Schedule].copy(history = List(),
-                                                                 customerId = Some(customerId),
-                                                                 templateId = templateId,
-                                                                 status = ScheduleStatus.Orchestrating,
-                                                                 orchestrationExpiry = now.minusSeconds(60 * 30))
-      val inProgressOrchestratingSchedule = generate[Schedule].copy(customerId = Some(customerId),
-                                                                    templateId = templateId,
-                                                                    status = ScheduleStatus.Orchestrating,
-                                                                    orchestrationExpiry = now.plusSeconds(60 * 10))
-
-
-      for {
-      _ <- async.storeSchedule[IO](completedSchedule)
-      _ <- async.storeSchedule[IO](pendingSchedule)
-      _ <- async.storeSchedule[IO](expiredOrchestratingSchedule)
-      _ <- async.storeSchedule[IO](inProgressOrchestratingSchedule)
-      cancelled <- IO(sync.cancelSchedules(customerId, templateId))
-      retrievedCompletedSchedule <- async.retrieveSchedule[IO](completedSchedule.scheduleId).map(_.toRight(new RuntimeException("It is not defined"))).flatMap(IO.fromEither _)
-      retrievedInProgressOrchestratingSchedule <- async.retrieveSchedule[IO](inProgressOrchestratingSchedule.scheduleId).map(_.toRight(new RuntimeException("It is not defined"))).flatMap(IO.fromEither _)
-      cancelledPendingSchedule = pendingSchedule.copy(status = ScheduleStatus.Cancelled, history = List(Change(now, "Cancelled")))
-      retrievedCancelledPendingSchedule <- async.retrieveSchedule[IO](pendingSchedule.scheduleId).map(_.toRight(new RuntimeException("It is not defined"))).flatMap(IO.fromEither _)
-      cancelledExpiredOrchestratingSchedule = expiredOrchestratingSchedule.copy(status = ScheduleStatus.Cancelled, history = List(Change(now, "Cancelled")))
-      retrievedCancelledExpiredOrchestratingSchedule <- async.retrieveSchedule[IO](expiredOrchestratingSchedule.scheduleId).map(_.toRight(new RuntimeException("It is not defined"))).flatMap(IO.fromEither _)
-    } yield {
-      retrievedCompletedSchedule shouldBe completedSchedule
-      retrievedInProgressOrchestratingSchedule shouldBe inProgressOrchestratingSchedule
-      retrievedCancelledPendingSchedule shouldBe cancelledPendingSchedule
-      retrievedCancelledExpiredOrchestratingSchedule shouldBe cancelledExpiredOrchestratingSchedule
-    }
-  }.unsafeRunSync()
-}
-
   it should "mark schedules as failed" in {
 
     testResources.use { case (async, sync, now) =>
@@ -226,14 +180,6 @@ class DynamoPersistenceSpec
 
     val globalSecondaryIndices = Seq(
       new GlobalSecondaryIndex()
-            .withIndexName("customerId-templateId-index")
-            .withKeySchema(
-              new KeySchemaElement("customerId", KeyType.HASH),
-              new KeySchemaElement("templateId", KeyType.RANGE)
-            )
-            .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
-            .withProvisionedThroughput(new ProvisionedThroughput(1L, 1L)),
-      new GlobalSecondaryIndex()
             .withIndexName("status-orchestrationExpiry-index")
             .withKeySchema(
               new KeySchemaElement("status", KeyType.HASH),
@@ -250,8 +196,6 @@ class DynamoPersistenceSpec
           List(
             new AttributeDefinition("scheduleId", ScalarAttributeType.S),
             new AttributeDefinition("status", ScalarAttributeType.S),
-            new AttributeDefinition("customerId", ScalarAttributeType.S),
-            new AttributeDefinition("templateId", ScalarAttributeType.S),
             new AttributeDefinition("orchestrationExpiry", ScalarAttributeType.N),
           ).asJava,
           tableName, 
