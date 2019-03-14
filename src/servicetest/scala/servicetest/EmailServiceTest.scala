@@ -59,8 +59,8 @@ class EmailServiceTest
 
     expectOrchestrationStartedEvents(noOfEventsExpected = 1,
                                      consumer = orchestrationStartedConsumer,
-                                     pollTime = 40.seconds)
-    expectOrchestratedEmailEvents(noOfEventsExpected = 1, consumer = orchestratedEmailConsumer, pollTime = 40.seconds)
+                                     pollTime = 60.seconds)
+    expectOrchestratedEmailEvents(noOfEventsExpected = 1, consumer = orchestratedEmailConsumer, pollTime = 60.seconds)
     expectFeedbackEvents(noOfEventsExpected = 1,
       consumer = feedbackConsumer,
       expectedStatuses = Set(FeedbackOptions.Pending))
@@ -234,8 +234,12 @@ class EmailServiceTest
                                        shouldCheckTraceToken: Boolean = true,
                                        consumer: KafkaConsumer[String, OrchestrationStartedV3]) = {
 
-    val orchestrationStartedEvents =
-      consumer.pollFor(noOfEventsExpected = noOfEventsExpected, pollTime = pollTime)
+
+    note("Waiting for OrchestratedStarted event")
+    val orchestrationStartedEvents = consumer.pollFor(
+      noOfEventsExpected = noOfEventsExpected, 
+      pollTime = pollTime
+    )
 
     orchestrationStartedEvents.foreach { o =>
       if (shouldCheckTraceToken) o.metadata.traceToken shouldBe traceToken
@@ -249,9 +253,13 @@ class EmailServiceTest
                                     useMagicByte: Boolean = true,
                                     shouldHaveCustomerProfile: Boolean = true,
                                     consumer: KafkaConsumer[String, OrchestratedEmailV4]) = {
-    val orchestratedEmails =
-      consumer.pollFor(noOfEventsExpected = noOfEventsExpected, pollTime = pollTime)
 
+    note("Waiting for OrchestratedEmail event")
+    val orchestratedEmails = consumer.pollFor(
+      noOfEventsExpected = noOfEventsExpected,
+      pollTime = pollTime
+    )
+                          
     orchestratedEmails.map { orchestratedEmail =>
       orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
 

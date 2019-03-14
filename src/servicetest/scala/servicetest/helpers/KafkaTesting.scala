@@ -61,6 +61,7 @@ trait KafkaTesting { _: BaseSpec =>
       fail(
         s"List of expected status: ${expectedStatuses.size} needs to be less than the total number of events expected ${noOfEventsExpected}")
 
+    note("Waiting for Feedback events")
     val feedbackEvents = consumer.pollFor(pollTime, noOfEventsExpected)
     feedbackEvents.map(_.status) should contain theSameElementsAs expectedStatuses
   }
