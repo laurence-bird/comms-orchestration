@@ -109,7 +109,7 @@ object Config {
       ) { (kafkaBootstrapServers, kafkaConsumerGroupIdOpt, schemaRegistrySettings) =>
         val consumerNativeSettings = Map(
           ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG -> kafkaBootstrapServers,
-          ConsumerConfig.GROUP_ID_CONFIG          -> kafkaConsumerGroupIdOpt.getOrElse("comms-profiles"),
+          ConsumerConfig.GROUP_ID_CONFIG          -> kafkaConsumerGroupIdOpt.getOrElse("comms-orchestrator"),
           ConsumerConfig.AUTO_OFFSET_RESET_CONFIG -> "earliest"
         )
 
@@ -162,7 +162,7 @@ object Config {
           val consumerNativeSettings = aivenKafkaSetup.setProperties(
             Map(
               ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG -> bootstrapServers,
-              ConsumerConfig.GROUP_ID_CONFIG          -> kafkaConsumerGroupId.getOrElse("comms-profiles"),
+              ConsumerConfig.GROUP_ID_CONFIG          -> kafkaConsumerGroupId.getOrElse("comms-orchestrator"),
               ConsumerConfig.AUTO_OFFSET_RESET_CONFIG -> "earliest"
             )) { (acc, k, v) =>
             acc + (k -> v)
