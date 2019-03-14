@@ -1,9 +1,12 @@
 package com.ovoenergy.orchestration.templates
 
+import scala.concurrent.ExecutionContext
+
 import cats.Id
 import cats.data.{NonEmptyList, Validated}
 import cats.data.Validated.{Invalid, Valid}
-import cats.effect.Async
+import cats.effect._
+
 import com.ovoenergy.comms.model.{CommType, TemplateManifest}
 import com.ovoenergy.comms.templates.model.template.metadata.TemplateId
 import com.ovoenergy.comms.templates._
@@ -19,15 +22,15 @@ object RetrieveTemplateDetails extends LoggingWithMDC {
 
   case class TemplateDetails(template: CommTemplate[Id], commType: CommType)
 
-  implicit val ec = scala.concurrent.ExecutionContext.global
-
-  def apply[F[_]: Async](templatesContext: TemplatesContext,
-                         templateMetadataContext: TemplateMetadataContext,
-                         cachingStrategy: CachingStrategy[TemplateId, ErrorsOr[CommType]],
-                         retry: Retry[F]): TemplateManifest => F[ErrorsOr[TemplateDetails]] = {
+  def apply[F[_]: Sync](
+      templatesContext: TemplatesContext,
+      templateMetadataContext: TemplateMetadataContext,
+      cachingStrategy: CachingStrategy[TemplateId, ErrorsOr[CommType]],
+      blockingEc: ExecutionContext,
+      retry: Retry[F])(implicit cs: ContextShift[F]): TemplateManifest => F[ErrorsOr[TemplateDetails]] = {
     (templateManifest: TemplateManifest) =>
-      info(s"Fetching template details for: $templateManifest")
       val templateId = TemplateId(templateManifest.id)
+
       def template(): ErrorsOr[CommTemplate[Id]] = {
         TemplatesRepo
           .getTemplate(templatesContext, templateManifest)
@@ -36,6 +39,7 @@ object RetrieveTemplateDetails extends LoggingWithMDC {
             error
           }
       }
+
       def templateSummary(): ErrorsOr[CommType] = {
         cachingStrategy
           .get(templateId) {
@@ -52,10 +56,9 @@ object RetrieveTemplateDetails extends LoggingWithMDC {
       }
 
       val templateDetails: F[ErrorsOr[TemplateDetails]] = for {
-        _        <- Async.shift[F](ec)
-        commType <- Async[F].delay(templateSummary())
-        templ    <- Async[F].delay(template())
-        _        <- Async.shift[F](ec)
+        _        <- Sync[F].delay(info(s"Fetching template details for: $templateManifest"))
+        commType <- Sync[F].delay(templateSummary())
+        templ    <- Sync[F].delay(template())
       } yield {
         (commType, templ)
           .mapN { (commType, template) =>
@@ -67,6 +70,6 @@ object RetrieveTemplateDetails extends LoggingWithMDC {
           }
       }
 
-      retry(templateDetails, _.isInstanceOf[ProvisionedThroughputExceededException])
+      retry(cs.evalOn(blockingEc)(templateDetails), _.isInstanceOf[ProvisionedThroughputExceededException])
   }
 }

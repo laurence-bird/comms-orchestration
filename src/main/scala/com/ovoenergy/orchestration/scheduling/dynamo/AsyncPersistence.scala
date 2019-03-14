@@ -2,7 +2,8 @@ package com.ovoenergy.orchestration.scheduling.dynamo
 
 import java.time.Clock
 
-import cats.effect.Async
+import cats.effect._
+import cats.effect.implicits._
 import com.gu.scanamo.ScanamoAsync
 import com.gu.scanamo.error.{DynamoReadError, ScanamoError}
 import com.ovoenergy.orchestration.logging.LoggingWithMDC
@@ -17,16 +18,17 @@ import com.gu.scanamo.syntax._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-class AsyncPersistence(context: Context, clock: Clock = Clock.systemUTC())(implicit ec: ExecutionContext)
+class AsyncPersistence(context: Context, blockingEc: ExecutionContext, clock: Clock = Clock.systemUTC())
     extends LoggingWithMDC
     with DynamoFormats {
 
-  def storeSchedule[F[_]: Async](commSchedule: Schedule): F[Option[Schedule]] = {
+  def storeSchedule[F[_]: Async](commSchedule: Schedule)(implicit ec: ExecutionContext,
+                                                         cs: ContextShift[F]): F[Option[Schedule]] = {
 
     val ops    = context.table.put(commSchedule)
     def future = ScanamoAsync.exec(context.db)(ops)
 
-    Async[F].delay(debug(commSchedule)(s"persisting schedule")) >> liftAsync(future).flatMap {
+    Async[F].delay(debug(commSchedule)(s"persisting schedule")) >> cs.evalOn(blockingEc)(liftAsync(future)).flatMap {
       case Some(Right(x)) =>
         Async[F].delay(debug(commSchedule)(s"Persisted comm schedule")).as(Some(x))
       case Some(Left(e)) =>
@@ -36,20 +38,22 @@ class AsyncPersistence(context: Context, clock: Clock = Clock.systemUTC())(impli
     }
   }
 
-  def retrieveSchedule[F[_]: Async](scheduleId: ScheduleId): F[Option[Schedule]] = {
+  def retrieveSchedule[F[_]: Async](scheduleId: ScheduleId)(implicit ec: ExecutionContext,
+                                                            cs: ContextShift[F]): F[Option[Schedule]] = {
     def future: Future[Option[Either[DynamoReadError, Schedule]]] =
       ScanamoAsync.get[Schedule](context.db)(context.table.name)('scheduleId -> scheduleId)
 
-    liftAsync(future).flatMap {
+    cs.evalOn(blockingEc)(liftAsync(future)).flatMap {
       case Some(Left(error: DynamoReadError)) =>
-        Async[F].delay(warn(s"Problem retrieving schedule: $scheduleId, ${DynamoReadError.describe(error)}")) >> Async[
-          F].raiseError(new RuntimeException(s"Problem retrieving schedule: $scheduleId"))
+        Async[F]
+          .delay(warn(s"Problem retrieving schedule: $scheduleId, ${DynamoReadError.describe(error)}")) >> Async[F]
+          .raiseError(new RuntimeException(s"Problem retrieving schedule: $scheduleId"))
       case Some(Right(schedule: Schedule)) => Async[F].pure(Some(schedule))
       case None                            => Async[F].pure(None)
     }
   }
 
-  def liftAsync[Result, F[_]: Async](in: => Future[Result]): F[Result] = {
+  def liftAsync[Result, F[_]: Async](in: => Future[Result])(implicit ec: ExecutionContext): F[Result] = {
     Async[F].async { cb =>
       in.onComplete {
         case Success(res) => cb(Right(res))

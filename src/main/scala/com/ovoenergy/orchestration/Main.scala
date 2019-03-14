@@ -80,19 +80,24 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
   )
 
   val consumerSchedulingPersistence = new AsyncPersistence(
-    context = dynamoContext
+    context = dynamoContext,
+    blockingExecutionContext
   )
 
   def retry: Retry[IO] = Retry.instance[IO](5.seconds, 5)
 
-  val templatesContext        = TemplatesContext.cachingContext(new DefaultAWSCredentialsProviderChain)
-  val templateMetadataContext = TemplateMetadataContext(dynamoContext.db, config.templateSummaryTable)
-  val retrieveTemplateDetails = RetrieveTemplateDetails[IO](
-    templatesContext,
-    templateMetadataContext,
-    CachingStrategy.caffeine[TemplateId, ErrorsOr[CommType]](250),
-    Retry.backOff())
-  val determineChannel = new ChannelSelectorWithTemplate(retrieveTemplateDetails)
+  val determineChannel = {
+    val templatesContext        = TemplatesContext.cachingContext(new DefaultAWSCredentialsProviderChain)
+    val templateMetadataContext = TemplateMetadataContext(dynamoContext.db, config.templateSummaryTable)
+    val retrieveTemplateDetails = RetrieveTemplateDetails[IO](
+      templatesContext,
+      templateMetadataContext,
+      CachingStrategy.caffeine[TemplateId, ErrorsOr[CommType]](250),
+      blockingExecutionContext,
+      Retry.backOff())
+
+    new ChannelSelectorWithTemplate(retrieveTemplateDetails)
+  }
 
   val produceOrchestrationStartedEvent: OrchestrationStartedV3 => IO[RecordMetadata] =
     Producer.publisherFor[OrchestrationStartedV3, IO](config.kafka, config.orchestrationStartedTopic, _.metadata.commId)
@@ -204,6 +209,7 @@ object Main extends IOApp with LoggingWithMDC with ExecutionContexts {
   }
 
   override def run(args: List[String]): IO[ExitCode] = {
+
     // TODO: Improve error handling here
     def recordProcessor[T: Loggable, Result](consume: T => IO[Result]): Record[T] => IO[Unit] = { record: Record[T] =>
       IO(info((record, record.value()))("Consumed Kafka Message")) >> consume(record.value) >> IO.pure(())

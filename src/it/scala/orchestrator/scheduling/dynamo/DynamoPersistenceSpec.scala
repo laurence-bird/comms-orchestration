@@ -3,9 +3,10 @@ package scheduling
 package dynamo
 
 import java.time.{Clock, Instant, ZoneId}
-import scala.concurrent.duration._
+import java.util.concurrent.Executors
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
 import scala.util.control.NonFatal
 import scala.collection.JavaConverters._
 
@@ -36,6 +37,9 @@ class DynamoPersistenceSpec
   with ArbInstances 
   with DynamoDbClient
   with DynamoDbKit {
+
+  implicit val ec = ExecutionContext.global
+  implicit val cs = IO.contextShift(ec)
 
   override def managedContainers = ManagedContainers(dynamoDbContainer)
 
@@ -165,13 +169,18 @@ class DynamoPersistenceSpec
   }
 
   val testResources = for {
+    blockingEc <- blockingExecutionContextResource
     client <- dynamoDbClientResource[IO]()
     tableName <- scheduledTableResource(client)
     now <- Resource.liftF(IO(Instant.now()))
   } yield {
     val ctx = Context(client, tableName)
     val clock = Clock.fixed(now, ZoneId.of("UTC"))
-    (new AsyncPersistence(ctx, clock), new DynamoPersistence(5.minutes, ctx, clock), now)
+    (new AsyncPersistence(ctx, blockingEc, clock), new DynamoPersistence(5.minutes, ctx, clock), now)
+  }
+
+  def blockingExecutionContextResource: Resource[IO, ExecutionContext] = {
+    Resource.make(IO(Executors.newCachedThreadPool()))(threads => IO(threads.shutdown())).map(ExecutionContext.fromExecutor)
   }
 
   def scheduledTableResource(client: AmazonDynamoDBAsync): Resource[IO, String] = {
