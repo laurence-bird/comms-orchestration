@@ -19,8 +19,7 @@
     <logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="INFO" />
     
     <root level="INFO">
-        <appender-ref ref="LogzioLogbackAppender"/>
-        <appender-ref ref="GELF UDP APPENDER"/>
+        <appender-ref ref="Logzio"/>
     </root>
 
 </configuration>
