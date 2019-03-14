@@ -16,9 +16,7 @@
 
     <logger name="org.apache" level="WARN" />
 
-    <logger name="com.ovoenergy.orchestration" level="DEBUG" additivity="false">
-        <appender-ref ref="Console"/>
-    </logger>
+    <logger name="com.ovoenergy.orchestration" level="DEBUG" />
     
     <logger name="org.apache.kafka" level="DEBUG" additivity="false">
         <appender-ref ref="Console"/>
