@@ -25,6 +25,7 @@ import com.ovoenergy.comms.model._
 import com.ovoenergy.comms.model.email._
 import com.ovoenergy.comms.model.sms._
 import com.ovoenergy.comms.model.print._
+import com.ovoenergy.comms.deduplication.{Config => DeduplicationConfig}
 
 case class Config(
     templateSummaryTable: String,
@@ -32,6 +33,7 @@ case class Config(
     profilesEndpoint: Uri,
     profilesApiKey: String,
     kafka: Config.Kafka,
+    eventDeduplication: DeduplicationConfig[String],
     schedulingExpiration: FiniteDuration = 5.minutes,
     loadPendingDelay: FiniteDuration = 5.minutes,
     pollForExpiredDelay: FiniteDuration = 5.minutes,
@@ -208,35 +210,54 @@ object Config {
     loadConfig(
       envF[F, String]("TEMPLATE_SUMMARY_TABLE"),
       envF[F, String]("SCHEDULER_TABLE"),
+      envF[F, String]("EVENT_DEDUPLICATION_TABLE"),
       envF[F, Option[String]]("DYNAMO_DB_ENDPOINT"),
       envF[F, Uri]("PROFILES_ENDPOINT"),
       envF[F, String]("PROFILES_API_KEY"),
       Kafka.loadFromUnknownEnvironment[F],
-    ) { (templateSummaryTable, schedulerTable, dynamoDbEndpoint, profilesEndpoint, profilesApiKey, kafka) =>
-      Config(
-        templateSummaryTable = templateSummaryTable,
-        schedulingTable = schedulerTable,
-        dynamoDbEndpoint = dynamoDbEndpoint,
-        profilesEndpoint = profilesEndpoint,
-        profilesApiKey = profilesApiKey,
-        kafka = kafka
-      )
+    ) {
+      (templateSummaryTable,
+       schedulerTable,
+       eventDeduplicationTable,
+       dynamoDbEndpoint,
+       profilesEndpoint,
+       profilesApiKey,
+       kafka) =>
+        Config(
+          templateSummaryTable = templateSummaryTable,
+          schedulingTable = schedulerTable,
+          dynamoDbEndpoint = dynamoDbEndpoint,
+          profilesEndpoint = profilesEndpoint,
+          profilesApiKey = profilesApiKey,
+          kafka = kafka,
+          eventDeduplication = DeduplicationConfig(
+            tableName = DeduplicationConfig.TableName(eventDeduplicationTable),
+            processorId = "orchestrator",
+            ttl = 60.seconds,
+          )
+        )
     }
 
   def loadFromKnownEnvironment[F[_]: Sync](env: Env): ConfigResult[F, Config] =
     loadConfig(
       envF[F, String]("TEMPLATE_SUMMARY_TABLE"),
       envF[F, String]("SCHEDULER_TABLE"),
+      envF[F, String]("DEDUPLICATION_TABLE"),
       envF[F, Uri]("PROFILES_ENDPOINT"),
       credstashF[F, String]()(s"${env.toStringLowerCase}.orchestration.profilesApiKey"),
       Kafka.loadFromKnownEnvironment(env)
-    ) { (templateSummaryTable, schedulerTable, profilesEndpoint, profilesApiKey, kafka) =>
+    ) { (templateSummaryTable, schedulerTable, eventDeduplicationTable, profilesEndpoint, profilesApiKey, kafka) =>
       Config(
         templateSummaryTable = templateSummaryTable,
         schedulingTable = schedulerTable,
         profilesEndpoint = profilesEndpoint,
         profilesApiKey = profilesApiKey,
-        kafka = kafka
+        kafka = kafka,
+        eventDeduplication = DeduplicationConfig(
+          tableName = DeduplicationConfig.TableName(eventDeduplicationTable),
+          processorId = "orchestrator",
+          ttl = 60.seconds,
+        )
       )
     }
 

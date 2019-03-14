@@ -39,8 +39,7 @@ object KafkaConsumer {
 
     def apply[T](config: Config.Kafka, topics: NonEmptyList[Config.Topic[T]])(
         pollTimeout: FiniteDuration = DefaultPollTimeout)(f: Record[T] => F[Unit])(
-        implicit ec: ExecutionContext,
-        ce: ConcurrentEffect[F],
+        implicit ce: ConcurrentEffect[F],
         t: Timer[F],
         cs: ContextShift[F],
         sf: SchemaFor[T],

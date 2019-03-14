@@ -20,6 +20,7 @@ val commsDockerkitVersion = "1.8.11"
 val cirisVersion = "0.12.1"
 val cirisCredstashVersion = "0.6"
 val cirisKafkaVersion = "0.13"
+val commsDeduplicationVersion = "0.1.5"
 
 inThisBuild(
     List(
@@ -105,6 +106,7 @@ lazy val orchestration = (project in file("."))
       "org.http4s"                 %% "http4s-circe"              % http4sVersion,
       "org.quartz-scheduler"       % "quartz"                     % "2.2.3",
       "com.gu"                     %% "scanamo"                   % "1.0.0-M8",
+      "com.ovoenergy.comms" %% "deduplication" % commsDeduplicationVersion,
       ("com.ovoenergy"              %% "comms-kafka-messages"      % commsKafkaMessagesVersion classifier "tests") % Test,
       "com.github.tomakehurst"     % "wiremock"                   % "2.16.0" % Test,
       "org.scalacheck"             %% "scalacheck"                % "1.14.0" % Test,
