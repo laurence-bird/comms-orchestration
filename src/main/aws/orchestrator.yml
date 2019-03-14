@@ -79,7 +79,7 @@ Resources:
                 - 'dynamodb:DescribeTable'
               Resource:
                 Fn::ImportValue:
-                  !Sub "${Environment}-Sheduling-TableArn"
+                  !Sub "${Environment}-SchedulingTable-TableArn"
 
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -106,10 +106,9 @@ Resources:
                Parameters:
                  ssm_key: logzio_token
                  env: !Ref Environment
-        - Name: TEMPLATE_SUMMARY_TABLE_NAME
+        - Name: TEMPLATE_SUMMARY_TABLE
           Value:
-            Fn::ImportValue:
-              !Sub "${Environment}-TemplateSummary-TableName"
+            Fn::ImportValue: "TemplateSummary-TableName"
         - Name: SCHEDULER_TABLE
           Value:
             Fn::ImportValue:
@@ -122,7 +121,7 @@ Resources:
               - "https://profiles.ovo-comms-uat.co.uk"
 
         Essential: True
-        Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/profiles-ingester:${Version}"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/orchestrator:${Version}"
         Name: orchestrator
         LogConfiguration:
           LogDriver: awslogs

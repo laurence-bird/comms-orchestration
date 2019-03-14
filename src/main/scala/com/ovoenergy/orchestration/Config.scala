@@ -228,7 +228,7 @@ object Config {
       envF[F, String]("TEMPLATE_SUMMARY_TABLE"),
       envF[F, String]("SCHEDULER_TABLE"),
       envF[F, Uri]("PROFILES_ENDPOINT"),
-      credstashF[F, String]()("${env.toStringLowerCase}.orchestration.profilesApiKey"),
+      credstashF[F, String]()(s"${env.toStringLowerCase}.orchestration.profilesApiKey"),
       Kafka.loadFromKnownEnvironment(env)
     ) { (templateSummaryTable, schedulerTable, profilesEndpoint, profilesApiKey, kafka) =>
       Config(
