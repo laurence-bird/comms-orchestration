@@ -14,12 +14,23 @@
         </encoder>
     </appender>
 
-    <logger name="akka" level="INFO" />
     <logger name="org.apache" level="WARN" />
-    <logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="INFO" />
+
+    <logger name="com.ovoenergy.orchestration" level="DEBUG" additivity="false">
+        <appender-ref ref="Console"/>
+    </logger>
+    
+    <logger name="org.apache.kafka" level="DEBUG" additivity="false">
+        <appender-ref ref="Console"/>
+    </logger>
+
+    <logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="INFO" additivity="false">
+        <appender-ref ref="Console"/>
+    </logger>
     
     <root level="INFO">
         <appender-ref ref="Logzio"/>
+        <appender-ref ref="Console"/>
     </root>
 
 </configuration>

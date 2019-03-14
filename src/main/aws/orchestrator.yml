@@ -78,8 +78,13 @@ Resources:
                 - 'dynamodb:BatchGetItem'
                 - 'dynamodb:DescribeTable'
               Resource:
-                Fn::ImportValue:
-                  !Sub "${Environment}-SchedulingTable-TableArn"
+                - Fn::ImportValue:
+                    !Sub "${Environment}-SchedulingTable-TableArn"
+                - Fn::Sub:
+                  - "${TableArn}/*"
+                  - TableArn:
+                      Fn::ImportValue:
+                        !Sub "${Environment}-SchedulingTable-TableArn"
 
   LogGroup:
     Type: AWS::Logs::LogGroup
