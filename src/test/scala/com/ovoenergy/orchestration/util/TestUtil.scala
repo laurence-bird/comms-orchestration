@@ -15,8 +15,7 @@ object TestUtil {
   val friendlyDescription = "The customer did something cool and wants to know"
   val commManifest        = CommManifest(Service, commName, "1.0")
   val templateManifest    = TemplateManifest(Hash("test-comm"), "1.0")
-  val templateDataV1      = Map("someKey" -> "someValue")
-  val templateData        = Map("someKey" -> TemplateData(Coproduct[TemplateData.TD]("someValue")))
+  def templateData        = Map("someKey" -> TemplateData(Coproduct[TemplateData.TD](UUID.randomUUID().toString)))
 
   def metadataV3 = MetadataV3(
     commId = UUID.randomUUID().toString,

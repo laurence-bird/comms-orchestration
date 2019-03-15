@@ -20,7 +20,7 @@ val commsDockerkitVersion = "1.8.11"
 val cirisVersion = "0.12.1"
 val cirisCredstashVersion = "0.6"
 val cirisKafkaVersion = "0.13"
-val commsDeduplicationVersion = "0.1.5"
+val commsDeduplicationVersion = "0.1.6"
 
 inThisBuild(
     List(

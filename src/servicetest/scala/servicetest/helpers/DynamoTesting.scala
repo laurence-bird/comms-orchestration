@@ -100,7 +100,7 @@ trait DynamoTesting extends DynamoFormats {
   }
 
   def createEventDeduplicationTable() = {
-    LocalDynamoDB.createTable(dynamoClient)(eventDeduplicationTableName)('id -> S)
+    LocalDynamoDB.createTable(dynamoClient)(eventDeduplicationTableName)('id -> S, 'processorId -> S)
     waitUntilTableMade(50)
 
     def waitUntilTableMade(noAttemptsLeft: Int): (String) = {

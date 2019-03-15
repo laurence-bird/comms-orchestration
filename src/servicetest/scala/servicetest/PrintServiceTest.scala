@@ -46,117 +46,117 @@ class PrintServiceTest
   val region           = config.getString("aws.region")
   val s3Endpoint       = "http://localhost:4569"
 
-  // behavior of "Aiven Print Orchestration"
+  behavior of "Aiven Print Orchestration"
 
-  // it should "orchestrate a triggered event with valid print contact details" in withMultipleThrowawayConsumersFor(
-  //   Kafka.aiven.orchestrationStarted.v3,
-  //   Kafka.aiven.orchestratedPrint.v2,
-  //   Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, orchestratedPrintConsumer, feedbackConsumer) =>
+  it should "orchestrate a triggered event with valid print contact details" in withMultipleThrowawayConsumersFor(
+    Kafka.aiven.orchestrationStarted.v3,
+    Kafka.aiven.orchestratedPrint.v2,
+    Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, orchestratedPrintConsumer, feedbackConsumer) =>
     
-  //     val triggered = TriggeredV4(
-  //       metadata = TestUtil.metadataV3.copy(deliverTo = ContactDetails(None, None, Some(validCustomerAddress))),
-  //       templateData = Map("someKey" -> TemplateData(Coproduct[TemplateData.TD]("someValue"))),
-  //       deliverAt = None,
-  //       expireAt = None,
-  //       Some(List(Print))
-  //     )
+      val triggered = TriggeredV4(
+        metadata = TestUtil.metadataV3.copy(deliverTo = ContactDetails(None, None, Some(validCustomerAddress))),
+        templateData = Map("someKey" -> TemplateData(Coproduct[TemplateData.TD]("someValue"))),
+        deliverAt = None,
+        expireAt = None,
+        Some(List(Print))
+      )
 
-  //     populateTemplateSummaryTable(
-  //       TemplateSummary(
-  //         TemplateId(triggered.metadata.templateManifest.id),
-  //         "myTemplate",
-  //         model.Service,
-  //         Ovo,
-  //         triggered.metadata.templateManifest.version
-  //       ))
+      populateTemplateSummaryTable(
+        TemplateSummary(
+          TemplateId(triggered.metadata.templateManifest.id),
+          "myTemplate",
+          model.Service,
+          Ovo,
+          triggered.metadata.templateManifest.version
+        ))
 
-  //       uploadTemplateToFakeS3(region, s3Endpoint)(triggered.metadata.templateManifest)
+        uploadTemplateToFakeS3(region, s3Endpoint)(triggered.metadata.templateManifest)
     
-  //     Kafka.aiven.triggered.v4.publishOnce(triggered)
+      Kafka.aiven.triggered.v4.publishOnce(triggered)
 
-  //   expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer, triggered = triggered)
-  //   expectOrchestratedPrintEvents(noOfEventsExpected = 1, consumer = orchestratedPrintConsumer, triggered = triggered)
-  //   expectFeedbackEvents(noOfEventsExpected = 1,
-  //                        consumer = feedbackConsumer,
-  //                        expectedStatuses = Set(FeedbackOptions.Pending))
-  // }
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer, triggered = triggered)
+    expectOrchestratedPrintEvents(noOfEventsExpected = 1, consumer = orchestratedPrintConsumer, triggered = triggered)
+    expectFeedbackEvents(noOfEventsExpected = 1,
+                         consumer = feedbackConsumer,
+                         expectedStatuses = Set(FeedbackOptions.Pending))
+  }
 
-  // it should "raise failure for triggered event with contact details with insufficient details" in withMultipleThrowawayConsumersFor(
-  //   Kafka.aiven.orchestrationStarted.v3,
-  //   Kafka.aiven.failed.v3,
-  //   Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, failedConsumer, feedbackConsumer) =>
-  //   val triggered = TriggeredV4(
-  //     metadata = TestUtil.metadataV3.copy(
-  //       deliverTo = ContactDetails(None, None, None)
-  //     ),
-  //     templateData = Map("someKey" -> TemplateData(Coproduct[TemplateData.TD]("someValue"))),
-  //     deliverAt = None,
-  //     expireAt = None,
-  //     Some(List(Email))
-  //   )
+  it should "raise failure for triggered event with contact details with insufficient details" in withMultipleThrowawayConsumersFor(
+    Kafka.aiven.orchestrationStarted.v3,
+    Kafka.aiven.failed.v3,
+    Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, failedConsumer, feedbackConsumer) =>
+    val triggered = TriggeredV4(
+      metadata = TestUtil.metadataV3.copy(
+        deliverTo = ContactDetails(None, None, None)
+      ),
+      templateData = Map("someKey" -> TemplateData(Coproduct[TemplateData.TD]("someValue"))),
+      deliverAt = None,
+      expireAt = None,
+      Some(List(Email))
+    )
 
-  //   uploadTemplateToFakeS3(region, s3Endpoint)(triggered.metadata.templateManifest)
-  //   Kafka.aiven.triggered.v4.publishOnce(triggered)
+    uploadTemplateToFakeS3(region, s3Endpoint)(triggered.metadata.templateManifest)
+    Kafka.aiven.triggered.v4.publishOnce(triggered)
 
-  //   populateTemplateSummaryTable(
-  //     TemplateSummary(
-  //       TemplateId(triggered.metadata.templateManifest.id),
-  //       "myTemplate",
-  //       model.Service,
-  //       Ovo,
-  //       triggered.metadata.templateManifest.version
-  //     ))
+    populateTemplateSummaryTable(
+      TemplateSummary(
+        TemplateId(triggered.metadata.templateManifest.id),
+        "myTemplate",
+        model.Service,
+        Ovo,
+        triggered.metadata.templateManifest.version
+      ))
 
-  //   expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer, triggered = triggered)
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer, triggered = triggered)
 
-  //   failedConsumer
-  //     .pollFor(noOfEventsExpected = 1)
-  //     .foreach(failure => {
-  //       failure.reason should include("No contact details found")
-  //       failure.errorCode shouldBe InvalidProfile
-  //       failure.metadata.traceToken shouldBe triggered.metadata.traceToken
-  //     })
+    failedConsumer
+      .pollFor(noOfEventsExpected = 1)
+      .foreach(failure => {
+        failure.reason should include("No contact details found")
+        failure.errorCode shouldBe InvalidProfile
+        failure.metadata.traceToken shouldBe triggered.metadata.traceToken
+      })
 
-  //   expectFeedbackEvents(noOfEventsExpected = 2,
-  //                        consumer = feedbackConsumer,
-  //                        expectedStatuses = Set(FeedbackOptions.Pending, FeedbackOptions.Failed))
-  // }
+    expectFeedbackEvents(noOfEventsExpected = 2,
+                         consumer = feedbackConsumer,
+                         expectedStatuses = Set(FeedbackOptions.Pending, FeedbackOptions.Failed))
+  }
 
-  // it should "raise failure for triggered event with contact details that do not provide details for template channel" in withMultipleThrowawayConsumersFor(
-  //   Kafka.aiven.orchestrationStarted.v3,
-  //   Kafka.aiven.failed.v3,
-  //   Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, failedConsumer, feedbackConsumer) =>
+  it should "raise failure for triggered event with contact details that do not provide details for template channel" in withMultipleThrowawayConsumersFor(
+    Kafka.aiven.orchestrationStarted.v3,
+    Kafka.aiven.failed.v3,
+    Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, failedConsumer, feedbackConsumer) =>
     
-  //   val triggered = TestUtil.emailContactDetailsTriggered.copy(metadata = TestUtil.metadataV3.copy(
-  //     deliverTo = ContactDetails(Some("qatesting@ovoenergy.com"), None),
-  //     templateManifest = TemplateManifest(Hash("print-only"), "0.1")
-  //   ))
+    val triggered = TestUtil.emailContactDetailsTriggered.copy(metadata = TestUtil.metadataV3.copy(
+      deliverTo = ContactDetails(Some("qatesting@ovoenergy.com"), None),
+      templateManifest = TemplateManifest(Hash("print-only"), "0.1")
+    ))
 
-  //   populateTemplateSummaryTable(
-  //     TemplateSummary(
-  //       TemplateId(triggered.metadata.templateManifest.id),
-  //       "myTemplate",
-  //       model.Service,
-  //       Ovo,
-  //       triggered.metadata.templateManifest.version
-  //     ))
+    populateTemplateSummaryTable(
+      TemplateSummary(
+        TemplateId(triggered.metadata.templateManifest.id),
+        "myTemplate",
+        model.Service,
+        Ovo,
+        triggered.metadata.templateManifest.version
+      ))
 
-  //   uploadPrintOnlyTemplateToFakeS3(region, s3Endpoint)(triggered.metadata.templateManifest)
+    uploadPrintOnlyTemplateToFakeS3(region, s3Endpoint)(triggered.metadata.templateManifest)
 
-  //   Kafka.aiven.triggered.v4.publishOnce(triggered)
-  //   expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer, triggered = triggered)
+    Kafka.aiven.triggered.v4.publishOnce(triggered)
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer, triggered = triggered)
 
-  //   val failures = failedConsumer.pollFor(noOfEventsExpected = 1)
-  //   failures.foreach(failure => {
-  //     failure.reason should include("No available channels to deliver comm")
-  //     failure.errorCode shouldBe OrchestrationError
-  //     failure.metadata.traceToken shouldBe com.ovoenergy.orchestration.util.TestUtil.traceToken
-  //   })
+    val failures = failedConsumer.pollFor(noOfEventsExpected = 1)
+    failures.foreach(failure => {
+      failure.reason should include("No available channels to deliver comm")
+      failure.errorCode shouldBe OrchestrationError
+      failure.metadata.traceToken shouldBe com.ovoenergy.orchestration.util.TestUtil.traceToken
+    })
 
-  //   expectFeedbackEvents(noOfEventsExpected = 2,
-  //                        consumer = feedbackConsumer,
-  //                        expectedStatuses = Set(FeedbackOptions.Pending, FeedbackOptions.Failed))
-  // }
+    expectFeedbackEvents(noOfEventsExpected = 2,
+                         consumer = feedbackConsumer,
+                         expectedStatuses = Set(FeedbackOptions.Pending, FeedbackOptions.Failed))
+  }
 
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25000.millisecond,
                                        noOfEventsExpected: Int,

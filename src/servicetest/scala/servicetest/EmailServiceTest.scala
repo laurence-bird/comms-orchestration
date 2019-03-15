@@ -59,7 +59,7 @@ class EmailServiceTest
         triggered.metadata.templateManifest.version
       )
     )
-    Kafka.aiven.triggered.p0V4.publishOnce(customerTriggeredV4)
+    Kafka.aiven.triggered.p0V4.publishOnce(triggered)
 
     expectOrchestrationStartedEvents(noOfEventsExpected = 1,
                                      consumer = orchestrationStartedConsumer,

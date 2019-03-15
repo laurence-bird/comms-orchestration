@@ -239,7 +239,7 @@ object Config {
           communicationDeduplication = DeduplicationConfig(
             tableName = DeduplicationConfig.TableName(eventDeduplicationTable),
             processorId = "platform",
-            ttl = 300.seconds,
+            ttl = 60.seconds,
           )
         )
     }
@@ -267,7 +267,7 @@ object Config {
         communicationDeduplication = DeduplicationConfig(
           tableName = DeduplicationConfig.TableName(eventDeduplicationTable),
           processorId = "platform",
-          ttl = 300.seconds,
+          ttl = 60.seconds,
         )
       )
     }
