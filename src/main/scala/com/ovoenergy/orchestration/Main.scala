@@ -175,12 +175,18 @@ object Main extends IOApp with LoggingWithMDC {
             }
         }
 
+        communicationDeduplication = ProcessingStore[IO, String, String](config.communicationDeduplication, dynamoDb)
+
+        hash = Hash[IO]
+
         triggeredV4Consumer = TriggeredConsumer[IO](
           orchestrator = orchestrateComm,
           scheduleTask = scheduleTask,
           issueFeedback = issueFeedback,
           generateTraceToken = () => UUID.randomUUID().toString,
-          sendOrchestrationStartedEvent = produceOrchestrationStartedEvent
+          sendOrchestrationStartedEvent = produceOrchestrationStartedEvent,
+          deduplication = communicationDeduplication,
+          hash = hash
         )
 
       } yield (config, triggeredV4Consumer, schedulingPersistence, addSchedule, eventDeduplication)

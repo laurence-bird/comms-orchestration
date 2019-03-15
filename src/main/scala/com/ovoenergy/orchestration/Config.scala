@@ -34,6 +34,7 @@ case class Config(
     profilesApiKey: String,
     kafka: Config.Kafka,
     eventDeduplication: DeduplicationConfig[String],
+    communicationDeduplication: DeduplicationConfig[String],
     schedulingExpiration: FiniteDuration = 5.minutes,
     loadPendingDelay: FiniteDuration = 5.minutes,
     pollForExpiredDelay: FiniteDuration = 5.minutes,
@@ -210,7 +211,7 @@ object Config {
     loadConfig(
       envF[F, String]("TEMPLATE_SUMMARY_TABLE"),
       envF[F, String]("SCHEDULER_TABLE"),
-      envF[F, String]("EVENT_DEDUPLICATION_TABLE"),
+      envF[F, String]("DEDUPLICATION_TABLE"),
       envF[F, Option[String]]("DYNAMO_DB_ENDPOINT"),
       envF[F, Uri]("PROFILES_ENDPOINT"),
       envF[F, String]("PROFILES_API_KEY"),
@@ -234,6 +235,11 @@ object Config {
             tableName = DeduplicationConfig.TableName(eventDeduplicationTable),
             processorId = "orchestrator",
             ttl = 60.seconds,
+          ),
+          communicationDeduplication = DeduplicationConfig(
+            tableName = DeduplicationConfig.TableName(eventDeduplicationTable),
+            processorId = "platform",
+            ttl = 300.seconds,
           )
         )
     }
@@ -257,6 +263,11 @@ object Config {
           tableName = DeduplicationConfig.TableName(eventDeduplicationTable),
           processorId = "orchestrator",
           ttl = 60.seconds,
+        ),
+        communicationDeduplication = DeduplicationConfig(
+          tableName = DeduplicationConfig.TableName(eventDeduplicationTable),
+          processorId = "platform",
+          ttl = 300.seconds,
         )
       )
     }
