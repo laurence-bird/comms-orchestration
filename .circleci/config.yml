@@ -257,7 +257,7 @@ jobs:
     - *restore-cache
 
     - run:
-        command: sbt staging:deploy
+        command: sbt uat:cloudFormationDeploy
         no_output_timeout: 20m
 
   deploy_prd:
@@ -277,7 +277,7 @@ jobs:
     - *restore-cache
 
     - run:
-        command: sbt production:deploy
+        command: sbt prd:cloudFormationDeploy
         no_output_timeout: 20m
 
   e2e_test:

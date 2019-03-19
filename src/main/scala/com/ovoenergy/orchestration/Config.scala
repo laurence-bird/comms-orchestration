@@ -234,12 +234,14 @@ object Config {
           eventDeduplication = DeduplicationConfig(
             tableName = DeduplicationConfig.TableName(eventDeduplicationTable),
             processorId = "orchestrator",
-            ttl = 60.seconds,
+            maxProcessingTime = 5.seconds,
+            ttl = 35.days,
           ),
           communicationDeduplication = DeduplicationConfig(
             tableName = DeduplicationConfig.TableName(eventDeduplicationTable),
             processorId = "platform",
-            ttl = 60.seconds,
+            maxProcessingTime = 5.seconds,
+            ttl = 15.days,
           )
         )
     }
@@ -262,12 +264,14 @@ object Config {
         eventDeduplication = DeduplicationConfig(
           tableName = DeduplicationConfig.TableName(eventDeduplicationTable),
           processorId = "orchestrator",
-          ttl = 60.seconds,
+          maxProcessingTime = 5.seconds,
+          ttl = 35.days,
         ),
         communicationDeduplication = DeduplicationConfig(
           tableName = DeduplicationConfig.TableName(eventDeduplicationTable),
           processorId = "platform",
-          ttl = 60.seconds,
+          maxProcessingTime = 5.seconds,
+          ttl = 15.days,
         )
       )
     }
