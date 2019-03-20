@@ -209,6 +209,7 @@ trait DockerIntegrationTest
       println("Creating Dynamo table")
       createTable()
       createTemplateSummaryTable()
+      createEventDeduplicationTable()
     })
 
   lazy val orchestration = {
@@ -219,6 +220,7 @@ trait DockerIntegrationTest
       Some("JAVA_OPTS=-Dlogback.configurationFile=logback-local.xml -Dcom.amazonaws.sdk.disableCertChecking=true"),
       Some(s"TEMPLATE_SUMMARY_TABLE=$templateSummaryTableName"),
       Some(s"SCHEDULER_TABLE=$tableName"),
+      Some(s"DEDUPLICATION_TABLE=$eventDeduplicationTableName"),
       Some("PROFILES_ENDPOINT=http://profiles:1080"),
       Some("PROFILES_API_KEY=someApiKey"),
       Some("DYNAMO_DB_ENDPOINT=http://dynamodb:8000"),

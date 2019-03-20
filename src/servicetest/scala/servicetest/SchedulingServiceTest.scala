@@ -41,7 +41,6 @@ class SchedulingServiceTest
   override def beforeAll() = {
     super.beforeAll()
     uploadFragmentsToFakeS3(region, s3Endpoint)
-    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggeredV4.metadata.templateManifest)
   }
 
   behavior of "Aiven comms scheduling"
@@ -53,11 +52,12 @@ class SchedulingServiceTest
     createOKCustomerProfileResponse(mockServerClient)
     val triggered = TestUtil.customerTriggeredV4.copy(deliverAt = Some(Instant.now().plusSeconds(1)))
     populateTemplateSummaryTable(triggered.metadata.templateManifest)
+    uploadTemplateToFakeS3(region, s3Endpoint)(triggered.metadata.templateManifest)
 
     Kafka.aiven.triggered.v4.publishOnce(triggered)
 
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
-    expectOrchestratedEmailEvents(noOfEventsExpected = 1, consumer = orchestratedEmailConsumer)
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer, triggered = triggered)
+    expectOrchestratedEmailEvents(noOfEventsExpected = 1, consumer = orchestratedEmailConsumer, triggered = triggered)
     expectFeedbackEvents(noOfEventsExpected = 2,
                          consumer = feedbackConsumer,
                          expectedStatuses = Set(FeedbackOptions.Pending, FeedbackOptions.Scheduled))
@@ -66,29 +66,18 @@ class SchedulingServiceTest
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25.seconds,
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true,
-                                       consumer: KafkaConsumer[String, OrchestrationStartedV3]) = {
+                                       consumer: KafkaConsumer[String, OrchestrationStartedV3],
+                                       triggered: TriggeredV4) = {
     val orchestrationStartedEvents =
       consumer.pollFor(noOfEventsExpected = noOfEventsExpected)
-
-    orchestrationStartedEvents.foreach { o =>
-      o.metadata.templateManifest.id shouldBe Hash(TestUtil.commManifest.name)
-    }
-    orchestrationStartedEvents
   }
 
   def expectOrchestratedEmailEvents(pollTime: FiniteDuration = 25.seconds,
                                     noOfEventsExpected: Int,
                                     shouldCheckTraceToken: Boolean = true,
-                                    consumer: KafkaConsumer[String, OrchestratedEmailV4]) = {
+                                    consumer: KafkaConsumer[String, OrchestratedEmailV4],
+                                    triggered: TriggeredV4) = {
     val orchestratedEmails =
       consumer.pollFor(noOfEventsExpected = noOfEventsExpected)
-
-    orchestratedEmails.map { orchestratedEmail =>
-      orchestratedEmail.recipientEmailAddress shouldBe "qatesting@ovoenergy.com"
-      orchestratedEmail.customerProfile shouldBe Some(model.CustomerProfile("John", "Wayne"))
-      orchestratedEmail.templateData shouldBe TestUtil.templateData
-      orchestratedEmail.metadata.templateManifest.id shouldBe Hash(TestUtil.commManifest.name)
-      orchestratedEmail
-    }
   }
 }

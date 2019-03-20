@@ -44,13 +44,14 @@ class SMSServiceTest
     Kafka.aiven.orchestratedSMS.v3,
     Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, orchestratedSMSConsumer, feedbackConsumer) =>
     createOKCustomerProfileResponse(mockServerClient)
-    uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggeredV4.metadata.templateManifest)
-    val triggerSMS = TestUtil.customerTriggeredV4.copy(preferredChannels = Some(List(SMS)))
-    populateTemplateSummaryTable(triggerSMS.metadata.templateManifest)
-    Kafka.aiven.triggered.v4.publishOnce(triggerSMS)
+    val triggered = TestUtil.customerTriggeredV4.copy(preferredChannels = Some(List(SMS)))
+    uploadTemplateToFakeS3(region, s3Endpoint)(triggered.metadata.templateManifest)
+    
+    populateTemplateSummaryTable(triggered.metadata.templateManifest)
+    Kafka.aiven.triggered.v4.publishOnce(triggered)
 
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
-    expectSMSOrchestrationEvents(noOfEventsExpected = 1, consumer = orchestratedSMSConsumer)
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer, triggered = triggered)
+    expectSMSOrchestrationEvents(noOfEventsExpected = 1, consumer = orchestratedSMSConsumer, triggered = triggered)
     expectFeedbackEvents(noOfEventsExpected = 1, consumer = feedbackConsumer, expectedStatuses = Set(Pending))
   }
 
@@ -60,27 +61,29 @@ class SMSServiceTest
     Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, orchestratedSMSConsumer, feedbackConsumer) =>
     createOKCustomerProfileResponse(mockServerClient)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggeredV4.metadata.templateManifest)
-    val triggerSMS = TestUtil.smsContactDetailsTriggered
-    populateTemplateSummaryTable(triggerSMS.metadata.templateManifest)
-    Kafka.aiven.triggered.v4.publishOnce(triggerSMS)
+    val triggered = TestUtil.smsContactDetailsTriggered
+    populateTemplateSummaryTable(triggered.metadata.templateManifest)
+    Kafka.aiven.triggered.v4.publishOnce(triggered)
 
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer)
+    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer, triggered = triggered)
     expectSMSOrchestrationEvents(pollTime = 120.seconds,
                                  noOfEventsExpected = 1,
                                  shouldHaveCustomerProfile = false,
-                                 consumer = orchestratedSMSConsumer)
+                                 consumer = orchestratedSMSConsumer,
+                                 triggered = triggered)
     expectFeedbackEvents(noOfEventsExpected = 1, consumer = feedbackConsumer, expectedStatuses = Set(Pending))
   }
 
   def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25.seconds,
                                        noOfEventsExpected: Int,
                                        shouldCheckTraceToken: Boolean = true,
-                                       consumer: KafkaConsumer[String, OrchestrationStartedV3]) = {
+                                       consumer: KafkaConsumer[String, OrchestrationStartedV3],
+                                       triggered: TriggeredV4) = {
     val orchestrationStartedEvents =
       consumer.pollFor(pollTime = pollTime, noOfEventsExpected = noOfEventsExpected)
 
     orchestrationStartedEvents.foreach { o =>
-      if (shouldCheckTraceToken) o.metadata.traceToken shouldBe TestUtil.traceToken
+      if (shouldCheckTraceToken) o.metadata.traceToken shouldBe triggered.metadata.traceToken
     }
     orchestrationStartedEvents
   }
@@ -89,7 +92,8 @@ class SMSServiceTest
                                    noOfEventsExpected: Int,
                                    shouldCheckTraceToken: Boolean = true,
                                    shouldHaveCustomerProfile: Boolean = true,
-                                   consumer: KafkaConsumer[String, OrchestratedSMSV3]) = {
+                                   consumer: KafkaConsumer[String, OrchestratedSMSV3],
+                                   triggered: TriggeredV4) = {
 
     val orchestratedSMS = consumer.pollFor(pollTime = pollTime, noOfEventsExpected = noOfEventsExpected)
 
@@ -99,9 +103,9 @@ class SMSServiceTest
       if (shouldHaveCustomerProfile) orchestratedSMS.customerProfile shouldBe Some(CustomerProfile("John", "Wayne"))
       else orchestratedSMS.customerProfile shouldBe None
 
-      orchestratedSMS.templateData shouldBe TestUtil.templateData
+      orchestratedSMS.templateData shouldBe triggered.templateData
 
-      if (shouldCheckTraceToken) orchestratedSMS.metadata.traceToken shouldBe TestUtil.traceToken
+      if (shouldCheckTraceToken) orchestratedSMS.metadata.traceToken shouldBe triggered.metadata.traceToken
       orchestratedSMS
     }
   }

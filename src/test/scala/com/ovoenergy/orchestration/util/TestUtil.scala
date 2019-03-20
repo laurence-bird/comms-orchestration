@@ -15,10 +15,9 @@ object TestUtil {
   val friendlyDescription = "The customer did something cool and wants to know"
   val commManifest        = CommManifest(Service, commName, "1.0")
   val templateManifest    = TemplateManifest(Hash("test-comm"), "1.0")
-  val templateDataV1      = Map("someKey" -> "someValue")
-  val templateData        = Map("someKey" -> TemplateData(Coproduct[TemplateData.TD]("someValue")))
+  def templateData        = Map("someKey" -> TemplateData(Coproduct[TemplateData.TD](UUID.randomUUID().toString)))
 
-  val metadataV3 = MetadataV3(
+  def metadataV3 = MetadataV3(
     commId = UUID.randomUUID().toString,
     createdAt = Instant.now(),
     eventId = UUID.randomUUID().toString,
@@ -32,7 +31,7 @@ object TestUtil {
     triggerSource = "test-trigger"
   )
 
-  val customerTriggeredV4 = TriggeredV4(
+  def customerTriggeredV4 = TriggeredV4(
     metadata = metadataV3,
     templateData = templateData,
     deliverAt = None,
@@ -40,7 +39,7 @@ object TestUtil {
     Some(List(Email))
   )
 
-  val emailContactDetailsTriggered = TriggeredV4(
+  def emailContactDetailsTriggered = TriggeredV4(
     metadata = metadataV3.copy(deliverTo = ContactDetails(Some("qatesting@ovoenergy.com"), None)),
     templateData = templateData,
     deliverAt = None,
@@ -48,7 +47,7 @@ object TestUtil {
     Some(List(Email))
   )
 
-  val smsContactDetailsTriggered = TriggeredV4(
+  def smsContactDetailsTriggered = TriggeredV4(
     metadata = metadataV3.copy(deliverTo = ContactDetails(None, Some("+447985631544"))),
     templateData = templateData,
     deliverAt = None,
@@ -56,7 +55,7 @@ object TestUtil {
     Some(List(Email))
   )
 
-  val invalidContactDetailsTriggered = TriggeredV4(
+  def invalidContactDetailsTriggered = TriggeredV4(
     metadata = metadataV3.copy(deliverTo = ContactDetails(None, None)),
     templateData = templateData,
     deliverAt = None,

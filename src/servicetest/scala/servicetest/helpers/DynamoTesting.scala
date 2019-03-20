@@ -19,6 +19,8 @@ trait DynamoTesting extends DynamoFormats {
   val dynamoClient             = LocalDynamoDB.client(dynamoUrl)
   val tableName                = "scheduling"
   val templateSummaryTableName = "templateSummaryTable"
+  val eventDeduplicationTableName = "eventDeduplication"
+
   val templateSummaryTable     = Table[TemplateSummary](templateSummaryTableName)
 
   def createTable(): Unit = {
@@ -96,4 +98,25 @@ trait DynamoTesting extends DynamoFormats {
       }
     }
   }
+
+  def createEventDeduplicationTable() = {
+    LocalDynamoDB.createTable(dynamoClient)(eventDeduplicationTableName)('id -> S, 'processorId -> S)
+    waitUntilTableMade(50)
+
+    def waitUntilTableMade(noAttemptsLeft: Int): (String) = {
+      try {
+        val summaryTableStatus = dynamoClient.describeTable(eventDeduplicationTableName).getTable.getTableStatus
+        if (summaryTableStatus != "ACTIVE" && noAttemptsLeft > 0) {
+          Thread.sleep(20)
+          waitUntilTableMade(noAttemptsLeft - 1)
+        } else (eventDeduplicationTableName)
+      } catch {
+        case e: AmazonDynamoDBException => {
+          Thread.sleep(20)
+          waitUntilTableMade(noAttemptsLeft - 1)
+        }
+      }
+    }
+  }
+
 }

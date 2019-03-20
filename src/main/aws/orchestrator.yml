@@ -85,6 +85,27 @@ Resources:
                   - TableArn:
                       Fn::ImportValue:
                         !Sub "${Environment}-SchedulingTable-TableArn"
+        - PolicyName: read-write-deduplication-table
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+                - 'dynamodb:Put*'
+                - 'dynamodb:Update*'
+                - 'dynamodb:Query'
+                - 'dynamodb:Scan'
+                - 'dynamodb:Get*'
+                - 'dynamodb:List*'
+                - 'dynamodb:BatchGetItem'
+                - 'dynamodb:DescribeTable'
+              Resource:
+                - Fn::ImportValue:
+                    !Sub "${Environment}-Deduplication-TableArn"
+                - Fn::Sub:
+                  - "${TableArn}/*"
+                  - TableArn:
+                      Fn::ImportValue:
+                        !Sub "${Environment}-Deduplication-TableArn"
 
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -118,6 +139,10 @@ Resources:
           Value:
             Fn::ImportValue:
               !Sub "${Environment}-SchedulingTable-TableName"
+        - Name: DEDUPLICATION_TABLE
+          Value:
+            Fn::ImportValue:
+              !Sub "${Environment}-Deduplication-TableName"
         - Name: PROFILES_ENDPOINT
           Value:
             Fn::If:
