@@ -158,6 +158,15 @@ lazy val orchestration = (project in file("."))
     Ecr / login := ((Ecr / login) dependsOn (Ecr / createRepository)).value,
     Ecr / push := ((Ecr / push) dependsOn (Docker / publishLocal, Ecr / login)).value,
 
+    javaOptions in Universal ++= Seq(
+      "-Dcom.sun.management.jmxremote",
+      "-Dcom.sun.management.jmxremote.port=9999",
+      "-Dcom.sun.management.jmxremote.rmi.port=9999",
+      "-Dcom.sun.management.jmxremote.local.only=false",
+      "-Dcom.sun.management.jmxremote.authenticate=false",
+      "-Dcom.sun.management.jmxremote.ssl=false"
+    ),
+
     cloudFormationCapabilities := Seq(
       Capability.CAPABILITY_IAM
     ),

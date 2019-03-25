@@ -107,6 +107,38 @@ Resources:
                       Fn::ImportValue:
                         !Sub "${Environment}-Deduplication-TableArn"
 
+  # It is a little bit sloppy as we should define resources better
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ecs-tasks.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: read-ecr
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Action:
+              - "ecr:GetAuthorizationToken"
+              - "ecr:BatchCheckLayerAvailability"
+              - "ecr:GetDownloadUrlForLayer"
+              - "ecr:BatchGetImage"
+              Resource: '*'
+      - PolicyName: write-awslog
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - "logs:CreateLogStream"
+            - "logs:PutLogEvents"
+            Resource: '*'
+
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties: 
@@ -117,11 +149,25 @@ Resources:
     Properties:
       Family: !Sub "orchestrator-${Environment}"
       TaskRoleArn: !Ref TaskRole
+      ExecutionRoleArn: !Ref ExecutionRole
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+      - FARGATE
+      Cpu: 512
+      Memory: 1GB
       ContainerDefinitions:
-      - MemoryReservation: 712
+      - Name: orchestrator
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/orchestrator:${Version}"
+        Essential: True
+        MemoryReservation: 712
         DockerLabels:
           Service: orchestrator
           Version: !Ref Version
+          Environment: !Ref Environment
+          Team: Comms
+          "com.datadoghq.ad.instances": '[{"host":"%%host%%","port": 9999}]'
+          "com.datadoghq.ad.check_names": '["jmx"]'
+          "com.datadoghq.ad.init_configs": "[{}]"
         Environment:
         - Name: ENV
           Value: !Ref Environment
@@ -149,10 +195,6 @@ Resources:
               - IsPrd
               - "https://profiles.ovo-comms.co.uk"
               - "https://profiles.ovo-comms-uat.co.uk"
-
-        Essential: True
-        Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/orchestrator:${Version}"
-        Name: orchestrator
         LogConfiguration:
           LogDriver: awslogs
           Options:
@@ -160,6 +202,30 @@ Resources:
             awslogs-group: !Ref LogGroup
             awslogs-stream-prefix: "orchestrator"
             awslogs-datetime-format: "%Y-%m-%d %H:%M:%S"
+      - Name: datadog-agent
+        Image: "datadog/agent:6.10.2-jmx"
+        Essential: true
+        MemoryReservation: 128
+        Environment:
+          - Name: "DD_API_KEY"
+            Value:
+              'Fn::Transform':
+              - Name: 'fetch-secret'
+                Parameters:
+                  ssm_key: datadog_api_key
+                  env: !Ref Environment
+          - Name: "ECS_FARGATE"
+            Value: "true"
+          - Name: "DD_DOCKER_LABELS_AS_TAGS"
+            Value: '{"team":"team","service":"service","environment":"environment"}'
+          - Name: "SD_JMX_ENABLE"
+            Value: "true"
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-region: !Sub "${AWS::Region}"
+            awslogs-group: !Ref LogGroup
+            awslogs-stream-prefix: orchestrator
 
   Service:
     Type: AWS::ECS::Service
@@ -167,8 +233,24 @@ Resources:
       Cluster:
         Fn::ImportValue:
           !Sub "${Environment}-Cluster-Arn"
-      DesiredCount: 5
-      TaskDefinition: !Ref Task
-      LaunchType: EC2
-      SchedulingStrategy: REPLICA
       ServiceName: orchestrator
+      TaskDefinition: !Ref Task
+      LaunchType: FARGATE
+      SchedulingStrategy: REPLICA
+      DesiredCount: 5
+      DeploymentConfiguration:
+        MaximumPercent: 150
+        MinimumHealthyPercent: 50
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+          - Fn::ImportValue:
+              !Sub "${Environment}-Ecs-SecurityGroup-Id"
+          Subnets:
+          - Fn::ImportValue:
+              !Sub "${Environment}-VPC-PrivateSubnet1-Id"
+          - Fn::ImportValue:
+              !Sub "${Environment}-VPC-PrivateSubnet2-Id"
+          - Fn::ImportValue:
+              !Sub "${Environment}-VPC-PrivateSubnet3-Id"
