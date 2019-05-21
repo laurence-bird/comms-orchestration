@@ -22,7 +22,6 @@ import scala.util.control.NonFatal
 object TaskExecutor extends LoggingWithMDC {
   def execute(persistence: Persistence.Orchestration,
               orchestrator: Orchestrator[IO],
-              sendOrchestrationStartedEvent: OrchestrationStartedV3 => IO[RecordMetadata],
               generateTraceToken: () => String,
               issueFeedback: IssueFeedback[IO])(scheduleId: ScheduleId): Unit = {
 
@@ -91,8 +90,6 @@ object TaskExecutor extends LoggingWithMDC {
         schedule.triggeredV4 match {
           case Some(triggered) => {
             val orchResult: IO[Either[ErrorDetails, RecordMetadata]] = for {
-              _   <- issueFeedback.send(OrchestrationStartedV3(triggered.metadata, internalMetadata))
-              _   <- sendOrchestrationStartedEvent(OrchestrationStartedV3(triggered.metadata, internalMetadata))
               res <- orchestrator(triggered, internalMetadata)
             } yield res
 

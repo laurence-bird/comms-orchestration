@@ -25,7 +25,6 @@ object TriggeredConsumer extends LoggingWithMDC {
 
   def apply[F[_]](scheduleTask: TriggeredV4 => F[Either[ErrorDetails, Boolean]],
                   issueFeedback: IssueFeedback[F],
-                  sendOrchestrationStartedEvent: OrchestrationStartedV3 => F[RecordMetadata],
                   generateTraceToken: () => String,
                   orchestrator: Orchestrator[F],
                   deduplication: ProcessingStore[F, String],
@@ -62,7 +61,6 @@ object TriggeredConsumer extends LoggingWithMDC {
                 Some(triggered.metadata.templateManifest),
                 EventMetadata.fromMetadata(triggered.metadata, triggered.metadata.commId ++ "-feedback-pending")
               ))
-            _          <- sendOrchestrationStartedEvent(OrchestrationStartedV3(triggeredV4.metadata, internalMetadata))
             orchResult <- orchestrator(triggeredV4, internalMetadata)
             _          <- sendFeedbackIfFailure(orchResult, triggeredV4)
           } yield ()

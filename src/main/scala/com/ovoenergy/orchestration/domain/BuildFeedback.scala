@@ -9,10 +9,8 @@ import com.ovoenergy.comms.model.{
   FailedCancellationV3,
   Feedback,
   FeedbackOptions,
-  OrchestrationStartedV3,
   TemplateManifest
 }
-import com.ovoenergy.comms.templates.util.Hash
 import com.ovoenergy.kafka.common.event.EventMetadata
 
 trait BuildFeedback[T] {
@@ -57,21 +55,6 @@ object BuildFeedback {
       EventMetadata(fd.traceToken.value, fd.commId.value ++ "-feedback-failed", Instant.now())
     )
   }
-
-  implicit val buildFeedbackOrchestrationStarted: BuildFeedback[OrchestrationStartedV3] =
-    instance[OrchestrationStartedV3] { os =>
-      Feedback(
-        os.metadata.commId,
-        Some(os.metadata.friendlyDescription),
-        extractCustomer(os.metadata.deliverTo),
-        FeedbackOptions.Pending,
-        Some(s"Trigger for communication accepted"),
-        None,
-        None,
-        Some(TemplateManifest(os.metadata.templateManifest.id, os.metadata.templateManifest.version)),
-        EventMetadata.fromMetadata(os.metadata, os.metadata.commId ++ "-failed")
-      )
-    }
 
   implicit val buildFeedbackCancelled: BuildFeedback[CancelledV3] = instance[CancelledV3] { cancelled =>
     Feedback(
