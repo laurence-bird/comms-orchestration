@@ -19,7 +19,7 @@ trait KafkaTesting { _: BaseSpec =>
       t2: Topic[E2])(f: (KafkaConsumer[String, E1], KafkaConsumer[String, E2]) => R): R = {
     withThrowawayConsumerFor(t1) { c1 =>
       withThrowawayConsumerFor(t2) { c2 =>
-        f(c1, c2, c3)
+        f(c1, c2)
       }
     }
   }
