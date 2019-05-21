@@ -14,41 +14,12 @@ import scala.reflect.ClassTag
 
 trait KafkaTesting { _: BaseSpec =>
 
-  def withMultipleThrowawayConsumersFor[E1: SchemaFor: FromRecord: ClassTag,
-                                       E2: SchemaFor: FromRecord: ClassTag,
-                                       E3: SchemaFor: FromRecord: ClassTag,
-                                       R](t1: Topic[E1],
-                                          t2: Topic[E2],
-                                          t3: Topic[E3])(f: (KafkaConsumer[String, E1],
-                                                             KafkaConsumer[String, E2],
-                                                             KafkaConsumer[String, E3]) => R): R = {
+  def withMultipleThrowawayConsumersFor[E1: SchemaFor: FromRecord: ClassTag, E2: SchemaFor: FromRecord: ClassTag, R](
+      t1: Topic[E1],
+      t2: Topic[E2])(f: (KafkaConsumer[String, E1], KafkaConsumer[String, E2]) => R): R = {
     withThrowawayConsumerFor(t1) { c1 =>
       withThrowawayConsumerFor(t2) { c2 =>
-        withThrowawayConsumerFor(t3) { c3 =>
-          f(c1, c2, c3)
-        }
-      }
-    }
-  }
-
-  def withMultipleThrowawayConsumersFor[E1: SchemaFor: FromRecord: ClassTag,
-  E2: SchemaFor: FromRecord: ClassTag,
-  E3: SchemaFor: FromRecord: ClassTag,
-  E4: SchemaFor: FromRecord: ClassTag,
-  R](t1: Topic[E1],
-     t2: Topic[E2],
-     t3: Topic[E3], t4: Topic[E4])(f: (KafkaConsumer[String, E1],
-    KafkaConsumer[String, E2],
-    KafkaConsumer[String, E3],
-    KafkaConsumer[String, E4],
-    ) => R): R = {
-    withThrowawayConsumerFor(t1) { c1 =>
-      withThrowawayConsumerFor(t2) { c2 =>
-        withThrowawayConsumerFor(t3) { c3 =>
-          withThrowawayConsumerFor(t4) { c4 =>
-            f(c1, c2, c3, c4)
-          }
-        }
+        f(c1, c2, c3)
       }
     }
   }
