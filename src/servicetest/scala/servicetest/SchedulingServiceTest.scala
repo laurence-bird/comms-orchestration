@@ -46,9 +46,8 @@ class SchedulingServiceTest
   behavior of "Aiven comms scheduling"
 
   it should "orchestrate emails requested to be sent in the future - triggeredV4" in withMultipleThrowawayConsumersFor(
-    Kafka.aiven.orchestrationStarted.v3,
     Kafka.aiven.orchestratedEmail.v4,
-    Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, orchestratedEmailConsumer, feedbackConsumer) =>
+    Kafka.aiven.feedback.v1) { (orchestratedEmailConsumer, feedbackConsumer) =>
     createOKCustomerProfileResponse(mockServerClient)
     val triggered = TestUtil.customerTriggeredV4.copy(deliverAt = Some(Instant.now().plusSeconds(1)))
     populateTemplateSummaryTable(triggered.metadata.templateManifest)
@@ -56,20 +55,10 @@ class SchedulingServiceTest
 
     Kafka.aiven.triggered.v4.publishOnce(triggered)
 
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer, triggered = triggered)
     expectOrchestratedEmailEvents(noOfEventsExpected = 1, consumer = orchestratedEmailConsumer, triggered = triggered)
     expectFeedbackEvents(noOfEventsExpected = 2,
                          consumer = feedbackConsumer,
                          expectedStatuses = Set(FeedbackOptions.Pending, FeedbackOptions.Scheduled))
-  }
-
-  def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25.seconds,
-                                       noOfEventsExpected: Int,
-                                       shouldCheckTraceToken: Boolean = true,
-                                       consumer: KafkaConsumer[String, OrchestrationStartedV3],
-                                       triggered: TriggeredV4) = {
-    val orchestrationStartedEvents =
-      consumer.pollFor(noOfEventsExpected = noOfEventsExpected)
   }
 
   def expectOrchestratedEmailEvents(pollTime: FiniteDuration = 25.seconds,
