@@ -40,52 +40,34 @@ class SMSServiceTest
   behavior of "SMS Orchestration"
 
   it should "orchestrate SMS request to send immediately" in withMultipleThrowawayConsumersFor(
-    Kafka.aiven.orchestrationStarted.v3,
     Kafka.aiven.orchestratedSMS.v3,
-    Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, orchestratedSMSConsumer, feedbackConsumer) =>
+    Kafka.aiven.feedback.v1) { (orchestratedSMSConsumer, feedbackConsumer) =>
     createOKCustomerProfileResponse(mockServerClient)
     val triggered = TestUtil.customerTriggeredV4.copy(preferredChannels = Some(List(SMS)))
     uploadTemplateToFakeS3(region, s3Endpoint)(triggered.metadata.templateManifest)
-    
+
     populateTemplateSummaryTable(triggered.metadata.templateManifest)
     Kafka.aiven.triggered.v4.publishOnce(triggered)
 
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer, triggered = triggered)
     expectSMSOrchestrationEvents(noOfEventsExpected = 1, consumer = orchestratedSMSConsumer, triggered = triggered)
     expectFeedbackEvents(noOfEventsExpected = 1, consumer = feedbackConsumer, expectedStatuses = Set(Pending))
   }
 
   it should "orchestrate triggered event with sms contact details" in withMultipleThrowawayConsumersFor(
-    Kafka.aiven.orchestrationStarted.v3,
     Kafka.aiven.orchestratedSMS.v3,
-    Kafka.aiven.feedback.v1) { (orchestrationStartedConsumer, orchestratedSMSConsumer, feedbackConsumer) =>
+    Kafka.aiven.feedback.v1) { (orchestratedSMSConsumer, feedbackConsumer) =>
     createOKCustomerProfileResponse(mockServerClient)
     uploadTemplateToFakeS3(region, s3Endpoint)(TestUtil.customerTriggeredV4.metadata.templateManifest)
     val triggered = TestUtil.smsContactDetailsTriggered
     populateTemplateSummaryTable(triggered.metadata.templateManifest)
     Kafka.aiven.triggered.v4.publishOnce(triggered)
 
-    expectOrchestrationStartedEvents(noOfEventsExpected = 1, consumer = orchestrationStartedConsumer, triggered = triggered)
     expectSMSOrchestrationEvents(pollTime = 120.seconds,
                                  noOfEventsExpected = 1,
                                  shouldHaveCustomerProfile = false,
                                  consumer = orchestratedSMSConsumer,
                                  triggered = triggered)
     expectFeedbackEvents(noOfEventsExpected = 1, consumer = feedbackConsumer, expectedStatuses = Set(Pending))
-  }
-
-  def expectOrchestrationStartedEvents(pollTime: FiniteDuration = 25.seconds,
-                                       noOfEventsExpected: Int,
-                                       shouldCheckTraceToken: Boolean = true,
-                                       consumer: KafkaConsumer[String, OrchestrationStartedV3],
-                                       triggered: TriggeredV4) = {
-    val orchestrationStartedEvents =
-      consumer.pollFor(pollTime = pollTime, noOfEventsExpected = noOfEventsExpected)
-
-    orchestrationStartedEvents.foreach { o =>
-      if (shouldCheckTraceToken) o.metadata.traceToken shouldBe triggered.metadata.traceToken
-    }
-    orchestrationStartedEvents
   }
 
   def expectSMSOrchestrationEvents(pollTime: FiniteDuration = 20.seconds,
