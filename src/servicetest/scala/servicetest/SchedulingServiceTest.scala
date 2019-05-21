@@ -56,7 +56,7 @@ class SchedulingServiceTest
     Kafka.aiven.triggered.v4.publishOnce(triggered)
 
     expectOrchestratedEmailEvents(noOfEventsExpected = 1, consumer = orchestratedEmailConsumer, triggered = triggered)
-    expectFeedbackEvents(noOfEventsExpected = 2,
+    expectFeedbackEvents(noOfEventsExpected = 1,
                          consumer = feedbackConsumer,
                          expectedStatuses = Set(FeedbackOptions.Pending, FeedbackOptions.Scheduled))
   }
