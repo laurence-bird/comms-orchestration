@@ -59,8 +59,6 @@ class TaskExecutorSpec
 
   val sendFailedEvent = (failed: FailedV3) => IO.pure(recordMetadata)
 
-  val sendOrchestrationStartedEvent = (orchStarted: OrchestrationStartedV3) => IO.pure(recordMetadata)
-
   val traceToken         = "ssfifjsof"
   val generateTraceToken = () => traceToken
   val issueFeedback = new IssueFeedback[IO] {
@@ -80,11 +78,7 @@ class TaskExecutorSpec
       }
     }
 
-    TaskExecutor.execute(AlreadyOrchestrating,
-                         orchestrateTrigger,
-                         sendOrchestrationStartedEvent,
-                         generateTraceToken,
-                         issueFeedback)(scheduleId)
+    TaskExecutor.execute(AlreadyOrchestrating, orchestrateTrigger, generateTraceToken, issueFeedback)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe None
@@ -98,11 +92,7 @@ class TaskExecutorSpec
       }
     }
 
-    TaskExecutor.execute(FailureOrchestrating,
-                         orchestrateTrigger,
-                         sendOrchestrationStartedEvent,
-                         generateTraceToken,
-                         issueFeedback)(scheduleId)
+    TaskExecutor.execute(FailureOrchestrating, orchestrateTrigger, generateTraceToken, issueFeedback)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe None
@@ -128,11 +118,7 @@ class TaskExecutorSpec
       }
     }
 
-    TaskExecutor.execute(Orchestrating,
-                         orchestrateTrigger,
-                         sendOrchestrationStartedEvent,
-                         generateTraceToken,
-                         issueFeedback)(scheduleId)
+    TaskExecutor.execute(Orchestrating, orchestrateTrigger, generateTraceToken, issueFeedback)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe Some(scheduleWithTriggeredV4.triggeredV4.get, InternalMetadata(traceToken))
@@ -156,11 +142,7 @@ class TaskExecutorSpec
       }
     }
 
-    TaskExecutor.execute(Orchestrating,
-                         orchestrateTrigger,
-                         sendOrchestrationStartedEvent,
-                         generateTraceToken,
-                         issueFeedback)(scheduleId)
+    TaskExecutor.execute(Orchestrating, orchestrateTrigger, generateTraceToken, issueFeedback)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe Some(scheduleWithTriggeredV4.triggeredV4.get, InternalMetadata(traceToken))
@@ -187,11 +169,7 @@ class TaskExecutorSpec
       }
     }
 
-    TaskExecutor.execute(Orchestrating,
-                         orchestrateTrigger,
-                         sendOrchestrationStartedEvent,
-                         generateTraceToken,
-                         issueFeedback)(scheduleId)
+    TaskExecutor.execute(Orchestrating, orchestrateTrigger, generateTraceToken, issueFeedback)(scheduleId)
 
     implicit val patienceConfig = PatienceConfig(Span(3, Seconds))
     eventually {
@@ -234,11 +212,7 @@ class TaskExecutorSpec
         }
       }
 
-    TaskExecutor.execute(Orchestrating,
-                         orchestrateTrigger,
-                         sendOrchestrationStartedEvent,
-                         generateTraceToken,
-                         timedOutIssueFeedback)(scheduleId)
+    TaskExecutor.execute(Orchestrating, orchestrateTrigger, generateTraceToken, timedOutIssueFeedback)(scheduleId)
 
     //side effects
     implicit val patienceConfig = PatienceConfig(Span(6, Seconds))
@@ -281,11 +255,7 @@ class TaskExecutorSpec
       }
     }
 
-    TaskExecutor.execute(Orchestrating,
-                         orchestrateTrigger,
-                         sendOrchestrationStartedEvent,
-                         generateTraceToken,
-                         issueFeedback)(scheduleId)
+    TaskExecutor.execute(Orchestrating, orchestrateTrigger, generateTraceToken, issueFeedback)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe Some(scheduleWithTriggeredV4.triggeredV4.get, InternalMetadata(traceToken))
@@ -306,11 +276,7 @@ class TaskExecutorSpec
       }
     }
 
-    TaskExecutor.execute(Orchestrating,
-                         orchestrateTrigger,
-                         sendOrchestrationStartedEvent,
-                         generateTraceToken,
-                         issueFeedback)(scheduleId)
+    TaskExecutor.execute(Orchestrating, orchestrateTrigger, generateTraceToken, issueFeedback)(scheduleId)
 
     //side effects
     triggerOrchestrated shouldBe None

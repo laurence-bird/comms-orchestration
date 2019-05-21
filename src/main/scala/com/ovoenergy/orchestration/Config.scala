@@ -44,8 +44,6 @@ case class Config(
       Config.Topic[TriggeredV4]("comms.triggered.v4"),
       Config.Topic[TriggeredV4]("comms_triggered_p0_v4")
     ),
-    orchestrationStartedTopic: Config.Topic[OrchestrationStartedV3] =
-      Config.Topic[OrchestrationStartedV3]("comms.orchestration.started.v3"),
     feedbackTopic: Config.Topic[Feedback] = Config.Topic[Feedback]("comms.feedback"),
     failedTopic: Config.Topic[FailedV3] = Config.Topic[FailedV3]("comms.failed.v3"),
     orchestratedEmailTopic: Config.Topic[OrchestratedEmailV4] =

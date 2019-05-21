@@ -134,18 +134,12 @@ object Main extends IOApp with LoggingWithMDC {
           )
         }
 
-        produceOrchestrationStartedEvent = Producer
-          .publisherFor[OrchestrationStartedV3, IO](config.kafka, config.orchestrationStartedTopic, _.metadata.commId)
-
         issueFeedback = IssueFeedback[IO](config.kafka, config.feedbackTopic, config.failedTopic)
 
-        executeScheduledTask = TaskExecutor.execute(
-          schedulingPersistence,
-          orchestrateComm,
-          produceOrchestrationStartedEvent,
-          () => UUID.randomUUID.toString,
-          issueFeedback
-        )(_)
+        executeScheduledTask = TaskExecutor.execute(schedulingPersistence,
+                                                    orchestrateComm,
+                                                    () => UUID.randomUUID.toString,
+                                                    issueFeedback)(_)
 
         _ <- Resource.make(IO(QuartzScheduling.init()))(_ => IO(QuartzScheduling.shutdown()))
 
@@ -184,7 +178,6 @@ object Main extends IOApp with LoggingWithMDC {
           scheduleTask = scheduleTask,
           issueFeedback = issueFeedback,
           generateTraceToken = () => UUID.randomUUID().toString,
-          sendOrchestrationStartedEvent = produceOrchestrationStartedEvent,
           deduplication = communicationDeduplication,
           hash = hash
         )
