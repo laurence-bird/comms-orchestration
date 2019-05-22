@@ -12,6 +12,7 @@ import com.ovoenergy.orchestration.scheduling.Persistence.{
 }
 import org.apache.kafka.clients.producer.RecordMetadata
 import cats.implicits._
+import com.ovoenergy.kafka.common.event.EventMetadata
 import com.ovoenergy.orchestration.domain.{CommId, EventId, FailureDetails, InternalFailure, TraceToken}
 import com.ovoenergy.orchestration.kafka.producers.IssueFeedback
 import com.ovoenergy.orchestration.processes.Orchestrator
@@ -90,6 +91,19 @@ object TaskExecutor extends LoggingWithMDC {
         schedule.triggeredV4 match {
           case Some(triggered) => {
             val orchResult: IO[Either[ErrorDetails, RecordMetadata]] = for {
+              triggered <- IO.fromEither(schedule.triggeredV4.toRight(new Exception("It is impossible!!!")))
+              _ <- issueFeedback.send(
+                Feedback(
+                  triggered.metadata.commId,
+                  Some(triggered.metadata.friendlyDescription),
+                  extractCustomer(triggered.metadata.deliverTo),
+                  FeedbackOptions.Pending,
+                  Some(s"Trigger for communication accepted"),
+                  None,
+                  None,
+                  Some(triggered.metadata.templateManifest),
+                  EventMetadata.fromMetadata(triggered.metadata, triggered.metadata.commId ++ "-feedback-pending")
+                ))
               res <- orchestrator(triggered, internalMetadata)
             } yield res
 
