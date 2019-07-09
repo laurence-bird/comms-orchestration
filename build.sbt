@@ -77,7 +77,7 @@ lazy val orchestration = (project in file("."))
   .settings(
     libraryDependencies ++= Seq(
       "com.ovoenergy"              %% "comms-kafka-messages"      % commsKafkaMessagesVersion ,
-      "com.ovoenergy"              %% "comms-templates"           % "0.33",
+      "com.ovoenergy"              %% "comms-templates"           % "0.35",
       "is.cir" %% "ciris-core" % cirisVersion,
       "is.cir" %% "ciris-cats" % cirisVersion,
       "is.cir" %% "ciris-cats-effect" % cirisVersion,
@@ -182,4 +182,3 @@ lazy val orchestration = (project in file("."))
     )
   )
 
-  
